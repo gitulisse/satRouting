@@ -1,0 +1,10 @@
+pandas
+skyfield
+geopy
+plotly
+requests
+wbgapi
+matplotlib
+basemap
+dijkstra
+statistics

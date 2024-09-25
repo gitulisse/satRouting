@@ -1,0 +1,535 @@
+import constants
+import dijkstra
+from enum import Enum
+import environment as env
+from flux import Flux
+from geopy import distance
+from gravity_model import get_traffic_matrix
+from ground_station import GroundStation
+from itertools import groupby
+import json
+from link import LaserLink
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import random
+from skyfield.api import Timescale
+import statistics
+from strategy import Strategy
+import threading
+import time
+import utils
+
+class AnalysisMetric(Enum):
+    COMPARISON_WITH_DIJKSTRA = 1
+    AVERAGE_LINK_OCCUPATION = 2
+    DELIVERED_DROPPED_RATIO = 3
+    CONTROL_TRAFFIC_COMPARISON = 4
+    WEIGHT_SENSITIVITY_ANALYSIS = 5
+    TIME_PASSING_SIMULATION = 6
+
+class TrafficAnalyzer:
+    def __init__(self, ground_stations: list, satellites: list):
+        self.results = None
+        self.ground_stations = ground_stations
+        self.satellites = satellites
+
+    def analyze(self, metric: AnalysisMetric):
+        match metric:
+            case AnalysisMetric.COMPARISON_WITH_DIJKSTRA:
+                simulation_duration_backup = constants.SIMULATION_DURATION
+                constants.SIMULATION_DURATION = 1
+                self.prepare_results_for_comparison_with_dijkstra(ground_stations=self.ground_stations)
+                for i in range(0, simulation_duration_backup):
+                    utils.set_hour_shift(i)
+                    env.reset()
+                    env.prepare()
+                    env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites)
+                    env.start()
+                for strategy in [Strategy.POSITION_GUESSING_NO_LB, Strategy.POSITION_SHARING_NO_LB]:
+                    constants.ROUTING_STRATEGY = strategy
+                    fluxes = {}
+                    for i in range(0, simulation_duration_backup):
+                        utils.set_hour_shift(i)
+                        env.reset()
+                        env.prepare()
+                        env.put(0, self.prepare_strategy_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.put(0, self.sample_strategy_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.put(0, self.end_strategy_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.start()
+                utils.set_hour_shift(0)
+                constants.SIMULATION_DURATION = simulation_duration_backup
+
+            case AnalysisMetric.AVERAGE_LINK_OCCUPATION:
+                total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC
+                self.prepare_results_for_average_link_occupation_analysis()
+
+                for volume in range(1, total_traffic_backup + 1, 1):
+                    constants.TOTAL_VOLUME_OF_TRAFFIC = volume
+                    traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
+                    print(traffic_matrix)
+                    for strategy in Strategy:
+                        for i in range(0, 10):
+                            utils.set_hour_shift(i)
+                            env.reset()
+                            constants.ROUTING_STRATEGY = strategy
+                            env.prepare()
+                            fluxes = {}
+                            env.put(0, self.prepare_link_occupation_analysis, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
+                            env.put(constants.SIMULATION_DURATION, self.sample_link_occupation_analysis, satellites=self.satellites, ground_stations=self.ground_stations, fluxes=fluxes)
+                            env.put(constants.SIMULATION_DURATION, self.end_link_occupation_analysis, ground_stations=self.ground_stations, fluxes=fluxes)
+                            env.start()
+                utils.set_hour_shift(0)
+                constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup
+                
+            case AnalysisMetric.DELIVERED_DROPPED_RATIO:
+                total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC
+                self.prepare_results_for_delivered_dropped_ratio()
+
+                for volume in range(1, total_traffic_backup + 1, 1):
+                    constants.TOTAL_VOLUME_OF_TRAFFIC = volume
+                    traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
+                    print(traffic_matrix)
+                    for strategy in Strategy:
+                        env.reset()
+                        constants.ROUTING_STRATEGY = strategy
+                        env.prepare()
+                        fluxes = {}
+                        env.put(0, self.prepare_delivered_dropped_ratio, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
+                        env.put(constants.SIMULATION_DURATION, self.sample_delivered_dropped_ratio, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.put(constants.SIMULATION_DURATION, self.end_delivered_dropped_ratio, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.start()
+
+                constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup
+
+            case AnalysisMetric.CONTROL_TRAFFIC_COMPARISON:
+                neighbors_update_time_backup = constants.SATELLITE_NEIGHBORS_UPDATE_TIME
+                topology_update_backup = constants.TOPOLOGY_UPDATE_TIME
+                neighbors_update_times = [5, 10, 15, 20, 30, 60]
+                self.prepare_results_for_control_traffic_comparison(neighbors_update_times)
+
+                traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
+                print(traffic_matrix)
+                for strategy in [Strategy.POSITION_SHARING_NO_LB,
+                                 Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                 Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                 Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+                    constants.ROUTING_STRATEGY = strategy
+                    for time in neighbors_update_times:
+                        constants.SATELLITE_NEIGHBORS_UPDATE_TIME = time
+                        constants.TOPOLOGY_UPDATE_TIME = min(30, constants.SATELLITE_NEIGHBORS_UPDATE_TIME)
+                        for i in range(0, 10):
+                            utils.set_hour_shift(i)
+                            env.reset()
+                            env.prepare()
+                            fluxes = {}
+                            env.put(0, self.prepare_control_traffic_comparison, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
+                            env.put(constants.SIMULATION_DURATION, self.sample_control_traffic_comparison, ground_stations=self.ground_stations, fluxes=fluxes, neighbors_update_time=time)
+                            env.put(constants.SIMULATION_DURATION, self.end_control_traffic_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
+                            env.start()
+                utils.set_hour_shift(0)
+                constants.SATELLITE_NEIGHBORS_UPDATE_TIME = neighbors_update_time_backup
+                constants.TOPOLOGY_UPDATE_TIME = topology_update_backup
+
+            case AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS:
+                strategy_backup = constants.ROUTING_STRATEGY
+                constants.ROUTING_STRATEGY = Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB
+                weights = [0.1, 0.25, 0.37, 0.5, 0.63, 0.75, 0.9]
+                self.prepare_results_for_weight_sensitivity_analysis(weights)
+                traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
+                print(traffic_matrix)
+                for weight in weights:
+                    constants.LOAD_BALANCING_WEIGHT_FACTOR = weight
+                    for i in range(0, 10):
+                        utils.set_hour_shift(i)
+                        env.reset()
+                        env.prepare()
+                        fluxes = {}
+                        env.put(0, self.prepare_weight_sensitivity_analysis, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
+                        env.put(constants.SIMULATION_DURATION, self.sample_weight_sensitivity_analysis, satellites=self.satellites, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.put(constants.SIMULATION_DURATION, self.end_weight_sensitivity_analysis, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.start()
+                utils.set_hour_shift(0)
+                constants.ROUTING_STRATEGY = strategy_backup
+
+            case AnalysisMetric.TIME_PASSING_SIMULATION:
+                strategy_backup = constants.ROUTING_STRATEGY
+                traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
+                self.prepare_results_for_time_passing_simulation()
+                for strategy in [Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+                    constants.ROUTING_STRATEGY = strategy
+                    fluxes = {}
+                    env.reset()
+                    env.prepare()
+                    env.put(0, self.prepare_time_passing_simulation, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
+                    for i in range(1, constants.SIMULATION_DURATION + 1):
+                        env.put(i, self.sample_time_passing_simulation, ground_stations=self.ground_stations, fluxes=fluxes)
+                    env.put(constants.SIMULATION_DURATION, self.end_time_passing_simulation, ground_stations=self.ground_stations, fluxes=fluxes)
+                    env.start()
+                constants.ROUTING_STRATEGY = strategy_backup
+
+
+        print(self.results)
+
+        if constants.SIMULATION_DURATION >= 60:
+            filename = utils.randomword(10)
+            print("Storing result in file named", filename)
+            with open(filename + '.json', 'w', encoding='utf-8') as f:
+                json.dump(self.results, f, ensure_ascii=False, indent=4)
+
+        return self.results
+
+
+    def prepare_results_for_comparison_with_dijkstra(self, ground_stations):
+        self.results = {}
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                self.results[source.get_name() + ' - ' + destination.get_name()] = {
+                    'DIJKSTRA' : {},
+                    Strategy.POSITION_GUESSING_NO_LB.name : {},
+                    Strategy.POSITION_SHARING_NO_LB.name : {}
+                }
+                for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys():
+                    self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
+                        'successful' : [],
+                        'failed' : 0,
+                        'distance' : []
+                    }
+
+    def sample_dijkstra(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        satellites: dict = kwargs['satellites']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths]))
+
+    def prepare_strategy_comparison(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                flux = utils.create_new_flux((destination.lat, destination.lon), 0)
+                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
+                source.send_flux(flux)
+
+    def sample_strategy_comparison(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                if destination.is_incoming_flux_alive(flux):
+                    destination.get_flux_info(flux, until=utils.get_current_time())
+                    print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flux.paths[-1]])
+                    print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flux.paths[-1]), "hops.")
+                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['successful'].append(len(flux.paths[-1]))
+                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['distance'].append(flux.travelled_distance)
+                else:
+                    print(f"Failed to route flux to destination from {source.get_name()} to {destination.get_name()}.")
+                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['failed'] += 1
+
+    def end_strategy_comparison(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flux(flux)
+        fluxes.clear()
+    
+    def _get_candidate_end_satellites_names(self, satellites, position):
+        sat_list = utils.get_closer_satellites(satellites, position)
+        return [sat['name'] for sat in sat_list if sat['distance'] < constants.SATELLITE_COVERAGE_AREA_RADIUS]
+
+    def _get_path_distance(self, path: list, source, destination, satellites) -> float:
+        distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites)
+        distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites)
+        older_hop = path[0]
+        for hop in path[1:]:
+            distance += utils.get_distance_between_satellites(older_hop, hop, satellites=satellites)
+            older_hop = hop
+        return distance
+
+    def _get_dijkstra_shortest_paths(self, satellites, source, destination):
+        g = dijkstra.Graph()
+        for name, sat in satellites.items():
+            for link in sat._links.values(): 
+                if link.is_active():
+                    g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target))
+        end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon))
+
+        d = dijkstra.DijkstraSPF(g, source.sat.get_name())
+        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites]
+        shortest_path = min(shortest_paths, key=lambda x: len(x))
+        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
+        for sp in shortest_paths:
+            print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
+        print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
+        return shortest_paths
+    
+
+    def prepare_results_for_average_link_occupation_analysis(self):
+        self.results = {}
+        for s in Strategy:
+            self.results[s.name] = {
+                'average_link_occupation' : [],
+                'involved_satellites' : [],
+                'cumulative_dropped_data' : [],
+                'volume_of_traffic' : []
+            }
+
+    def prepare_link_occupation_analysis(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        traffic_matrix = kwargs['traffic_matrix']
+        for source in ground_stations.values():
+            gs_traffic_details = traffic_matrix[source.get_name()]
+            for destination_name in gs_traffic_details:
+                destination = ground_stations[destination_name.upper()]
+                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name])
+                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
+                source.send_flux(flux)
+
+    def sample_link_occupation_analysis(self, kwargs):
+        satellites: dict = kwargs['satellites']
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(None, satellites)
+        average = statistics.mean([link_occupation for _, link_occupation in all_sats_and_link_occupations])
+        involved_satellites = len(set([sat_name for sat_name, _ in all_sats_and_link_occupations]))
+        self.results[constants.ROUTING_STRATEGY.name]['average_link_occupation'].append(average)
+        self.results[constants.ROUTING_STRATEGY.name]['involved_satellites'].append(involved_satellites)
+        self.results[constants.ROUTING_STRATEGY.name]['volume_of_traffic'].append(constants.TOTAL_VOLUME_OF_TRAFFIC)
+        
+        dropped_data = 0
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                dropped_data += destination.get_flux_info(flux, until = utils.get_current_time())[2]
+        self.results[constants.ROUTING_STRATEGY.name]['cumulative_dropped_data'].append(dropped_data)
+        print(f"Average link occupation: {average}. {involved_satellites} satellites involved in routing. Cumulative dropped data: {dropped_data}")
+
+    def end_link_occupation_analysis(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flux(flux)
+
+    def _get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(self, flux_id: int, satellites):
+        all_sats_and_link_occupations = []
+        for name, sat in satellites.items():
+            if sat.fluxes.values():
+                for f, link in sat.fluxes.values():
+                    if isinstance(link, LaserLink):
+                        if flux_id == None or f.id == flux_id:
+                            all_sats_and_link_occupations.append((name, constants.SATELLITE_LINK_CAPACITY - link.get_available_bandwidth()))
+        return all_sats_and_link_occupations
+
+
+    def prepare_results_for_delivered_dropped_ratio(self):
+        self.results = {}
+        for s in Strategy:
+            self.results[s.name] = {
+                'delivered' : [],
+                'dropped' : [],
+                'volume_of_traffic' : []
+            }
+
+    def prepare_delivered_dropped_ratio(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        traffic_matrix = kwargs['traffic_matrix']
+        for source in ground_stations.values():
+            gs_traffic_details = traffic_matrix[source.get_name()]
+            for destination_name in gs_traffic_details:
+                destination = ground_stations[destination_name.upper()]
+                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name])
+                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
+                source.send_flux(flux)
+
+    def sample_delivered_dropped_ratio(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        
+        delivered_data = 0
+        dropped_data = 0
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time())
+                delivered_data += delivered
+                dropped_data += dropped
+
+        self.results[constants.ROUTING_STRATEGY.name]['delivered'].append(delivered_data)
+        self.results[constants.ROUTING_STRATEGY.name]['dropped'].append(dropped_data)
+        self.results[constants.ROUTING_STRATEGY.name]['volume_of_traffic'].append(constants.TOTAL_VOLUME_OF_TRAFFIC)
+
+    def end_delivered_dropped_ratio(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flux(flux)
+
+
+    def prepare_results_for_control_traffic_comparison(self, update_times):
+        self.results = {}
+        for s in [Strategy.POSITION_SHARING_NO_LB,
+                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+            self.results[s.name] = {}
+            for time in update_times:
+                self.results[s.name][time] = {
+                    'delivered' : [],
+                    'dropped' : [],
+                    'control_traffic' : []
+                }
+
+    def prepare_control_traffic_comparison(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        traffic_matrix = kwargs['traffic_matrix']
+        for source in ground_stations.values():
+            gs_traffic_details = traffic_matrix[source.get_name()]
+            for destination_name in gs_traffic_details:
+                destination = ground_stations[destination_name.upper()]
+                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name])
+                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
+                source.send_flux(flux)
+
+    def sample_control_traffic_comparison(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        neighbors_update_time = kwargs['neighbors_update_time']
+        
+        delivered_data = 0
+        dropped_data = 0
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time())
+                delivered_data += delivered
+                dropped_data += dropped
+
+        self.results[constants.ROUTING_STRATEGY.name][neighbors_update_time]['delivered'].append(delivered_data)
+        self.results[constants.ROUTING_STRATEGY.name][neighbors_update_time]['dropped'].append(dropped_data)
+        self.results[constants.ROUTING_STRATEGY.name][neighbors_update_time]['control_traffic'].append(env.control_traffic_data)
+
+    def end_control_traffic_comparison(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flux(flux)
+
+
+    def prepare_results_for_weight_sensitivity_analysis(self, weights: list):
+        self.results = {}
+        for weight in weights:
+            self.results[weight] = {
+                'average_link_occupation' : [],
+                'involved_satellites' : [],
+                'cumulative_dropped_data' : [],
+                'volume_of_traffic' : []
+            }
+
+    def prepare_weight_sensitivity_analysis(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        traffic_matrix = kwargs['traffic_matrix']
+        for source in ground_stations.values():
+            gs_traffic_details = traffic_matrix[source.get_name()]
+            for destination_name in gs_traffic_details:
+                destination = ground_stations[destination_name.upper()]
+                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name])
+                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
+                source.send_flux(flux)
+
+    def sample_weight_sensitivity_analysis(self, kwargs):
+        satellites: dict = kwargs['satellites']
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(None, satellites)
+        average = statistics.mean([link_occupation for _, link_occupation in all_sats_and_link_occupations])
+        involved_satellites = len(set([sat_name for sat_name, _ in all_sats_and_link_occupations]))
+        self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['average_link_occupation'].append(average)
+        self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['involved_satellites'].append(involved_satellites)
+        self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['volume_of_traffic'].append(constants.TOTAL_VOLUME_OF_TRAFFIC)
+        
+        dropped_data = 0
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                dropped_data += destination.get_flux_info(flux, until = utils.get_current_time())[2]
+        self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['cumulative_dropped_data'].append(dropped_data)
+        print(f"Average link occupation: {average}. {involved_satellites} satellites involved in routing. Cumulative dropped data: {dropped_data}")
+
+    def end_weight_sensitivity_analysis(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flux(flux)
+
+
+    def prepare_results_for_time_passing_simulation(self):
+        self.results = {}
+        for s in [Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+            self.results[s.name] = {
+                'delivered' : [],
+                'dropped' : [],
+                'distance' : []
+            }
+
+    def prepare_time_passing_simulation(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        traffic_matrix = kwargs['traffic_matrix']
+        for source in ground_stations.values():
+            gs_traffic_details = traffic_matrix[source.get_name()]
+            for destination_name in gs_traffic_details:
+                destination = ground_stations[destination_name.upper()]
+                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name])
+                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
+                source.send_flux(flux)
+
+    def sample_time_passing_simulation(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        
+        delivered_data = 0
+        dropped_data = 0
+        distance_data = 0
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time())
+                delivered_data += delivered
+                dropped_data += dropped
+                distance_data += flux.travelled_distance
+        distance_data /= len(fluxes)
+
+        self.results[constants.ROUTING_STRATEGY.name]['delivered'].append(delivered_data)
+        self.results[constants.ROUTING_STRATEGY.name]['dropped'].append(dropped_data)
+        self.results[constants.ROUTING_STRATEGY.name]['distance'].append(distance_data)
+
+    def end_time_passing_simulation(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        fluxes: dict = kwargs['fluxes']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flux(flux)

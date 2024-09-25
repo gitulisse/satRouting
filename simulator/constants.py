@@ -1,0 +1,37 @@
+import argparse
+from queue import Queue
+from strategy import Strategy
+
+DEBUG = False
+
+LATITUDE_CUTOFF = 70
+
+SATELLITE_NEIGHBORS_UPDATE_TIME = 10
+TOPOLOGY_UPDATE_TIME = min(30, SATELLITE_NEIGHBORS_UPDATE_TIME)
+
+#Value between 0 and 1 stating how much the neighbor's state should affect the overall state value of the satellite (0 = no weight on neighbors, 1 = overall state depends exclusively on neighbors' state)
+LOAD_BALANCING_WEIGHT_FACTOR = 0.9
+
+SATELLITE_COVERAGE_AREA_RADIUS = 2350
+SATELLITE_LINK_CAPACITY = 1 #Mbps
+GROUND_STATION_LINK_CAPACITY = 1000 #Mbps
+
+TIME_MULTIPLIER = 1
+
+parser = argparse.ArgumentParser(prefix_chars='-')
+parser.add_argument("-s", "--strategy", type=int)
+parser.add_argument("-d", "--duration", type=int)
+parser.add_argument("-t", "--traffic", type=int)
+args = parser.parse_args()
+if args.strategy:
+    ROUTING_STRATEGY = Strategy(args.strategy)
+else:
+    ROUTING_STRATEGY = Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK
+
+FLUX_TTL = 31
+LOOP_AVOIDANCE_CUTOFF = 9
+
+SIMULATION_DURATION = args.duration if args.duration else 60
+TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Mbps
+
+drawing_queue = Queue()
