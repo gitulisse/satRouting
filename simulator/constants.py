@@ -2,6 +2,8 @@ import argparse
 from queue import Queue
 from strategy import Strategy
 
+#Contant values to run the application
+
 DEBUG = False
 
 LATITUDE_CUTOFF = 70

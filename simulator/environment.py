@@ -5,6 +5,7 @@ from geopy import distance
 from skyfield.api import Timescale
 from strategy import Strategy
 import utils
+from datetime import datetime,timezone
 
 satellites: dict
 ground_stations: dict
@@ -65,7 +66,7 @@ def start():
     
     print("Simulation started. Configuraton:")
     print("- Routing strategy:", constants.ROUTING_STRATEGY.name)
-    print("- Simulation time:", utils.get_current_time().utc_strftime())
+    print("- Simulation time:", datetime.now(timezone.utc)) #problems with utils lib
     print("- Duration:", constants.SIMULATION_DURATION, "seconds")
     print("- Total traffic in network:", constants.TOTAL_VOLUME_OF_TRAFFIC, "Mbps")
     print("- Involved ground stations:", len(env.ground_stations))

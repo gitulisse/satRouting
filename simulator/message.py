@@ -13,11 +13,14 @@ class Message:
         self.delivered = None
         self.ttl = 32
 
+    #add steps as satellite to message
     def add_step(self, sat):
         self._steps.append(sat)
 
+    #get steps
     def get_steps(self) -> list:
         return self._steps
 
+    #calculate the size of message (specific parts)
     def __sizeof__(self) -> int:
         return sys.getsizeof(self.lat) + sys.getsizeof(self.lon) + sys.getsizeof(self.message) + sys.getsizeof(self.is_link_update)

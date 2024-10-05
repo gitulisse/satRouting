@@ -18,10 +18,12 @@ import utils
 import sys
 sys.setrecursionlimit(10000)
 
+#Read JSONs
 def read_from_json(filename):
     with open(f'{filename}.json', 'r', encoding='utf-8') as f:
         return json.load(f)
 
+#Constellation map generated
 def show_constellation_map(satellites: list[Sat], ground_stations: list[GroundStation], **kwargs):
     def draw_map(m, scale=0.2):
         # draw a shaded-relief image
@@ -85,6 +87,7 @@ def show_constellation_map(satellites: list[Sat], ground_stations: list[GroundSt
 
 utils.ts = load.timescale()
 
+#GroundStations coordinates
 san_francisco_gs = GroundStation(37.77750000, -122.41638889, 'San Francisco')
 canberra_gs = GroundStation(-35.3, 149.133333, 'Canberra')
 punta_arenas_gs = GroundStation(-53.166667, -70.933333, 'Punta Arenas')
@@ -100,6 +103,7 @@ new_york_gs = GroundStation(40.71277778, -74.00611111, 'New York')
 buenos_aires_gs = GroundStation(-34.608333, -58.371944, 'Buenos Aires')
 oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo')
 
+#Ground Stations selected
 ground_stations = {
     'TOKYO' : tokyo_gs,
     'NEW YORK' : new_york_gs,
@@ -107,6 +111,7 @@ ground_stations = {
     'SAN FRANCISCO' : san_francisco_gs
 }
 
+#Obtain the Traffic Matrix
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print(traffic_matrix)
 
@@ -126,6 +131,7 @@ for index, coordinates in countries_coordinates_df.iterrows():
 print("Completed.")
 '''
 
+#Retrieve satellites info from NORAD
 print("Retrieving satellites...")
 stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
 satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
@@ -178,7 +184,7 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 #charts.show_time_passing_simulation_chart(read_from_json("time_passing_simulation"))
 #charts.show_loop_avoidance_analysis_chart()
 
-#Per mostrare la mappa del globo con le posizioni delle Ground Station
+#Global map showing Ground Stations' positions
 #show_constellation_map([], ground_stations.values(), links=[], paths=[])
 
 '''

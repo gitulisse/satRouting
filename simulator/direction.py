@@ -1,5 +1,6 @@
 from enum import Enum
 
+#Enum to manage directions
 class Direction(Enum):
     NORTH = 1
     SOUTH = 2

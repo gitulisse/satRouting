@@ -1,7 +1,8 @@
 from setuptools import Extension, setup
 from Cython.Build import cythonize
 
-extensions = Extension("Tesi", [
+#Custom file encoding in C-like files to improve perfomances
+extensions = Extension("simulator", [
                                 "constants.py", 
                                 "direction.py", 
                                 "environment.py", 
