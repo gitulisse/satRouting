@@ -58,7 +58,7 @@ class Sat:
 
         #debug log
         if constants.DEBUG:
-            print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", datetime.now(timezone.utc))
+            print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time())
         
 
         self.notify_neighbor_unlink(dir) #notify link removal to neighbor
@@ -71,7 +71,7 @@ class Sat:
         if leftovers:
             for flux in leftovers:
                 if constants.DEBUG:
-                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", datetime.now(timezone.utc), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                 flux.drop_steps_from(self) #remove flux's steps that pass through this link of the satellite
                 self.open_flux(flux)
         self._reroute_all() #rerouting
@@ -86,13 +86,13 @@ class Sat:
             self.notify_neighbor_unlink(dir)
         
         if constants.DEBUG:
-            print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", datetime.now(timezone.utc))
+            print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time())
         
         leftovers = self._links[dir].idle() #stores remaining fluxes
         if leftovers and self.is_operational():
             for flux in leftovers:
                 if constants.DEBUG:
-                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", datetime.now(timezone.utc), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                 flux.drop_steps_from(self)
                 self.open_flux(flux)
         if not(self.is_operational()):
@@ -120,7 +120,7 @@ class Sat:
         else:
             raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id) 
         if constants.DEBUG:
-            print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", datetime.now(timezone.utc))
+            print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time())
 
     #Return tuple (flux, link) if the flux id is stored
     def get_stored_flux_direction(self, alias_id: int) -> list[(Flux, Link)]:
@@ -131,7 +131,7 @@ class Sat:
     #Manage drop of fluxes
     def drop_flux(self, flux: Flux, reason: FluxState):
         if constants.DEBUG: #debugging messages
-            msg = "Flux " + str(flux.id) + " with alias id " + str(flux.alias_id) + " with rate " + str(flux.rate) + " Mbps has been dropped by Satellite " + str(self.get_name()) + " at time " + datetime.now(timezone.utc) + ". "
+            msg = "Flux " + str(flux.id) + " with alias id " + str(flux.alias_id) + " with rate " + str(flux.rate) + " Mbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time() + ". "
             if reason == FluxState.SATELLITE_CONGESTED:
                 msg += "Satellite is congested."
             elif reason == FluxState.LINK_CONGESTED:
@@ -195,7 +195,7 @@ class Sat:
                 for flux in leftovers:
                     #Debug
                     if constants.DEBUG:
-                        print("Leftover from gs_link on Satellite", self.get_name(), "at time", datetime.now(timezone.utc), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                        print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                     
                     flux.drop_steps_from(self) #remaining fluxes are dropped
                     self.open_flux(flux) #reopen of these fluxes for resend
@@ -264,9 +264,9 @@ class Sat:
             #Debug
             if constants.DEBUG:
                 if isinstance(link, RadioLink): #if it's a radiolink (to the GS)
-                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", [gs.get_name() for gs in link.target], "at time", datetime.now(timezone.utc)) 
+                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", [gs.get_name() for gs in link.target], "at time", utils.get_current_time()) 
                 else:
-                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", link.target.get_name(), "at time", datetime.now(timezone.utc))
+                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", link.target.get_name(), "at time", utils.get_current_time())
             self.store_flux_direction(flux, link)
 
             if isinstance(link, RadioLink):
@@ -304,7 +304,7 @@ class Sat:
     def open_flux(self, flux: Flux):
         #Debug
         if constants.DEBUG:
-            print("Opening flux", flux.id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", datetime.now(timezone.utc))
+            print("Opening flux", flux.id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time())
         flux.add_step(self) #flux is added to the self satellite
         flux.alias_id = self.mapping_table.add(flux.alias_id) #update of the id, added to the mapping table
         if flux.ttl == 0:
@@ -525,7 +525,7 @@ class Sat:
                 if flux_simulation and flux_simulation[0][2] != link and not(isinstance(flux_simulation[0][2], FluxState) and link == None): 
                     #debug
                     if constants.DEBUG:
-                        print("Flux", flux.id, "with alias id", flux.alias_id, "is being rerouted from link", link, "to link", flux_simulation[0][2], "on Satellite", self.get_name(), "at time:", datetime.now(timezone.utc))
+                        print("Flux", flux.id, "with alias id", flux.alias_id, "is being rerouted from link", link, "to link", flux_simulation[0][2], "on Satellite", self.get_name(), "at time:", utils.get_current_time())
                     
                     fluxes_copy.append(flux.clone()) #add copy of the flux
                     input_id = self.mapping_table.remove(flux.alias_id) #assign the id value to input_id and remove id of current flux from table
@@ -578,7 +578,7 @@ class Sat:
             else:
                 #debug
                 if constants.DEBUG:
-                    print("Closed dropped flux", flux.id, "with alias id", flux.alias_id, "with rate", flux.rate, "Mbps on Satellite", self.get_name(), "at time", datetime.now(timezone.utc))
+                    print("Closed dropped flux", flux.id, "with alias id", flux.alias_id, "with rate", flux.rate, "Mbps on Satellite", self.get_name(), "at time", utils.get_current_time())
                 f = [f for f in self.DEBUG_dropped_fluxes if f.alias_id == flux.alias_id][0] #assume at least there is a flux and stores it in f
                 self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flux.destination[0] and gs.lon == flux.destination[1]][0]].DEBUG_close_dropped_flux(f) #check if there is association between destination and GS coordinates then drop the flux f
                 del self.DEBUG_dropped_fluxes[[i for i, fl in enumerate(self.DEBUG_dropped_fluxes) if fl.alias_id == flux.alias_id][0]] #delete debug dropped fluxes if there is the same id

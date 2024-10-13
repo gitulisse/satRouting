@@ -28,12 +28,24 @@ args = parser.parse_args()
 if args.strategy:
     ROUTING_STRATEGY = Strategy(args.strategy)
 else:
-    ROUTING_STRATEGY = Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK
+    ROUTING_STRATEGY = Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK #if there is no strategy it's used Position sharing with Load Balance on saturated links
 
 FLUX_TTL = 31
-LOOP_AVOIDANCE_CUTOFF = 9
+LOOP_AVOIDANCE_CUTOFF = 9 #loop avoidance
 
-SIMULATION_DURATION = args.duration if args.duration else 60
-TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Mbps
+SIMULATION_DURATION = args.duration if args.duration else 60 #if there is no durantion it'll be set to 60 secs
+TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Mbps passed by user in the command else 20
 
 drawing_queue = Queue()
+
+
+
+class NetworkParameters:
+    LEO_GEO_GS_TD = 0.35 # seconds
+    PACKET_SIZE = 1_500  # bytes
+    SATELLITE_QUEUE_SIZE = 0 # bytes
+    TOTAL_VOLUME_OF_TRAFFIC = 1_000_000_000 # bit / second
+    CITIES_FILE_PATH = 'cities.yaml'
+    SATELLITE_PORT_RATE = 0  # bit / second
+    LINK_SWITCH_DELAY = 0.25  # seconds
+    LIMIT_BYTES = True
