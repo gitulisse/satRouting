@@ -209,7 +209,7 @@ class TrafficAnalyzer:
                         'distance' : [] #store the travelled distance
                     }
     
-    #calculate shortest path between 2 GS stations
+    #calculate shortest path between 2 GS stations with DIJKSTRA
     def sample_dijkstra(self, kwargs): #kwargs passes a single dictionary
         ground_stations: dict = kwargs['ground_stations'] #extract the dictionary of GS
         satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
@@ -288,6 +288,7 @@ class TrafficAnalyzer:
                     g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target)) #add a connection from name(the current satellite) to the target
         end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) #otherwise check for the closet satellites in the area of destination GS
 
+        #calculate Dijkstra's shortest path
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
 
         shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites] #list of paths, for every candidate as end_satellite calculate the shortest path from the source

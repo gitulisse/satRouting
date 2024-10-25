@@ -183,9 +183,9 @@ class Sat:
     def _update_gs_link(self):
         gs_candidates = []
         for gs in self._ground_stations.values():
-            distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km
+            distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km #calculate distance between 2 points using Geopy
             if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                gs_candidates.append(gs) #if distance from lat & lon of GS is less then GS's area radius appends GS to candidates
+                gs_candidates.append(gs) #if distance from lat & lon of GS is less then satelllite's area radius appends GS to candidates
         
         if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
             leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
@@ -205,7 +205,7 @@ class Sat:
     #Update satellite position
     def _update_position(self):
         geocentric = self._earth_satellite.at(utils.get_current_time()) #calculate geocentric position of satellite
-        print(utils.get_current_time()) ############################################################################################
+        print(utils.get_current_time()) 
         lat, lon = wgs84.latlon_of(geocentric) #geographic coordinates conversion to standard WGS84
         self._lat = lat.degrees
         self._lon = lon.degrees
@@ -219,7 +219,7 @@ class Sat:
             east_link = self._links.get(Direction.EAST)
             west_link = self._links.get(Direction.WEST)
             
-            #calculate longitude delta for transaltions in degrees
+            #calculate longitude delta for translations in degrees
             if east_link.is_active() or west_link.is_active():
                 longitude_delta = (40075 / 2 / 6) / (40075 / 360) * math.cos(self._lat)
 
@@ -234,7 +234,7 @@ class Sat:
                     else:
                         west_link.lon = self.get_longitude() - longitude_delta
             
-             #calculate latitude delta for transaltions in degrees
+            #calculate latitude delta for translations in degrees
             if north_link.is_active() or south_link.is_active():
                 latitude_delta = (40008 / 11) / (40008 / 2 / 180)
 
@@ -280,10 +280,10 @@ class Sat:
     #reopen flux
     def _reopen_flux(self, flux: Flux):
         if self.is_operational() == False:  
-            self._close_internal_flux(flux.alias_id) #if flux NOT operational, close and drop
+            self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
             self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
         else:
-            routing_decisions = self.route(flux) #otherwise if satellite is operational, calculates routing for the flux 
+            routing_decisions = self.route(flux) #otherwise if satellite is operational, calculates routing for the flux (START THE ROUTE DECISION CORE)
             self._close_internal_flux(flux.alias_id) #close the internal flux
             if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
                 for _, f, _ in routing_decisions[1:]:
@@ -312,7 +312,7 @@ class Sat:
         else:
             self._reopen_flux(flux)
     
-    #Manage routing decisions
+    #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
         routing_decisions = self.basic_route(flux)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)

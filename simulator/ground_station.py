@@ -202,7 +202,7 @@ class GroundStation:
 
     #attach the GS to closest satellite
     def reattach(self):
-        distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False) # increasing distances to closer satellite
+        distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False) #get closer satellites from increasing distances to closer satellite
         new_sat = self.satellites.get(distances[0]['name'])  #closest satellite accessing through its name
         #debug
         if constants.DEBUG:
