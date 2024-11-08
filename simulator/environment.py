@@ -5,7 +5,6 @@ from geopy import distance
 from skyfield.api import Timescale
 from strategy import Strategy
 import utils
-from datetime import datetime,timezone
 
 satellites: dict
 ground_stations: dict
@@ -15,7 +14,7 @@ class PriorityQueue:
         self.queue = []
 
     def put(self, priority, function, **kwargs):
-        self.queue.append((priority, function, kwargs)) #add elemenyt to queue (a tuple of priority, function, kwargs)
+        self.queue.append((priority, function, kwargs)) #add elemenyt to queue (a tuple of "priority, function, kwargs")
         self.queue.sort(key=lambda p: p[0]) #sort elements with increasing order
 
     def get(self):
@@ -49,17 +48,13 @@ def prepare():
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
-        
-        #update position
-        for sat in env.satellites.values():
+        for sat in env.satellites.values(): #update positions
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, update_satellites_position) 
-        #update neighbors
-        for sat in env.satellites.values():
+        for sat in env.satellites.values(): #update neighbors
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
-        #reroute
-        for sat in env.satellites.values():
+        for sat in env.satellites.values(): #reroute
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat._reroute_all)
 
@@ -106,11 +101,14 @@ def start():
             env.elapsed_time = time
             print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds") #update time, printing it
 
+        #print("ACTIONS QUEUE", action)
+
         #if there are kwargs execute actions with these params, else without params
         if kwargs:
             action(kwargs)
         else:
             action()
+        
 
     print("Simulation ended.")
 

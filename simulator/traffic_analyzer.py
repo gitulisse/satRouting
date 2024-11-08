@@ -48,6 +48,7 @@ class TrafficAnalyzer:
                     utils.set_hour_shift(i) #repeat simulation shifting hour from 0 to simulation_duration_backup
                     env.reset()
                     env.prepare()
+                    #USE DIJKSTRA AS BASELINE
                     env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites) #execute the simulation with dijkstra algorithm
                     env.start()
                 for strategy in [Strategy.POSITION_GUESSING_NO_LB, Strategy.POSITION_SHARING_NO_LB]: #assign these strateies to ROUTIING_STRATEGY
@@ -83,7 +84,7 @@ class TrafficAnalyzer:
                             env.put(0, self.prepare_link_occupation_analysis, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix) #put event prepare_link_occupation_analysis with 0 delay (executed as first) and pass as params gs, fluxes & traffic matrix
                             env.put(constants.SIMULATION_DURATION, self.sample_link_occupation_analysis, satellites=self.satellites, ground_stations=self.ground_stations, fluxes=fluxes) #put event that store data for  analysis at the end of simulation (constants.SIMULATION_DURATION) with params
                             env.put(constants.SIMULATION_DURATION, self.end_link_occupation_analysis, ground_stations=self.ground_stations, fluxes=fluxes) #put event end links occupation analysis with params at the end of simulation
-                            env.start() #stats the simulation with the events inserted by env.put command
+                            env.start() #starts the simulation with the events inserted by env.put command
                 utils.set_hour_shift(0)
                 constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup
             
@@ -261,7 +262,7 @@ class TrafficAnalyzer:
         fluxes.clear() #after closing all active fluxes, the dictionary fluxes is cleared for future simulations
 
     #obtain list of closer satellites in coverage area
-    def _get_candidate_end_satellites_names(self, satellites, position):
+    def _get_candidate_end_satellites_names(self, satellites, position): #position for destination coordinates
         sat_list = utils.get_closer_satellites(satellites, position) #list of closer satellites
         return [sat['name'] for sat in sat_list if sat['distance'] < constants.SATELLITE_COVERAGE_AREA_RADIUS] #list of the only satellites inside the coverage area of self
 
@@ -279,6 +280,7 @@ class TrafficAnalyzer:
 
     #calculate all the shortest available paths
     def _get_dijkstra_shortest_paths(self, satellites, source, destination):
+        
         g = dijkstra.Graph() #construct a graph for satellites
 
         #for every satellite item using as keys name & sat, and for every link of them check if link is active
@@ -292,6 +294,7 @@ class TrafficAnalyzer:
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
 
         shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites] #list of paths, for every candidate as end_satellite calculate the shortest path from the source
+        print(shortest_paths)
         shortest_path = min(shortest_paths, key=lambda x: len(x)) #obtain the shortest path in the list shortest_paths
         shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)] #maintain each path that is equal in length to the shortest path
         for sp in shortest_paths:

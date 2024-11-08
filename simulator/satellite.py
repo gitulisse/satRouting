@@ -58,7 +58,7 @@ class Sat:
 
         #debug log
         if constants.DEBUG:
-            print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time())
+            print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time().utc_strftime())
         
 
         self.notify_neighbor_unlink(dir) #notify link removal to neighbor
@@ -71,7 +71,7 @@ class Sat:
         if leftovers:
             for flux in leftovers:
                 if constants.DEBUG:
-                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                 flux.drop_steps_from(self) #remove flux's steps that pass through this link of the satellite
                 self.open_flux(flux)
         self._reroute_all() #rerouting
@@ -86,13 +86,13 @@ class Sat:
             self.notify_neighbor_unlink(dir)
         
         if constants.DEBUG:
-            print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time())
+            print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
         
         leftovers = self._links[dir].idle() #stores remaining fluxes
         if leftovers and self.is_operational():
             for flux in leftovers:
                 if constants.DEBUG:
-                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                 flux.drop_steps_from(self)
                 self.open_flux(flux)
         if not(self.is_operational()):
@@ -120,7 +120,7 @@ class Sat:
         else:
             raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id) 
         if constants.DEBUG:
-            print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time())
+            print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
 
     #Return tuple (flux, link) if the flux id is stored
     def get_stored_flux_direction(self, alias_id: int) -> list[(Flux, Link)]:
@@ -131,7 +131,7 @@ class Sat:
     #Manage drop of fluxes
     def drop_flux(self, flux: Flux, reason: FluxState):
         if constants.DEBUG: #debugging messages
-            msg = "Flux " + str(flux.id) + " with alias id " + str(flux.alias_id) + " with rate " + str(flux.rate) + " Mbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time() + ". "
+            msg = "Flux " + str(flux.id) + " with alias id " + str(flux.alias_id) + " with rate " + str(flux.rate) + " Mbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
             if reason == FluxState.SATELLITE_CONGESTED:
                 msg += "Satellite is congested."
             elif reason == FluxState.LINK_CONGESTED:
@@ -195,7 +195,7 @@ class Sat:
                 for flux in leftovers:
                     #Debug
                     if constants.DEBUG:
-                        print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                        print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                     
                     flux.drop_steps_from(self) #remaining fluxes are dropped
                     self.open_flux(flux) #reopen of these fluxes for resend
@@ -205,7 +205,7 @@ class Sat:
     #Update satellite position
     def _update_position(self):
         geocentric = self._earth_satellite.at(utils.get_current_time()) #calculate geocentric position of satellite
-        print(utils.get_current_time()) 
+        #print(utils.get_current_time()) ############PROVA Da CANCELLARE per check del current time
         lat, lon = wgs84.latlon_of(geocentric) #geographic coordinates conversion to standard WGS84
         self._lat = lat.degrees
         self._lon = lon.degrees
@@ -264,9 +264,9 @@ class Sat:
             #Debug
             if constants.DEBUG:
                 if isinstance(link, RadioLink): #if it's a radiolink (to the GS)
-                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", [gs.get_name() for gs in link.target], "at time", utils.get_current_time()) 
+                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", [gs.get_name() for gs in link.target], "at time", utils.get_current_time().utc_strftime()) 
                 else:
-                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", link.target.get_name(), "at time", utils.get_current_time())
+                    print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", link.target.get_name(), "at time", utils.get_current_time().utc_strftime())
             self.store_flux_direction(flux, link)
 
             if isinstance(link, RadioLink):
@@ -276,13 +276,15 @@ class Sat:
             link.send_flux(flux) #then send flux
         else:
             self.drop_flux(flux, FluxState.LINK_CONGESTED) #otherwise drop it
-
+    
+    #IMPORTANTE
     #reopen flux
     def _reopen_flux(self, flux: Flux):
         if self.is_operational() == False:  
             self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
             self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
         else:
+            #########se il satellite è operativo allora rieseguo il route dal satellite in poi
             routing_decisions = self.route(flux) #otherwise if satellite is operational, calculates routing for the flux (START THE ROUTE DECISION CORE)
             self._close_internal_flux(flux.alias_id) #close the internal flux
             if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
@@ -304,7 +306,7 @@ class Sat:
     def open_flux(self, flux: Flux):
         #Debug
         if constants.DEBUG:
-            print("Opening flux", flux.id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time())
+            print("Opening flux", flux.id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time().utc_strftime())
         flux.add_step(self) #flux is added to the self satellite
         flux.alias_id = self.mapping_table.add(flux.alias_id) #update of the id, added to the mapping table
         if flux.ttl == 0:
@@ -314,6 +316,8 @@ class Sat:
     
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
+
+        #qui potrei fare un if(se si tratta di un una GS faccio eseguire il metodo self.centrilized route della GS, altrimenti faccio usare i metodi basic_route del satellite)
         routing_decisions = self.basic_route(flux)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
         return routing_decisions
@@ -374,12 +378,14 @@ class Sat:
 
     #Route method
     def basic_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
+        
+        #definition of function get_nodes_to_be_excluded_from_next_hop_candidates to redefine it for every simulation, not execution of function
         #Excludes node (next hop) from candidates to avoid Loops
-        def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list:
+        def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list: #get_nodes_to_be_excluded_from_next_hop_candidates PERMETTE DI VALUTARE QUALE SARA' IL PROSSIMO HOP
             if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flux
                 return []
             else:
-                #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps from the steps list of the current flux 
+                #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flux 
                 steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:] 
                 if steps[-1] == self: 
                     steps = steps[:-1] #cut steps list if the last step was the current satellite
@@ -389,12 +395,14 @@ class Sat:
                 return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
         
         routing_output = list()
-        #calculates distance from the target, if in the satellite's range, flux is delivered to destination
+
+        #calculates distance from the target, if in the satellite's range, flux is delivered to GS destination
         distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km
         if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
             routing_output.append((RoutingAction.DELIVER, self._gs_link))
 
-        #strategies for node exclusion
+
+        #different strategies
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                           Strategy.POSITION_SHARING_NO_LB]:
             nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
@@ -413,7 +421,7 @@ class Sat:
                     candidates.append({'distance': dist, 'dir': key}) #add candidate with distance and direction
             candidates.sort(key=lambda x: x['distance']) #sort candidates for distance, first = closest
 
-            #if there's no candidates(no link operational) satellite cannot be operative
+            #if there's no candidates(no links are operational) satellite cannot be operative
             if not(candidates):
                 routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
 
@@ -457,7 +465,7 @@ class Sat:
         elif constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                             Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                             Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
-            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux) 
 
             candidates = list()
             for key, link in self._links.items():
@@ -494,6 +502,29 @@ class Sat:
                     if r_o[0] == RoutingAction.ERROR:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
+        '''
+        #new strategy
+        elif constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
+            ground_stations: dict = kwargs['ground_stations']
+            satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
+            print("Started DIJKSTRA")
+            for source in ground_stations.values(): #start from every source 
+                for destination in ground_stations.values(): #and all related destinations
+                    if source == destination: continue
+                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
+                    #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths]))
+
+        #new strategy
+        elif constants.ROUTING_STRATEGY == Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING:
+            print("Started NO SMOOTHING ON BUFFER")
+        
+        for element in routing_output[:1]:
+          print("CIAO COME VA", element ) #print element for each single line
+        '''
+
+        #print(routing_output) #AGGIUNTO PER DEBUGGARE
 
         return routing_output
     
@@ -525,7 +556,7 @@ class Sat:
                 if flux_simulation and flux_simulation[0][2] != link and not(isinstance(flux_simulation[0][2], FluxState) and link == None): 
                     #debug
                     if constants.DEBUG:
-                        print("Flux", flux.id, "with alias id", flux.alias_id, "is being rerouted from link", link, "to link", flux_simulation[0][2], "on Satellite", self.get_name(), "at time:", utils.get_current_time())
+                        print("Flux", flux.id, "with alias id", flux.alias_id, "is being rerouted from link", link, "to link", flux_simulation[0][2], "on Satellite", self.get_name(), "at time:", utils.get_current_time().utc_strftime())
                     
                     fluxes_copy.append(flux.clone()) #add copy of the flux
                     input_id = self.mapping_table.remove(flux.alias_id) #assign the id value to input_id and remove id of current flux from table
@@ -578,7 +609,7 @@ class Sat:
             else:
                 #debug
                 if constants.DEBUG:
-                    print("Closed dropped flux", flux.id, "with alias id", flux.alias_id, "with rate", flux.rate, "Mbps on Satellite", self.get_name(), "at time", utils.get_current_time())
+                    print("Closed dropped flux", flux.id, "with alias id", flux.alias_id, "with rate", flux.rate, "Mbps on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
                 f = [f for f in self.DEBUG_dropped_fluxes if f.alias_id == flux.alias_id][0] #assume at least there is a flux and stores it in f
                 self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flux.destination[0] and gs.lon == flux.destination[1]][0]].DEBUG_close_dropped_flux(f) #check if there is association between destination and GS coordinates then drop the flux f
                 del self.DEBUG_dropped_fluxes[[i for i, fl in enumerate(self.DEBUG_dropped_fluxes) if fl.alias_id == flux.alias_id][0]] #delete debug dropped fluxes if there is the same id

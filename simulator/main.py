@@ -11,7 +11,7 @@ import numpy as np
 import random
 from satellite import Sat
 from skyfield.api import load
-from traffic_analyzer import TrafficAnalyzer
+from traffic_analyzer import AnalysisMetric, TrafficAnalyzer
 from traffic_generator import TrafficGenerator
 import utils
 
@@ -161,7 +161,7 @@ env.start()
 traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
-#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
 #charts.show_shortest_paths_table(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
 #charts.show_average_link_occupation_chart(results)

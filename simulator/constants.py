@@ -4,7 +4,7 @@ from strategy import Strategy
 
 #Contant values to run the application
 
-DEBUG = False
+DEBUG = False #cambiato a True per debuggare
 
 LATITUDE_CUTOFF = 70
 
@@ -39,7 +39,7 @@ TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Mbps passed by u
 drawing_queue = Queue()
 
 
-
+'''
 class NetworkParameters:
     LEO_GEO_GS_TD = 0.35 # seconds
     PACKET_SIZE = 1_500  # bytes
@@ -49,3 +49,4 @@ class NetworkParameters:
     SATELLITE_PORT_RATE = 0  # bit / second
     LINK_SWITCH_DELAY = 0.25  # seconds
     LIMIT_BYTES = True
+'''

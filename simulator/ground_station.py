@@ -14,10 +14,87 @@ class GroundStation:
         self.name = name
         self.satellites = None
         self.gss = None
-        self.outgoing_fluxes: list[Flux, Time, Time] = []  #Flusso, tempo di inizio invio e tempo di fine invio
+        self.outgoing_fluxes: list[Flux, Time, Time] = [] #Flusso, tempo di inizio invio e tempo di fine invio
         self.incoming_fluxes: list[Flux, Time, Time] = [] #Flusso, tempo di inizio ricezione e tempo di fine ricezione
         self.DEBUG_dropped_incoming_fluxes: list[(Flux, Time, Time)] = [] #Flusso, tempo di inizio ricezione, tempo di fine ricezione e causa drop
         self.keep_log = keep_log
+
+    '''
+    #add routing method for GS
+    #Route method
+    def centralized_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
+        
+        # Ground stations e satelliti come punti di partenza e destinazione
+        ground_stations = self.gss  # Dizionario delle ground stations
+        satellites = self.satellites  # Dizionario dei satelliti disponibili
+
+        # Risultato per il routing
+        routing_output = list()
+
+        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
+            # Ciclo su ogni coppia di stazioni di partenza e arrivo
+            for source in ground_stations.values():
+                for destination in ground_stations.values():
+                    if source == destination: continue  # Evita routing verso sé stesso
+
+                    # Ottieni i percorsi più brevi da source a destination
+                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+                    #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
+                    #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
+                
+                    # Prendi il percorso più breve ottenuto con Dijkstra
+                    if dijkstra_shortest_paths:
+                        shortest_path = dijkstra_shortest_paths[0]
+                        
+                        # Converti il percorso più breve in una lista di azioni di routing e link
+                        for i in range(len(shortest_path) - 1):
+                            current_node = shortest_path[i]
+                            next_node = shortest_path[i + 1]
+                           
+                            # Identifica il link tra current_node e next_node
+                            link = satellites[current_node]._links.get(next_node)
+                            if link and link.is_active():
+                                routing_action = RoutingAction(source, destination, flux)
+                                routing_output.append((routing_action, link))
+        
+        return routing_output
+    
+
+    #add routing method for GS
+    #Route method
+    def basic_route(self, kwargs, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
+        ground_stations: dict = kwargs['ground_stations']
+        satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
+        
+        routing_output = list()
+
+        def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list:
+            if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flux
+                return []
+            else:
+                #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flux 
+                steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:] 
+                if steps[-1] == self: 
+                    steps = steps[:-1] #cut steps list if the last step was the current satellite
+                indices = [i+1 for i, x in enumerate(steps) if x == self] #indices in steps that corresponds to current node
+                if len(steps) > 0:
+                    indices.append(-1)
+                return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
+
+        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
+            for source in ground_stations.values(): #start from every source 
+                for destination in ground_stations.values(): #and all related destinations
+                    if source == destination: continue
+                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
+
+        if constants.ROUTING_STRATEGY == Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING:
+            print()
+        
+        
+        return routing_output
+    '''
 
     #set satellite
     def set_satellites(self, satellites):
@@ -33,7 +110,7 @@ class GroundStation:
     
     #connect GS to satellite
     def attach_to_sat(self, sat):
-        if sat != self.sat: #check if connected satellite is different from the current satellite as param
+        if sat != self.sat: #check if connected satellite is different from the current satellite (connected to GS) as param
             backup_fluxes = [] #copy of fluxes
             for outgoing_flux, _, end_time in self.outgoing_fluxes: #for the outgoing fluxes check that end_time is None to copy them
                 if end_time == None:
@@ -41,7 +118,7 @@ class GroundStation:
                     self.close_outgoing_flux(outgoing_flux) #close
             if self.sat != None: 
                 self.sat.serving_gs = None #change attribute serving_gs of current satellite to None
-            self.sat = sat #change of satellite
+            self.sat = sat #change of satellite that is serving the GS
             self.sat.serving_gs = self #connect to GS
             for backup_flux in backup_fluxes: 
                 self.send_flux(backup_flux) #send copied fluxes
