@@ -5,7 +5,8 @@ from link import Link
 from routing_action import RoutingAction
 from strategy import Strategy
 import utils
-
+import networkx as nx
+import matplotlib.pyplot as plt
 
 class HeaderBuilder:
     def __init__(self, ground_stations: list, satellites: list):
@@ -56,7 +57,7 @@ class HeaderBuilder:
 
     #add routing method for GS
     #Route method
-    def basic_route(self, kwargs, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
+    def centralized_route(self, kwargs, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
         ground_stations: dict = kwargs['ground_stations']
         satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
         

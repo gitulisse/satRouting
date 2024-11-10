@@ -218,8 +218,15 @@ class TrafficAnalyzer:
             for destination in ground_stations.values():
                 if source == destination: continue
                 dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+
+                '''
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(
+                        min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])
+                    )
+                '''
                 
-                # Aggiungi un controllo per verificare che dijkstra_shortest_paths non sia vuoto
+                # Aggiunge un controllo per verificare che dijkstra_shortest_paths non sia vuoto
                 if dijkstra_shortest_paths:
                     # Se ci sono percorsi, aggiungi la lunghezza del primo percorso trovato
                     self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
@@ -238,7 +245,9 @@ class TrafficAnalyzer:
                     print(f"Nessuna distanza calcolabile tra {source.get_name()} e {destination.get_name()}.")
                     # Puoi usare un valore placeholder come float('inf') o None, a seconda di cosa è più appropriato per la tua analisi
                     self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(float('inf'))
-
+                    #se però usiamo 'inf' quando calcola nelle charts i valori ottenuti si sballa tutto, diventa +% di variazione pari a infinito
+                
+                    
     #prepare the comparison among strategies
     def prepare_strategy_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
@@ -300,6 +309,9 @@ class TrafficAnalyzer:
     def _get_dijkstra_shortest_paths(self, satellites, source, destination):
         
         g = dijkstra.Graph() #construct a graph for satellites
+        
+        '''
+        #debug
         for name, sat in satellites.items():
             for link in sat._links.values():
                 if link.is_active():
@@ -311,7 +323,8 @@ class TrafficAnalyzer:
                     # Stampa i nodi individualmente
                     print(f"Node added: {name}")
                     print(f"Node added: {target_name}")
-
+        '''
+                    
         #for every satellite item using as keys name & sat, and for every link of them check if link is active
         for name, sat in satellites.items(): 
             for link in sat._links.values(): 

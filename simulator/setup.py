@@ -9,6 +9,7 @@ extensions = Extension("simulator", [
                                 "flux.py", 
                                 "gravity_model.py", 
                                 "ground_station.py", 
+                                "header_builder.py",
                                 "link.py",
                                 "main.py", 
                                 "mapping_table.py",

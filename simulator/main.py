@@ -14,6 +14,7 @@ from skyfield.api import load
 from traffic_analyzer import AnalysisMetric, TrafficAnalyzer
 from traffic_generator import TrafficGenerator
 import utils
+from link import Link #
 
 import sys
 sys.setrecursionlimit(10000)
@@ -115,7 +116,7 @@ ground_stations = {
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print(traffic_matrix)
 
-'''
+
 countries_coordinates_df = utils.get_countries_coordinates()
 countries_internet_penetration_df = utils.get_countries_internet_penetration()
 countries_population_df = utils.get_countries_population()
@@ -129,7 +130,7 @@ for index, coordinates in countries_coordinates_df.iterrows():
     distances.sort(key=lambda x: x['distance'])
     distances[0]['gs'].add_population_to_serve(round(countries_population_df.loc[index]['IT.NET.USER.ZS'] * (countries_internet_penetration_df.loc[index]['SP.POP.TOTL'] / 100)))
 print("Completed.")
-'''
+
 
 #Retrieve satellites info from NORAD (in realtà sono 80 satelliti)
 print("Retrieving satellites...")
@@ -161,7 +162,7 @@ env.start()
 traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
-results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
 #charts.show_shortest_paths_table(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
 #charts.show_average_link_occupation_chart(results)
@@ -186,6 +187,9 @@ results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
 
 #Global map showing Ground Stations' positions
 #show_constellation_map([], ground_stations.values(), links=[], paths=[])
+
+#Print the GS & satellites positions
+show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
 
 '''
 while True:
