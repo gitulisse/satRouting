@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 import constants
 from copy import copy
 from direction import Direction
@@ -118,7 +117,7 @@ class Sat:
         if flux.alias_id not in self.fluxes.keys(): #check if flux id is NOT stored in dict fluxes (tuples of flux and link)
             self.fluxes[flux.alias_id] = (flux, link) #add tuple
         else:
-            raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id) 
+            raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id)
         if constants.DEBUG:
             print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
 
@@ -205,7 +204,6 @@ class Sat:
     #Update satellite position
     def _update_position(self):
         geocentric = self._earth_satellite.at(utils.get_current_time()) #calculate geocentric position of satellite
-        #print(utils.get_current_time()) ############PROVA Da CANCELLARE per check del current time
         lat, lon = wgs84.latlon_of(geocentric) #geographic coordinates conversion to standard WGS84
         self._lat = lat.degrees
         self._lon = lon.degrees
@@ -280,7 +278,7 @@ class Sat:
     #IMPORTANTE
     #reopen flux
     def _reopen_flux(self, flux: Flux):
-        if self.is_operational() == False:  
+        if self.is_operational() == False:
             self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
             self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
         else:
@@ -292,14 +290,14 @@ class Sat:
                     f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                     f.alias_id = self.mapping_table.add(f.alias_id)
             #analyze parameters action, f, link of routing_decisions
-            for action, f, link in routing_decisions: 
+            for action, f, link in routing_decisions:
                 if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                     self.send_flux(f, link) #send
                 elif action == RoutingAction.ERROR:
                     self.drop_flux(f, link) #drop
                 elif action == RoutingAction.REOPEN:
                     f.alias_id = self.mapping_table.get_input_id(f.alias_id)
-                    f.drop_steps_from(self) 
+                    f.drop_steps_from(self)
                     self.open_flux(f) #reopen
 
     #Manage the open of fluxes
@@ -313,7 +311,7 @@ class Sat:
             self.drop_flux(flux, FluxState.EXPIRED_TTL)
         else:
             self._reopen_flux(flux)
-    
+
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
 
@@ -329,12 +327,12 @@ class Sat:
             link_availability[link] = constants.SATELLITE_LINK_CAPACITY
         link_availability[self._gs_link] = constants.GROUND_STATION_LINK_CAPACITY
 
-        adapted_routing_decisions: dict[int, list] = {} 
+        adapted_routing_decisions: dict[int, list] = {}
         for flux, routing_decision in routing_decisions:
             adapted_routing_decision = []
             for action, link in routing_decision:
                 if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER: #if FORWARD or DELIVER for available bandwidth send flux or split it
-                    available_bandwidth = link_availability[link] 
+                    available_bandwidth = link_availability[link]
                     if available_bandwidth == 0:
                         continue #if 0 skip decision
                     if available_bandwidth >= flux.rate: #if there is more bandwidth of flux rate
@@ -386,8 +384,8 @@ class Sat:
                 return []
             else:
                 #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flux 
-                steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:] 
-                if steps[-1] == self: 
+                steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:]
+                if steps[-1] == self:
                     steps = steps[:-1] #cut steps list if the last step was the current satellite
                 indices = [i+1 for i, x in enumerate(steps) if x == self] #indices in steps that corresponds to current node
                 if len(steps) > 0:
@@ -429,7 +427,7 @@ class Sat:
             candidate = candidates[0]
             for r_o in routing_output: #check if there's an error, throws RuntimeError
                 if r_o[0] == RoutingAction.ERROR:
-                    raise RuntimeError("routing_output already contains an error action") 
+                    raise RuntimeError("routing_output already contains an error action")
             #add Forward action to the Link in the specific direction
             routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
@@ -465,7 +463,7 @@ class Sat:
         elif constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                             Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                             Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
-            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux) 
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
 
             candidates = list()
             for key, link in self._links.items():
@@ -495,7 +493,7 @@ class Sat:
             candidates.sort(key=lambda x: x['total_score'], reverse=True) 
 
             if not(candidates):
-                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL)) 
+                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
 
             for candidate in candidates:
                 for r_o in routing_output:

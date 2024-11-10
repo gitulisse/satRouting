@@ -12,7 +12,6 @@ class Strategy(Enum):
     POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7
     
 
-
     
     BASELINE_DIJKSTRA = 8 #get_dijkstra shortest paths
     
@@ -23,7 +22,7 @@ class Strategy(Enum):
     
     LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING = 13 #evolved from baseline NOT based on link occupation
     LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB = 14
-
+    
     #PORT_FORWARDING = 88
     #EARLY_DISCARDING = 99
 

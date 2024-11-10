@@ -40,11 +40,11 @@ class TrafficAnalyzer:
 
             #case 1
             case AnalysisMetric.COMPARISON_WITH_DIJKSTRA: 
-                simulation_duration_backup = constants.SIMULATION_DURATION #save simulation duration
+                simulation_duration_backup = constants.SIMULATION_DURATION #save simulation duration that determinates how much time is executed for each strategy
                 constants.SIMULATION_DURATION = 1 #change duration
                 self.prepare_results_for_comparison_with_dijkstra(ground_stations=self.ground_stations)
 
-                for i in range(0, simulation_duration_backup): 
+                for i in range(0, simulation_duration_backup):
                     utils.set_hour_shift(i) #repeat simulation shifting hour from 0 to simulation_duration_backup
                     env.reset()
                     env.prepare()
@@ -73,7 +73,7 @@ class TrafficAnalyzer:
                 for volume in range(1, total_traffic_backup + 1, 1): #range(from 1, to total_traffic_backup, with steps of 1)
                     constants.TOTAL_VOLUME_OF_TRAFFIC = volume
                     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()]) #create traffic matrix using GS names
-                    print(traffic_matrix) 
+                    print(traffic_matrix)
                     for strategy in Strategy:
                         for i in range(0, 10):
                             utils.set_hour_shift(i)
@@ -89,7 +89,7 @@ class TrafficAnalyzer:
                 constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup
             
             #case 3
-            case AnalysisMetric.DELIVERED_DROPPED_RATIO:
+            case AnalysisMetric.DELIVERED_DROPPED_RATIO: #va a rieseguire per ogni strategia ripartendo da 1 Mb e aggiungendo 1 Mb di traffico per ogni ciclio su tutte le strategie
                 total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC
                 self.prepare_results_for_delivered_dropped_ratio()
 
@@ -113,7 +113,7 @@ class TrafficAnalyzer:
             case AnalysisMetric.CONTROL_TRAFFIC_COMPARISON:
                 neighbors_update_time_backup = constants.SATELLITE_NEIGHBORS_UPDATE_TIME #save satellite neighbor update time
                 topology_update_backup = constants.TOPOLOGY_UPDATE_TIME #save topology update time
-                neighbors_update_times = [5, 10, 15, 20, 30, 60] #update times list in which satellitew retrieve info of neighbors
+                neighbors_update_times = [5, 10, 15, 20, 30, 60] #update times list in which satellites retrieve info of neighbors
                 self.prepare_results_for_control_traffic_comparison(neighbors_update_times) #prepare results for each specified update time 
 
                 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
@@ -141,10 +141,10 @@ class TrafficAnalyzer:
 
             #case 5
             case AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS: #analyse how change the performance selecting a different weight factor
-                strategy_backup = constants.ROUTING_STRATEGY 
+                strategy_backup = constants.ROUTING_STRATEGY
                 constants.ROUTING_STRATEGY = Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB
                 weights = [0.1, 0.25, 0.37, 0.5, 0.63, 0.75, 0.9]
-                self.prepare_results_for_weight_sensitivity_analysis(weights) 
+                self.prepare_results_for_weight_sensitivity_analysis(weights)
                 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
                 print(traffic_matrix)
                 for weight in weights:
@@ -168,7 +168,7 @@ class TrafficAnalyzer:
                 self.prepare_results_for_time_passing_simulation()
 
                 #could use some different strategies to test them during time
-                for strategy in [Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]: 
+                for strategy in [Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
                     constants.ROUTING_STRATEGY = strategy
                     fluxes = {}
                     env.reset()
@@ -209,17 +209,35 @@ class TrafficAnalyzer:
                         'failed' : 0, #count all failed routings
                         'distance' : [] #store the travelled distance
                     }
-    
+
     #calculate shortest path between 2 GS stations with DIJKSTRA
-    def sample_dijkstra(self, kwargs): #kwargs passes a single dictionary
-        ground_stations: dict = kwargs['ground_stations'] #extract the dictionary of GS
-        satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
-        for source in ground_stations.values(): #start from every source 
-            for destination in ground_stations.values(): #and all related destinations
-                if source == destination: continue #skip 
-                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
-                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
+    def sample_dijkstra(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        satellites: dict = kwargs['satellites']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+                
+                # Aggiungi un controllo per verificare che dijkstra_shortest_paths non sia vuoto
+                if dijkstra_shortest_paths:
+                    # Se ci sono percorsi, aggiungi la lunghezza del primo percorso trovato
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
+                else:
+                    # In caso contrario, gestisci il caso senza percorsi (potresti aggiungere 0, None o un messaggio)
+                    print(f"Nessun percorso disponibile tra {source.get_name()} e {destination.get_name()}.")
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(0)  # Oppure None, in base alle esigenze
+                
+                if dijkstra_shortest_paths:
+                    # Calcola e aggiungi la minima distanza tra i percorsi disponibili
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(
+                        min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])
+                    )
+                else:
+                    # Gestisce il caso senza percorsi
+                    print(f"Nessuna distanza calcolabile tra {source.get_name()} e {destination.get_name()}.")
+                    # Puoi usare un valore placeholder come float('inf') o None, a seconda di cosa è più appropriato per la tua analisi
+                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(float('inf'))
 
     #prepare the comparison among strategies
     def prepare_strategy_comparison(self, kwargs):
@@ -276,32 +294,60 @@ class TrafficAnalyzer:
         for hop in path[1:]: 
             distance += utils.get_distance_between_satellites(older_hop, hop, satellites=satellites)
             older_hop = hop
-        return distance 
+        return distance
 
     #calculate all the shortest available paths
     def _get_dijkstra_shortest_paths(self, satellites, source, destination):
         
         g = dijkstra.Graph() #construct a graph for satellites
+        for name, sat in satellites.items():
+            for link in sat._links.values():
+                if link.is_active():
+                    # Aggiunge un arco al grafo e stampa i nodi e l’arco appena aggiunto
+                    target_name = link.target.get_name()
+                    distance = utils.get_distance_between_satellites(sat, link.target)
+                    g.add_edge(name, target_name, distance)
+                    print(f"Added edge from {name} to {target_name} with distance {distance}")
+                    # Stampa i nodi individualmente
+                    print(f"Node added: {name}")
+                    print(f"Node added: {target_name}")
 
         #for every satellite item using as keys name & sat, and for every link of them check if link is active
         for name, sat in satellites.items(): 
             for link in sat._links.values(): 
                 if link.is_active():
                     g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target)) #add a connection from name(the current satellite) to the target
+        
         end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) #otherwise check for the closet satellites in the area of destination GS
 
         #calculate Dijkstra's shortest path
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
 
-        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites] #list of paths, for every candidate as end_satellite calculate the shortest path from the source
-        print(shortest_paths)
-        shortest_path = min(shortest_paths, key=lambda x: len(x)) #obtain the shortest path in the list shortest_paths
-        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)] #maintain each path that is equal in length to the shortest path
+        shortest_paths = []
+        for end_satellite in end_satellites:
+            try:
+                path = d.get_path(end_satellite)
+                if path:  # Verifica che il percorso non sia vuoto
+                    shortest_paths.append(path)
+            except KeyError:
+                # Gestione del caso in cui il nodo di destinazione non è raggiungibile
+                print(f"Nessun percorso trovato per il nodo di destinazione {end_satellite}")
+
+        # Controlla se ci sono percorsi disponibili
+        if not shortest_paths:
+            print(f"Non ci sono percorsi disponibili da {source.get_name()} a {destination.get_name()}.")
+            return []  # Oppure None, a seconda di come vuoi gestire l'assenza di percorsi
+
+        # Filtra e trova il percorso più breve
+        shortest_path = min(shortest_paths, key=lambda x: len(x))
+        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
+        
         for sp in shortest_paths:
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
+        
         return shortest_paths
-    
+
     #prepare the dictionary for avarage link occupation analysis
     def prepare_results_for_average_link_occupation_analysis(self):
         self.results = {}
@@ -395,6 +441,7 @@ class TrafficAnalyzer:
     def sample_delivered_dropped_ratio(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
         fluxes: dict = kwargs['fluxes']
+        
         delivered_data = 0
         dropped_data = 0
         for source in ground_stations.values():

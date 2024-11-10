@@ -126,7 +126,7 @@ class RadioLink(Link):
             leftovers[-1].alias_id = input_id #set the input of the last inserted flux in leftovers
         for gs in self.target: 
             self.target.remove(gs) #every GS in self.target is removed
-        return leftovers 
+        return leftovers
 
     #get the self.target list of GS connected to RadioLink
     def get_attached_gs(self) -> list[GroundStation]:
@@ -136,8 +136,8 @@ class RadioLink(Link):
     def send_flux(self, flux: Flux):
         if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        for gs in self.target: 
-            gs.open_flux(flux.clone()) #every GS in self.target opens the flux
+        for gs in self.target:
+            gs.open_flux(flux.clone())
 
     #close flux
     def close_flux(self, flux: Flux):

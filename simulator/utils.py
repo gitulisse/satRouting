@@ -23,8 +23,8 @@ def remove_extra_regions(data: pd.DataFrame) -> pd.DataFrame:
     data = data.drop('IMN', errors='ignore')
     return data
 
-#return internet penetration (removing specified regions)
-def get_countries_internet_penetration() -> pd.DataFrame:
+#obtain population of countries
+def get_countries_population() -> pd.DataFrame:
     print("Retrieving countries population...")
     df = wb.data.DataFrame('IT.NET.USER.ZS', mrnev=1)
     df = remove_extra_regions(df)
@@ -37,7 +37,7 @@ def get_countries_internet_penetration() -> pd.DataFrame:
     df = remove_extra_regions(df)
     return df
 
-#get coordinates of countries (ISO, lat, lon)
+#get coordinates of countries (ISO of 3 letters, lat, lon)
 def get_countries_coordinates() -> pd.DataFrame:
     print("Retrieving countries coordinates...")
     resp = requests.get('http://api.worldbank.org/v2/country?format=json&per_page=300')
@@ -98,7 +98,7 @@ def get_coupled_link_direction(dir: Direction) -> Direction:
     raise ValueError("Parameter dir must be a Direction")
 
 #calculate delay in queue
-def queuing_delay(queue_size, bandwidth) -> float: 
+def queuing_delay(queue_size, bandwidth) -> float:
     return queue_size / bandwidth #Mbit/Mbps
 
 #calculate delay in transmission
@@ -109,9 +109,9 @@ def transmission_delay(packet_size, bandwidth) -> float:
 def propagation_delay(position1, position2) -> float:
     return (position1 - position2).distance().km * 0.000003335640951982 #constant time of light travelling for 1 km
 
-#get time IMPORTANTE DA SISTEMARE
+#get time
 def get_current_time() -> Time:
-    return ts.utc(2024, 10, 15, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00 
+    return ts.utc(2024, 10, 15, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00 #23/10/15 always finds paths
 
 #manage hour shift for globe or simulation
 def set_hour_shift(shift):

@@ -4,7 +4,7 @@ import sys
 
 class MappingTable:
     def __init__(self):
-        self.table: list[(int, int)] = [] # associate input_id, output_id
+        self.table: list[(int, int)] = [] #associates input_id, output_id
     
     #create an output_id connected to input_id passed as param
     def add(self, input_id: int) -> int:
@@ -26,7 +26,7 @@ class MappingTable:
                 return in_id
         else:
             raise RuntimeError("No mapping found for local_id: " + str(local_id))
-    
+      
     #check if input_id is in table to get output_id
     def contains_input_id(self, input_id: int) -> bool:
         try:
@@ -64,5 +64,5 @@ class MappingTable:
     #create output_id
     def _create_new_out_id(self) -> int:
         out_id = randint(0, sys.maxsize) #new randomized output_id
-        return out_id if out_id not in [id for (_, id) in self.table] else self._create_new_out_id() 
-        #return out_id if out_id is not in the list of output_id in self.table ELSE recursion
+        return out_id if out_id not in [id for (_, id) in self.table] else self._create_new_out_id() #return out_id if out_id is not in the list of output_id in self.table ELSE recursion
+    

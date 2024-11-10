@@ -131,7 +131,7 @@ for index, coordinates in countries_coordinates_df.iterrows():
 print("Completed.")
 '''
 
-#Retrieve satellites info from NORAD
+#Retrieve satellites info from NORAD (in realtà sono 80 satelliti)
 print("Retrieving satellites...")
 stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
 satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}

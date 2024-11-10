@@ -48,13 +48,16 @@ def prepare():
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
-        for sat in env.satellites.values(): #update positions
+        #update positions
+        for sat in env.satellites.values(): 
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, update_satellites_position) 
-        for sat in env.satellites.values(): #update neighbors
+                env.put(i, update_satellites_position)
+        #update neighbors
+        for sat in env.satellites.values():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
-        for sat in env.satellites.values(): #reroute
+        #reroute
+        for sat in env.satellites.values():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat._reroute_all)
 
@@ -84,6 +87,7 @@ def start():
     if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
         print("- Adaptive load balancing weight factor:", constants.LOAD_BALANCING_WEIGHT_FACTOR)
     
+    
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                       Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
                                       Strategy.EXPONENTIAL_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
@@ -93,43 +97,43 @@ def start():
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
         print("- Launching Centralized Strategy of Simulation:")
     
+        
     #while the queue has actions then execute all actions
     while env.actions_queue.is_not_empty():
-        time, action, kwargs = env.actions_queue.get() #extract actions
-
+        #extract actions
+        time, action, kwargs = env.actions_queue.get()
         if time != env.elapsed_time: 
             env.elapsed_time = time
-            print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds") #update time, printing it
-
-        #print("ACTIONS QUEUE", action)
-
-        #if there are kwargs execute actions with these params, else without params
+            print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds")
+        
+        #debug
+        #print("ACTIONS QUEUE", action) ###########
+        
         if kwargs:
             action(kwargs)
         else:
             action()
-        
 
     print("Simulation ended.")
 
 #reset the environment
 def reset():
     print("Resetting environment...")
-
-    #clear variables and queue
-    env.actions_queue.clear()
+    env.actions_queue.clear() #clear variables and queue
     env.elapsed_time = 0
     env.control_traffic_data = 0
     update_satellites_position() #update positions of satellites
 
-    for satellite in env.satellites.values(): #for all satellites remove links and reset state
+    #for all satellites remove links and reset state
+    for satellite in env.satellites.values():
         satellite.remove_link(Direction.NORTH)
         satellite.remove_link(Direction.SOUTH)
         satellite.remove_link(Direction.EAST)
         satellite.remove_link(Direction.WEST)
         satellite.state = 0.0
 
-    for gs in env.ground_stations.values(): #for all GS close the outoging fluxes without end_time
+    #for all GS close the outoging fluxes without end_time
+    for gs in env.ground_stations.values():
         for flux, _, end_time in gs.outgoing_fluxes:
             if end_time == None:
                 gs.close_outgoing_flux(flux) #close
