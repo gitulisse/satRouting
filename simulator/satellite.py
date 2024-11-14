@@ -35,6 +35,7 @@ class Sat:
         self._current_round_robin_iteration = random.randint(1, 4) 
         self._is_rerouting = False #if rerouting connections
 
+
     #Verify if "other" is an instance of Sat return True else False
     def __eq__(self, other) -> bool:
         if isinstance(other, Sat):
@@ -151,8 +152,8 @@ class Sat:
     
     #Update infos on neighbors
     def update_neighbors(self):
-        self._update_position() #update satellite position
-        self._update_gs_link() #update connection to Ground Station
+        #self._update_position() #update satellite position ###
+        self._update_gs_link() #update connection to Ground Station ###
         self._update_state() #update satellite state
         for dir, link in self._links.items(): #update for every link, dir
             if link.is_active():
@@ -184,7 +185,7 @@ class Sat:
         for gs in self._ground_stations.values():
             distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km #calculate distance between 2 points using Geopy
             if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                gs_candidates.append(gs) #if distance from lat & lon of GS is less then satelllite's area radius appends GS to candidates
+                gs_candidates.append(gs) #if distance from GS's lat & lon is less then satelllite's area radius appends GS to candidates
         
         if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
             leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
@@ -203,21 +204,23 @@ class Sat:
 
     #Update satellite position
     def _update_position(self):
-        geocentric = self._earth_satellite.at(utils.get_current_time()) #calculate geocentric position of satellite
+        geocentric = self._earth_satellite.at(utils.get_current_time()) #calculate geocentric position of satellite (effective update!)
         lat, lon = wgs84.latlon_of(geocentric) #geographic coordinates conversion to standard WGS84
-        self._lat = lat.degrees
+        self._lat = lat.degrees 
         self._lon = lon.degrees
 
         #Using these strategies requires position update
+        #GUESSING
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                           Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                           Strategy.POSITION_GUESSING_PROGRESSIVE_LB]:
-            north_link = self._links.get(Direction.NORTH) #effective update
+            north_link = self._links.get(Direction.NORTH) #retrieve links
             south_link = self._links.get(Direction.SOUTH)
             east_link = self._links.get(Direction.EAST)
             west_link = self._links.get(Direction.WEST)
             
-            #calculate longitude delta for translations in degrees
+            #GUESSING of the position
+            #calculate the guessing longitude delta for translations in degrees
             if east_link.is_active() or west_link.is_active():
                 longitude_delta = (40075 / 2 / 6) / (40075 / 360) * math.cos(self._lat)
 
@@ -265,6 +268,7 @@ class Sat:
                     print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", [gs.get_name() for gs in link.target], "at time", utils.get_current_time().utc_strftime()) 
                 else:
                     print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", link.target.get_name(), "at time", utils.get_current_time().utc_strftime())
+            #save direction
             self.store_flux_direction(flux, link)
 
             if isinstance(link, RadioLink):
@@ -315,7 +319,6 @@ class Sat:
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
 
-        #qui potrei fare un if(se si tratta di un una GS faccio eseguire il metodo self.centrilized route della GS, altrimenti faccio usare i metodi basic_route del satellite)
         routing_decisions = self.basic_route(flux)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
         return routing_decisions
@@ -483,7 +486,6 @@ class Sat:
                         load_balancing_score = link.get_available_bandwidth() / constants.SATELLITE_LINK_CAPACITY * 4 #scale based on 4 degrees evaluation
                     elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
                         load_balancing_score = (1 - link.state) * 4
-
                     candidates.append({'distance': dist, 'dir': key, 'load_balancing_score': load_balancing_score})
             candidates.sort(key=lambda x: x['distance'])
 
@@ -517,9 +519,9 @@ class Sat:
         #new strategy
         elif constants.ROUTING_STRATEGY == Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING:
             print("Started NO SMOOTHING ON BUFFER")
-        
+       
         for element in routing_output[:1]:
-          print("CIAO COME VA", element ) #print element for each single line
+          print("ELEMENTI ", element ) #print element for each single line
         '''
 
         #print(routing_output) #AGGIUNTO PER DEBUGGARE
@@ -536,7 +538,6 @@ class Sat:
             #Debug
             if constants.DEBUG:
                 print("Rerouting traffic from satellite", self.get_name())
-
 
             fluxes_copy = [] #to keep fluxes
             pointer = 0
@@ -617,3 +618,15 @@ class Sat:
         self._links.get(dir).update(lat, lon, state)
         #self._reroute_all()
         #env.put(env.elapsed_time, self._reroute_all)
+
+    #obtain as a list all the active links between satellites
+    def get_active_links(satellites):
+        active_links = []  # Lista delle connessioni attive tra i satelliti
+        for sat in satellites:
+            if not isinstance(sat, Sat):
+                print(f"Attenzione: {sat} non è un oggetto Sat!")
+            for link in sat._links.values():
+                if link.is_active():
+                    active_links.append((sat, link.target)) #append del parent del link e del suo target
+        return active_links
+    

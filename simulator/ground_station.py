@@ -104,6 +104,14 @@ class GroundStation:
     def set_ground_stations(self, ground_stations: dict):
         self.gss = ground_stations
     
+    #get latitude of GS
+    def get_latitudeGS(self):
+        return self.lat
+    
+    #get longitude of GS
+    def get_longitudeGS(self):
+        return self.lon
+    
     #set serving population
     def add_population_to_serve(self, amount: int):
         self.serving_population += amount
@@ -135,15 +143,6 @@ class GroundStation:
             print("Opening flux", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
         flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
         self.sat.open_flux(flux.clone())
-        
-        
-        flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self) #update the attribute travelled_distance
-        self.sat.open_flux(flux.clone()) #open cloned flux
-
-    #close the outgoing flux
-
-        flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self) #update the attribute travelled_distance
-        self.sat.open_flux(flux.clone()) #open cloned flux
 
     #close the outgoing flux
     def close_outgoing_flux(self, flux: Flux):
@@ -212,10 +211,8 @@ class GroundStation:
                     flux.paths.append(incoming_flux.get_steps())
                     sum_travelled_distance += incoming_flux.travelled_distance
                     incoming_fluxes_count += 1 
-                    incoming_fluxes_count += 1 
-                    #debug
-                    incoming_fluxes_count += 1
-                    #debug
+
+                    #debug 
                     if constants.DEBUG:
                         print(total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flux.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flux.rate, "with alias id", incoming_flux.alias_id)
                         print([sat.get_name() for sat in incoming_flux.get_steps()])
@@ -242,7 +239,15 @@ class GroundStation:
                     if constants.DEBUG:
                         print(total_data_dropped, utils.get_seconds_between(start_time, end_time) * dropped_flux.rate, "dropped for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", dropped_flux.rate, "with alias id", dropped_flux.alias_id, "reason", dropped_flux.state)
                         print([sat.get_name() for sat in dropped_flux.get_steps()])
+        #'''
+        # Stampa tutti i percorsi del flusso
+        print("\nPercorsi per il flusso", flux.id, ":")
+        for idx, path in enumerate(flux.paths):
+            print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
+        #'''
+        
         return (total_data_sent, total_data_received, total_data_dropped)
+        
 
     def DEBUG_get_dropped_flux(self, flux: Flux):
         flux.paths.append(flux.get_steps())

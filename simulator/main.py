@@ -12,9 +12,11 @@ import random
 from satellite import Sat
 from skyfield.api import load
 from traffic_analyzer import AnalysisMetric, TrafficAnalyzer
+from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
 import utils
-from link import Link #
+from link import Link
+from strategy import Strategy
 
 import sys
 sys.setrecursionlimit(10000)
@@ -66,7 +68,7 @@ def show_constellation_map(satellites: list[Sat], ground_stations: list[GroundSt
         for link in links:
             plt.plot([link[0].get_longitude(), link[1].get_longitude()], 
                     [link[0].get_latitude(), link[1].get_latitude()],
-                    color='0.85')
+                    color='0.50')
     
     if 'paths' in kwargs:
         paths = kwargs['paths']
@@ -159,7 +161,21 @@ env.start()
 
 # Oggetto tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
-traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
+if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+    traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
+else:
+    header_builder = HeaderBuilder(ground_stations, satellites)
+
+
+#Farei un IF o uno switch a seconda della strategia richiesta si esegue un ramo o l'altro
+#header_builder = HeaderBuilder(ground_stations, satellites)
+
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
 #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
@@ -185,11 +201,21 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 #charts.show_time_passing_simulation_chart(read_from_json("time_passing_simulation"))
 #charts.show_loop_avoidance_analysis_chart()
 
+#######################################################################################################
 #Global map showing Ground Stations' positions
 #show_constellation_map([], ground_stations.values(), links=[], paths=[])
 
 #Print the GS & satellites positions
-show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
+#show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
+
+#Print all the active links in the constellation (the orizontal links are painted in a weird way cause of the 2D rapresentation of the globe)
+#active_links = Sat.get_active_links(satellites.values())
+#show_constellation_map(satellites.values(), ground_stations.values(), links=active_links, paths=[])
+
+#vuole gli argomenti passati come un dict
+##########
+#paths = traffic_analyzer.calculate_dijkstra(kwargs={'ground_stations': ground_stations, 'satellites': satellites}) #qui da sostituire poi con Header_builder
+#print("PERCORSI TROVIATI PER DIJKSTRA", paths)
 
 '''
 while True:

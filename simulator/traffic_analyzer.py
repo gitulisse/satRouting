@@ -247,6 +247,19 @@ class TrafficAnalyzer:
                     self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(float('inf'))
                     #se però usiamo 'inf' quando calcola nelle charts i valori ottenuti si sballa tutto, diventa +% di variazione pari a infinito
                 
+    #calculate shortest path between 2 GS stations with DIJKSTRA returning paths
+    def calculate_dijkstra(self, kwargs):
+        ground_stations: dict = kwargs['ground_stations']
+        satellites: dict = kwargs['satellites']
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: continue
+                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths]))
+        return dijkstra_shortest_paths
+                
+
                     
     #prepare the comparison among strategies
     def prepare_strategy_comparison(self, kwargs):
@@ -309,21 +322,6 @@ class TrafficAnalyzer:
     def _get_dijkstra_shortest_paths(self, satellites, source, destination):
         
         g = dijkstra.Graph() #construct a graph for satellites
-        
-        '''
-        #debug
-        for name, sat in satellites.items():
-            for link in sat._links.values():
-                if link.is_active():
-                    # Aggiunge un arco al grafo e stampa i nodi e l’arco appena aggiunto
-                    target_name = link.target.get_name()
-                    distance = utils.get_distance_between_satellites(sat, link.target)
-                    g.add_edge(name, target_name, distance)
-                    print(f"Added edge from {name} to {target_name} with distance {distance}")
-                    # Stampa i nodi individualmente
-                    print(f"Node added: {name}")
-                    print(f"Node added: {target_name}")
-        '''
                     
         #for every satellite item using as keys name & sat, and for every link of them check if link is active
         for name, sat in satellites.items(): 
@@ -336,16 +334,7 @@ class TrafficAnalyzer:
         #calculate Dijkstra's shortest path
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
 
-        shortest_paths = []
-        for end_satellite in end_satellites:
-            try:
-                path = d.get_path(end_satellite)
-                if path:  # Verifica che il percorso non sia vuoto
-                    shortest_paths.append(path)
-            except KeyError:
-                # Gestione del caso in cui il nodo di destinazione non è raggiungibile
-                print(f"Nessun percorso trovato per il nodo di destinazione {end_satellite}")
-
+        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites]
         # Controlla se ci sono percorsi disponibili
         if not shortest_paths:
             print(f"Non ci sono percorsi disponibili da {source.get_name()} a {destination.get_name()}.")
@@ -353,9 +342,13 @@ class TrafficAnalyzer:
 
         # Filtra e trova il percorso più breve
         shortest_path = min(shortest_paths, key=lambda x: len(x))
+        #debug
+        print(shortest_path)
         shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
-        
+        print("PERCORSI", shortest_paths)
+
         for sp in shortest_paths:
+            print(sp)
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
         

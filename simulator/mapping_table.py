@@ -11,7 +11,7 @@ class MappingTable:
         out_id = self._create_new_out_id() #output_id
         self.table.append((input_id, out_id)) 
         #debug
-        if constants.DEBUG:
+        if constants.DEBUG:      #provare questo DEBUGGAREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
             print(f"Added pair ({input_id}, {out_id}) to mapping table")
         return out_id
 

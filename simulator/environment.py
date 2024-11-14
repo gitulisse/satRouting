@@ -40,9 +40,14 @@ def prepare():
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
     print("Preparing environment...")
+    count=0
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
-
+        
+        if constants.DEBUG:
+            count+=1
+            print(f"Topology builder {count}: lanciato")
+        
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
@@ -100,6 +105,7 @@ def start():
         
     #while the queue has actions then execute all actions
     while env.actions_queue.is_not_empty():
+        #print("the queue of actions is NOT empty")
         #extract actions
         time, action, kwargs = env.actions_queue.get()
         if time != env.elapsed_time: 
@@ -107,12 +113,15 @@ def start():
             print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds")
         
         #debug
-        #print("ACTIONS QUEUE", action) ###########
-        
+        #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
+        #print("AZIONI", action)
+
         if kwargs:
             action(kwargs)
         else:
             action()
+        
+        #print("Azione svolta.")
 
     print("Simulation ended.")
 
@@ -228,8 +237,10 @@ def topology_builder():
         satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)
         satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
 
+    
     #debug
     if constants.DEBUG:
+        #print("DISTANZE", distances)
         print("Applied.")
 
 #calculate the value of control_traffic_data used during the simulation
