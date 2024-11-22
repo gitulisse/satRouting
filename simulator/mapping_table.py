@@ -10,9 +10,11 @@ class MappingTable:
     def add(self, input_id: int) -> int:
         out_id = self._create_new_out_id() #output_id
         self.table.append((input_id, out_id)) 
+        '''
         #debug
         if constants.DEBUG:      #provare questo DEBUGGAREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
             print(f"Added pair ({input_id}, {out_id}) to mapping table")
+        '''
         return out_id
 
     #remove id couple from mapping table
@@ -20,9 +22,11 @@ class MappingTable:
         for in_id, out_id in self.table:
             if out_id == local_id: #removing based on output_id if equal to current local_id as param
                 self.table.remove((in_id, out_id)) #remove
+                '''
                 #debug
                 if constants.DEBUG:
                     print(f"Removed pair ({in_id}, {out_id}) from mapping table")
+                '''
                 return in_id
         else:
             raise RuntimeError("No mapping found for local_id: " + str(local_id))

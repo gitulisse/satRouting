@@ -4,7 +4,7 @@ from strategy import Strategy
 
 #Contant values to run the application
 
-DEBUG = False
+DEBUG = True
 
 LATITUDE_CUTOFF = 70
 

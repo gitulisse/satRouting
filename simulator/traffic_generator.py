@@ -4,17 +4,21 @@ from ground_station import GroundStation
 import random
 from skyfield.api import Timescale
 from flux import Flux
+from strategy import Strategy
 import utils
+from header_builder import HeaderBuilder 
 
 class TrafficGenerator:
-    def __init__(self, rate, duration, **kwargs):
+    def __init__(self, rate, duration, header_builder=None, **kwargs):
         self.source_gs = kwargs['source_gs'] if 'source_gs' in kwargs else None #optional param 
         self.destination_gs = kwargs['destination_gs'] if 'destination_gs' in kwargs else None #optional param
         self.delayed_start = kwargs['delayed_start'] if 'delayed_start' in kwargs else 0 #optional param
         self.duration = duration
         self.flux = Flux(random.randint(1, 1000000), rate, (self.destination_gs.lat, self.destination_gs.lon)) #generate the flux
+        self.header_builder = header_builder
         env.put(self.delayed_start, self._begin_generating) #start generating
         env.put(self.duration, self._end_generating) #stop generating
+        
 
     #set the starting GS
     def set_source(self, gs: GroundStation):
@@ -33,7 +37,25 @@ class TrafficGenerator:
     #start generating traffic
     def _begin_generating(self):
         print("Generating", self.flux.rate, "Mbps from", self.source_gs.get_name(), "to", self.destination_gs.get_name(), "for", self.duration, "seconds.")
-        self.source_gs.send_flux(self.flux)
+        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                          Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                          Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                          Strategy.POSITION_GUESSING_NO_LB,
+                                          Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                          Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                          Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+            self.source_gs.send_flux(self.flux)
+        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                          Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
+                                          Strategy.EXPONENTIAL_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
+                                          Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                          Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                          Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                          Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+            self.source_gs.send_flux(self.flux) ##############à
+            print("FINITO IL SEND FLUX DALLA GROUND STATION") ##################à
+            #self.header_builder.centralized_route(constants.ROUTING_STRATEGY)
+            
 
     #stop generating traffic
     def _end_generating(self):
@@ -62,8 +84,8 @@ class TrafficGenerator:
                         print("Satellite", name, "mapping table:", sat.mapping_table.table)
                         for id, r, alias_id, state in fluxes_leftovers_info:
                             print(id, r, alias_id, state)
-
+            '''
             print("Totale satelliti con strutture fluxes occupate:", len(all_sats))
             print("Totale flussi in giro:", len(set(all_ids)))
-        
+            '''
         #self.draw_flux_paths(flux) #draw the flux paths made by satellite sequela 

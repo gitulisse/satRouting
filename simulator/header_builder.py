@@ -1,6 +1,6 @@
 import constants
 import dijkstra
-from flux import Flux
+from flux import Flux, FluxState
 from link import Link
 from routing_action import RoutingAction
 from strategy import Strategy
@@ -12,193 +12,101 @@ from link import Link, LaserLink, RadioLink
 from ground_station import GroundStation
 from geopy import distance
 from satellite import Sat
+import environment as env
 
 class HeaderBuilder:
     def __init__(self, ground_stations: list, satellites: list):
         self.results = None
         self.ground_stations = ground_stations
         self.satellites = satellites
-    
+
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def centralized_route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
-
+        #print("started centralized_route method")
         routing_decisions = self.basic_centralized_route(flux)
-        routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
+        #routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
         return routing_decisions
 
-    def basic_centralized_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
-        routing_output = list()
+    def basic_centralized_route(self, strategy):
+        #print("start basic_centraized_route method")
+        
+        if strategy == Strategy.BASELINE_DIJKSTRA:
+            self.prepare_results_for_dijkstra(ground_stations=self.ground_stations)
+            
+            #for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME):
+            
+            #utils.set_hour_shift(i)
+            # Esegui la logica di routing utilizzando `flux` come input
+            #simulation_duration_backup = constants.SIMULATION_DURATION  # salva la durata della simulazione
+            #constants.SIMULATION_DURATION = 1  # modifica la durata della simulazione temporaneamente
+            #print("1")
+            
+            #print("4")
+            #for i in range(0, simulation_duration_backup):
+                #utils.set_hour_shift(i)  # ripeti la simulazione cambiando l'ora
+            env.reset() #sono già lanciati nel main inutile rifare
+            env.prepare()
+            env.put(0, self.calculate_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites)  # esegui la simulazione con Dijkstra
+            #print("5")
+            env.start() 
+            #print("6")
+            # Ripristina la durata della simulazione
+            #utils.set_hour_shift(0)
+            #constants.SIMULATION_DURATION = simulation_duration_backup
 
-        #calculates distance from the target, if in the satellite's range, flux is delivered to GS destination
-        distance_from_destination = distance.distance((GroundStation.get_latitudeGS(), GroundStation.get_longitudeGS()), flux.destination).km
-        if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
-            routing_output.append((RoutingAction.DELIVER, Sat._gs_link))
+            #print("centralizzato")
+            #print("SELF RESULTS: ", self.results)
+            #return routing_output
 
-        print("centralizzato")
+    #Routing decisions for bandwidth
+    def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions: list[tuple[RoutingAction, Link]]) -> list[tuple[RoutingAction, Flux, Link]]:
+        adapted_routing_decisions = []
+        for action, link in routing_decisions:
+            if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
+                available_bandwidth = link.get_available_bandwidth()
+                if available_bandwidth == 0:
+                    continue
+                if available_bandwidth >= flux.rate:
+                    adapted_routing_decisions.append((action, flux, link))
+                    break
+                else:
+                    f, flux = flux.split(available_bandwidth)
+                    adapted_routing_decisions.append((action, f, link))
+                    #adapted_routing_decisions.append((RoutingAction.REOPEN, flux, None))
+                    #break
+            elif action == RoutingAction.ERROR:
+                adapted_routing_decisions.append((action, flux, link))
+                break
+        else:
+            adapted_routing_decisions.append((RoutingAction.ERROR, flux, FluxState.SATELLITE_CONGESTED))
+        return adapted_routing_decisions
 
-        return routing_output
-
-    def prepare_results_for_dijkstra(self, ground_stations):
-        self.results = {}
-        for source in ground_stations.values():
-            for destination in ground_stations.values():
-                if source == destination: continue
-                self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
-                    'DIJKSTRA' : {}
-                }
-
-    #calculate shortest path between 2 GS stations with DIJKSTRA
-    def sample_dijkstra(self, kwargs):
+    def calculate_dijkstra(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
         satellites: dict = kwargs['satellites']
+
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                if source == destination: continue
+                if source == destination:
+                    continue
+
+                # Calcola i percorsi più brevi con Dijkstra
                 dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+                #print("shortest paths:", dijkstra_shortest_paths)   
 
-                if dijkstra_shortest_paths:
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
-                else:
-                    # In caso contrario, gestisci il caso senza percorsi (potresti aggiungere 0, None o un messaggio)
-                    print(f"Nessun percorso disponibile tra {source.get_name()} e {destination.get_name()}.")
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(0)
-                
-                if dijkstra_shortest_paths:
-                    # Calcola e aggiungi la minima distanza tra i percorsi disponibili
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(
-                        min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])
-                    )
-                else:
-                    # Gestisce il caso senza percorsi
-                    print(f"Nessuna distanza calcolabile tra {source.get_name()} e {destination.get_name()}.")
-                    # Puoi usare un valore placeholder come float('inf') o None, a seconda di cosa è più appropriato per la tua analisi
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(float('inf'))
-                    #se però usiamo 'inf' quando calcola nelle charts i valori ottenuti si sballa tutto, diventa +% di variazione pari a infinito
-                
-    #calculate all the shortest available paths
-    def _get_dijkstra_shortest_paths(self, satellites, source, destination):
-        g = dijkstra.Graph() #construct a graph for satellites 
-        #for every satellite item using as keys name & sat, and for every link of them check if link is active
-        for name, sat in satellites.items(): 
-            for link in sat._links.values(): 
-                if link.is_active():
-                    g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target)) #add a connection from name(the current satellite) to the target
-        end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) #otherwise check for the closet satellites in the area of destination GS
+                # Aggiungi i risultati di successo e distanza
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
+                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths]))
 
-        d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #calculate Dijkstra's shortest path,initialize dijkstra algorithm on the graph starting from source
-        shortest_paths = []
-        for end_satellite in end_satellites:
-            path = d.get_path(end_satellite)
-            if path: # Verifica che il percorso non sia vuoto
-                shortest_paths.append(path)
-
-        if not shortest_paths: # Controlla se ci sono percorsi disponibili
-            print(f"Non ci sono percorsi disponibili da {source.get_name()} a {destination.get_name()}.")
-            return []  # Oppure None, a seconda di come vuoi gestire l'assenza di percorsi
-
-        shortest_path = min(shortest_paths, key=lambda x: len(x))
-        #debug
-        print(shortest_path)
-
-        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
-
-        return shortest_paths
-
-
-
-    #add routing method for GS
-    #Route method
-    def centralized_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
-        
-        # Ground stations e satelliti come punti di partenza e destinazione
-        ground_stations = self.gss  # Dizionario delle ground stations
-        satellites = self.satellites  # Dizionario dei satelliti disponibili
-
-        # Risultato per il routing
-        routing_output = list()
-
-        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            # Ciclo su ogni coppia di stazioni di partenza e arrivo
-            for source in ground_stations.values():
-                for destination in ground_stations.values():
-                    if source == destination: continue  # Evita routing verso sé stesso
-
-                    # Ottieni i percorsi più brevi da source a destination
-                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
-                    #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                    #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
-                
-                    # Prendi il percorso più breve ottenuto con Dijkstra
-                    if dijkstra_shortest_paths:
-                        shortest_path = dijkstra_shortest_paths[0]
-                        
-                        # Converti il percorso più breve in una lista di azioni di routing e link
-                        for i in range(len(shortest_path) - 1):
-                            current_node = shortest_path[i]
-                            next_node = shortest_path[i + 1]
-                           
-                            # Identifica il link tra current_node e next_node
-                            link = satellites[current_node]._links.get(next_node)
-                            if link and link.is_active():
-                                routing_action = RoutingAction(source, destination, flux)
-                                routing_output.append((routing_action, link))
-        
-        return routing_output
-    
-
-    #add routing method for GS
-    #Route method
-    def centralized_route(self, kwargs, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
-        ground_stations: dict = kwargs['ground_stations']
-        satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
-        
-        routing_output = list()
-
-        def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list:
-            if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flux
-                return []
-            else:
-                #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flux 
-                steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:] 
-                if steps[-1] == self: 
-                    steps = steps[:-1] #cut steps list if the last step was the current satellite
-                indices = [i+1 for i, x in enumerate(steps) if x == self] #indices in steps that corresponds to current node
-                if len(steps) > 0:
-                    indices.append(-1)
-                return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
-
-        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            for source in ground_stations.values(): #start from every source 
-                for destination in ground_stations.values(): #and all related destinations
-                    if source == destination: continue
-                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
-
-        if constants.ROUTING_STRATEGY == Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING:
-            print()
-        
-        
-        return routing_output
-    
+        #print("RESULTS", self.results)
+        return dijkstra_shortest_paths
 
     
-    #calculate shortest path between 2 GS stations with DIJKSTRA
-    def sample_dijkstra(self, kwargs): #kwargs passes a single dictionary
-        ground_stations: dict = kwargs['ground_stations'] #extract the dictionary of GS
-        satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
-        for source in ground_stations.values(): #start from every source 
-            for destination in ground_stations.values(): #and all related destinations
-                if source == destination: continue #skip 
-                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
-                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
-
     #calculate all the shortest available paths
     def _get_dijkstra_shortest_paths(self, satellites, source, destination):
         
         g = dijkstra.Graph() #construct a graph for satellites
-
+                    
         #for every satellite item using as keys name & sat, and for every link of them check if link is active
         for name, sat in satellites.items(): 
             for link in sat._links.values(): 
@@ -209,16 +117,56 @@ class HeaderBuilder:
         #calculate Dijkstra's shortest path
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
 
-        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites] #list of paths, for every candidate as end_satellite calculate the shortest path from the source
-        shortest_path = min(shortest_paths, key=lambda x: len(x)) #obtain the shortest path in the list shortest_paths
-        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)] #maintain each path that is equal in length to the shortest path
+        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites]
+        # Controlla se ci sono percorsi disponibili
+        if not shortest_paths:
+            print(f"Non ci sono percorsi disponibili da {source.get_name()} a {destination.get_name()}.")
+            return []  # Oppure None, a seconda di come vuoi gestire l'assenza di percorsi
+
+        shortest_path = min(shortest_paths, key=lambda x: len(x))
+        #debug
+        #print(shortest_path)
+        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
+        #print("PERCORSI per Dijkstgra", shortest_paths)
         for sp in shortest_paths:
+            #print(sp)
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
+        
         return shortest_paths
-
+    
     #obtain list of closer satellites in coverage area
-    def _get_candidate_end_satellites_names(self, satellites, position):
+    def _get_candidate_end_satellites_names(self, satellites, position): #position for destination coordinates
         sat_list = utils.get_closer_satellites(satellites, position) #list of closer satellites
         return [sat['name'] for sat in sat_list if sat['distance'] < constants.SATELLITE_COVERAGE_AREA_RADIUS] #list of the only satellites inside the coverage area of self
+
+    #calculate the distance travelled by the flux
+    def _get_path_distance(self, path: list, source, destination, satellites) -> float:
+        distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites) #calculate distance between GS and the first satellite
+        distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites) #calculate & add the distance between last satellite and GS
+        older_hop = path[0] #first satellite of path
+
+        #for every hop after the first one, calucate & add distance between satellites
+        for hop in path[1:]: 
+            distance += utils.get_distance_between_satellites(older_hop, hop, satellites=satellites)
+            older_hop = hop
+        return distance
+
+    def prepare_results_for_dijkstra(self, ground_stations):
+
+        self.results = {}
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: 
+                    continue
+                self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
+                    'DIJKSTRA' : {} #for Dijkstra
+                }
+                for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy
+                    self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
+                        'successful' : [], #store succesful routing
+                        'failed' : 0, #count all failed routings that are 0 for Dijkstra
+                        'distance' : [] #store the travelled distance
+                    }
+
 

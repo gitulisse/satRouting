@@ -116,8 +116,7 @@ ground_stations = {
 
 #Obtain the Traffic Matrix
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
-print(traffic_matrix)
-
+print("Traffic matrix print:", traffic_matrix)
 
 countries_coordinates_df = utils.get_countries_coordinates()
 countries_internet_penetration_df = utils.get_countries_internet_penetration()
@@ -146,21 +145,26 @@ for gs in ground_stations.values():
 env.satellites = satellites
 env.ground_stations = ground_stations
 env.prepare()
+############FIN QUI laciato 2 volte topology builder e preparato l'ambiente fino a "simulation ready to run"
 
 # Inizio del blocco di codice che prepara e avvia una simulazione "standard" non finalizzata allo sviluppo di grafici o
 # all'analisi di metriche specifiche
 traffic_generators = []
 
+header_builder = HeaderBuilder(ground_stations, satellites)
+
 for gs in ground_stations.values():
     gs_traffic_details = traffic_matrix[gs.get_name()]
     for destination in gs_traffic_details:
-        tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
+        tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, header_builder=header_builder, source_gs=gs, destination_gs=ground_stations[destination.upper()])
         traffic_generators.append(tg)
+
 env.start()
 #Fine del blocco
 
 # Oggetto tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
+#'''
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
@@ -171,7 +175,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
     traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 else:
     header_builder = HeaderBuilder(ground_stations, satellites)
-
+#'''
 
 #Farei un IF o uno switch a seconda della strategia richiesta si esegue un ramo o l'altro
 #header_builder = HeaderBuilder(ground_stations, satellites)

@@ -43,11 +43,20 @@ def prepare():
     count=0
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
-        
-        if constants.DEBUG:
+        '''
+        if True: #constants.DEBUG:
             count+=1
             print(f"Topology builder {count}: lanciato")
-        
+        '''
+    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
+                                      Strategy.EXPONENTIAL_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
+                                      Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+        print("entrato in centralized del Topology Builder")
+    
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
@@ -100,12 +109,12 @@ def start():
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-        print("- Launching Centralized Strategy of Simulation:")
+        print("- Launching Centralized Strategy of Simulation.")
     
         
     #while the queue has actions then execute all actions
     while env.actions_queue.is_not_empty():
-        #print("the queue of actions is NOT empty")
+
         #extract actions
         time, action, kwargs = env.actions_queue.get()
         if time != env.elapsed_time: 
@@ -113,6 +122,8 @@ def start():
             print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds")
         
         #debug
+        if constants.DEBUG:
+            print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########
         #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
         #print("AZIONI", action)
 
@@ -121,7 +132,6 @@ def start():
         else:
             action()
         
-        #print("Azione svolta.")
 
     print("Simulation ended.")
 

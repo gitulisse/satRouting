@@ -3,6 +3,7 @@ from geopy import distance
 from flux import Flux, FluxState
 import math
 from skyfield.api import Time, Timescale
+from routing_action import RoutingAction
 import utils
 
 class GroundStation:
@@ -19,82 +20,12 @@ class GroundStation:
         self.DEBUG_dropped_incoming_fluxes: list[(Flux, Time, Time)] = [] #Flusso, tempo di inizio ricezione, tempo di fine ricezione e causa drop
         self.keep_log = keep_log
 
-    '''
-    #add routing method for GS
-    #Route method
-    def centralized_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
-        
-        # Ground stations e satelliti come punti di partenza e destinazione
-        ground_stations = self.gss  # Dizionario delle ground stations
-        satellites = self.satellites  # Dizionario dei satelliti disponibili
+    #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
+    def centralized_route(self, flux: Flux):
 
-        # Risultato per il routing
-        routing_output = list()
-
-        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            # Ciclo su ogni coppia di stazioni di partenza e arrivo
-            for source in ground_stations.values():
-                for destination in ground_stations.values():
-                    if source == destination: continue  # Evita routing verso sé stesso
-
-                    # Ottieni i percorsi più brevi da source a destination
-                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
-                    #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                    #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
-                
-                    # Prendi il percorso più breve ottenuto con Dijkstra
-                    if dijkstra_shortest_paths:
-                        shortest_path = dijkstra_shortest_paths[0]
-                        
-                        # Converti il percorso più breve in una lista di azioni di routing e link
-                        for i in range(len(shortest_path) - 1):
-                            current_node = shortest_path[i]
-                            next_node = shortest_path[i + 1]
-                           
-                            # Identifica il link tra current_node e next_node
-                            link = satellites[current_node]._links.get(next_node)
-                            if link and link.is_active():
-                                routing_action = RoutingAction(source, destination, flux)
-                                routing_output.append((routing_action, link))
-        
-        return routing_output
-    
-
-    #add routing method for GS
-    #Route method
-    def basic_route(self, kwargs, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
-        ground_stations: dict = kwargs['ground_stations']
-        satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
-        
-        routing_output = list()
-
-        def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list:
-            if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flux
-                return []
-            else:
-                #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flux 
-                steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:] 
-                if steps[-1] == self: 
-                    steps = steps[:-1] #cut steps list if the last step was the current satellite
-                indices = [i+1 for i, x in enumerate(steps) if x == self] #indices in steps that corresponds to current node
-                if len(steps) > 0:
-                    indices.append(-1)
-                return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
-
-        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            for source in ground_stations.values(): #start from every source 
-                for destination in ground_stations.values(): #and all related destinations
-                    if source == destination: continue
-                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])) #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
-
-        if constants.ROUTING_STRATEGY == Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING:
-            print()
-        
-        
-        return routing_output
-    '''
+        routing_decisions = self.basic_centralized_route(flux)
+        routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
+        return routing_decisions
 
     #set satellite
     def set_satellites(self, satellites):
@@ -138,9 +69,11 @@ class GroundStation:
     #sender of fluxes from GS to connected satellite
     def send_flux(self, flux: Flux):
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None)) #add an outgoing flux with current time, None is the time of termination of the flux
+        '''
         #debug
         if constants.DEBUG:
             print("Opening flux", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+        '''
         flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
         self.sat.open_flux(flux.clone())
 
@@ -152,8 +85,10 @@ class GroundStation:
                     self.outgoing_fluxes[i] = (outgoing_flux, start_time, utils.get_current_time())
                     #outgoing_flux.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
                     outgoing_flux.travelled_distance = 0
+                    '''
                     if constants.DEBUG:
                         print("Closed outgoing flux", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+                    '''
                     break
         else:
             while self.outgoing_fluxes.__contains__(flux):
@@ -165,9 +100,11 @@ class GroundStation:
             flux.paths.append(flux.get_steps())
             flux.state = FluxState.DELIVERED
             self.incoming_fluxes.append((flux, utils.get_current_time(), None))
+            '''
             if constants.DEBUG:
                 print("Flux", flux.id, "with rate", flux.rate, "Mbps has reached its destination!", "at time", utils.get_current_time().utc_strftime())
                 print("Steps:", [step.get_name() for step in flux.get_steps()])
+            '''
         else:
             self._discard_flux(flux)
         
@@ -180,8 +117,10 @@ class GroundStation:
             for i, (incoming_flux, start_time, end_time) in enumerate(self.incoming_fluxes):
                 if flux == incoming_flux and flux.alias_id == incoming_flux.alias_id and flux.rate == incoming_flux.rate and end_time == None:
                     self.incoming_fluxes[i] = (incoming_flux, start_time, utils.get_current_time())
+                    '''
                     if constants.DEBUG:
                         print("Closed incoming flux", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+                    '''
                     break
         else:
             while self.incoming_fluxes.__contains__(flux):
@@ -211,11 +150,12 @@ class GroundStation:
                     flux.paths.append(incoming_flux.get_steps())
                     sum_travelled_distance += incoming_flux.travelled_distance
                     incoming_fluxes_count += 1 
-
+                    '''
                     #debug 
                     if constants.DEBUG:
                         print(total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flux.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flux.rate, "with alias id", incoming_flux.alias_id)
                         print([sat.get_name() for sat in incoming_flux.get_steps()])
+                    '''
         if incoming_fluxes_count > 0:
             flux.travelled_distance = sum_travelled_distance / incoming_fluxes_count
             if constants.DEBUG or not(constants.DEBUG):
@@ -236,15 +176,18 @@ class GroundStation:
                     total_data_dropped += active_time_in_seconds * dropped_flux.rate
                     #Escluso in modo tale da memorizzare solo i path a buon fine nel flux
                     #flux.paths.append(dropped_flux.get_steps())
+                    '''
                     if constants.DEBUG:
                         print(total_data_dropped, utils.get_seconds_between(start_time, end_time) * dropped_flux.rate, "dropped for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", dropped_flux.rate, "with alias id", dropped_flux.alias_id, "reason", dropped_flux.state)
                         print([sat.get_name() for sat in dropped_flux.get_steps()])
-        #'''
+                    '''
+
+        '''
         # Stampa tutti i percorsi del flusso
         print("\nPercorsi per il flusso", flux.id, ":")
         for idx, path in enumerate(flux.paths):
             print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
-        #'''
+        '''
         
         return (total_data_sent, total_data_received, total_data_dropped)
         
@@ -252,18 +195,22 @@ class GroundStation:
     def DEBUG_get_dropped_flux(self, flux: Flux):
         flux.paths.append(flux.get_steps())
         self.DEBUG_dropped_incoming_fluxes.append((flux, utils.get_current_time(), None))
+        '''
         if constants.DEBUG:
             print("Logged opening of dropped flux", flux.id, "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
             print("Steps:", [step.get_name() for step in flux.get_steps()])
-
+        '''
+            
     def DEBUG_close_dropped_flux(self, flux: Flux):
         if self.keep_log:
             for i, (dropped_flux, start_time, end_time) in enumerate(self.DEBUG_dropped_incoming_fluxes):
                 if flux == dropped_flux and flux.alias_id == dropped_flux.alias_id and flux.rate == dropped_flux.rate and end_time == None:
                     self.DEBUG_dropped_incoming_fluxes[i] = (dropped_flux, start_time, utils.get_current_time())
+                    '''
                     if constants.DEBUG:
                         print("Logged closing of dropped flux", flux.id, "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
                         print("Steps:", [step.get_name() for step in flux.get_steps()])
+                    '''
                     break
         else:
             while self.DEBUG_dropped_incoming_fluxes.__contains__(flux):
@@ -272,7 +219,9 @@ class GroundStation:
     def reattach(self):
         distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False)
         new_sat = self.satellites.get(distances[0]['name'])
+        '''
         if constants.DEBUG:
             if new_sat != self.sat:
                 print("Attaching Ground Station", self.get_name(), "to Satellite", new_sat.get_name(), "at time", utils.get_current_time().utc_strftime())
+        '''
         self.attach_to_sat(new_sat)

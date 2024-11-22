@@ -180,8 +180,7 @@ class TrafficAnalyzer:
                     env.start()
                 constants.ROUTING_STRATEGY = strategy_backup
 
-
-        print(self.results)
+        #print("questo è il results: ", self.results)
 
         #if duration is longer then 60 secs cretes a random file with srtored results of simulation
         if constants.SIMULATION_DURATION >= 60:
@@ -343,12 +342,12 @@ class TrafficAnalyzer:
         # Filtra e trova il percorso più breve
         shortest_path = min(shortest_paths, key=lambda x: len(x))
         #debug
-        print(shortest_path)
+        #print(shortest_path)
         shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
-        print("PERCORSI", shortest_paths)
+        #print("PERCORSI", shortest_paths)
 
         for sp in shortest_paths:
-            print(sp)
+            #print(sp)
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
         

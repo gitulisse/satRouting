@@ -32,22 +32,28 @@ class Link:
     #close fluxes
     def close_flux(self, flux: Flux):
         self.fluxes.pop(flux.alias_id) #remove flux id
+        '''
         if constants.DEBUG:
             print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+        '''
         self.target.close_flux(flux.clone()) #cloned flux sent to target will be closed by the target
 
     #manage reservation of bandwidth for a specified Flux
     def reserve_bandwidth(self, flux: Flux) -> bool:
         if self.get_available_bandwidth() >= flux.rate: 
             self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
+            '''
             #debug
             if constants.DEBUG:
                 print("Reserved", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
+            '''
             return True
         else:
+            '''
             #debug
             if constants.DEBUG:
                 print("Failed to reserve", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
+            '''
             return False
 
 #Laserlink between satellites
@@ -143,7 +149,9 @@ class RadioLink(Link):
     def close_flux(self, flux: Flux):
         self.fluxes.pop(flux.alias_id) #remove flux using id
         for gs in self.target:
+            '''
             #debug
             if constants.DEBUG:
                 print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", gs.get_name(), "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+            '''
             gs.close_flux(flux.clone()) #every GS in self.target close the flux
