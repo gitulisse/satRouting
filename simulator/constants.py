@@ -14,7 +14,7 @@ TOPOLOGY_UPDATE_TIME = min(30, SATELLITE_NEIGHBORS_UPDATE_TIME)
 #Value between 0 and 1 stating how much the neighbor's state should affect the overall state value of the satellite (0 = no weight on neighbors, 1 = overall state depends exclusively on neighbors' state)
 LOAD_BALANCING_WEIGHT_FACTOR = 0.9
 
-SATELLITE_COVERAGE_AREA_RADIUS = 2350
+SATELLITE_COVERAGE_AREA_RADIUS = 2350 #radius in km in which the satellites can operate to cover ground areas for connections with GS
 SATELLITE_LINK_CAPACITY = 1 #Mbps
 GROUND_STATION_LINK_CAPACITY = 1000 #Mbps
 
