@@ -8,7 +8,7 @@ import utils
 import networkx as nx
 import matplotlib.pyplot as plt
 from routing_action import RoutingAction
-from link import Link, LaserLink, RadioLink
+from link import Link
 from ground_station import GroundStation
 from geopy import distance
 from satellite import Sat
@@ -62,7 +62,7 @@ class HeaderBuilder:
             return None
 
         # Calcola il percorso più breve con Dijkstra
-        dijkstra_shortest_path = self._get_dijkstra_shortest_paths(satellites, source, destination)
+        dijkstra_shortest_path = self._get_dijkstra_shortest_path(satellites, source, destination)
 
         if not dijkstra_shortest_path:
             print(f"No valid path found from {source.get_name()} to {destination.get_name()}.")
@@ -72,8 +72,8 @@ class HeaderBuilder:
         return dijkstra_shortest_path
 
     
-    #########################################################################################################################àà
-    def calculate_dijkstra2222(self, kwargs): #SISTEMAREEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+    '''
+    def calculate_dijkstra_BACKUP(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
         satellites: dict = kwargs['satellites']
 
@@ -83,7 +83,7 @@ class HeaderBuilder:
                     continue
 
                 # Calcola i percorsi più brevi con Dijkstra
-                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
+                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #cambiato _get_dijkstra_shortest_path(S)
                 #print("shortest paths:", dijkstra_shortest_paths)   
 
                 # Aggiungi i risultati di successo e distanza
@@ -93,16 +93,15 @@ class HeaderBuilder:
         print("RESULTS stored in HeaderBuilder", self.results)
         #print("PATHS returned by the calculate_dijkstra", dijkstra_shortest_paths)
         return dijkstra_shortest_paths
-
+    '''
     
     #calculate all the shortest available paths from SOURCE to DESTINATION
-    #returning THE SHORTEST PATH
-    def _get_dijkstra_shortest_paths(self, satellites, source, destination):
+    #returning THE SHORTEST PATH with minimum distance on minimum number of hops
+    def _get_dijkstra_shortest_path(self, satellites, source, destination):
         
-        g = dijkstra.Graph() #construct a graph for satellites
-                    
-        #for every satellite item using as keys name & sat, and for every link of them check if link is active
-        for name, sat in satellites.items(): 
+        g = dijkstra.Graph() #construct a graph for satellites    
+       
+        for name, sat in satellites.items():  #for every satellite item using as keys name & sat, and for every link of them check if link is active
             for link in sat._links.values(): 
                 if link.is_active():
                     g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target)) #add a connection from name(the current satellite) to the target
@@ -112,36 +111,31 @@ class HeaderBuilder:
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
 
         shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites]
-        # Controlla se ci sono percorsi disponibili
-        if not shortest_paths:
-            print(f"Non ci sono percorsi disponibili da {source.get_name()} a {destination.get_name()}.")
-            return []  # Oppure None, a seconda di come vuoi gestire l'assenza di percorsi
+
+        if not shortest_paths: #if there are shortest paths (there is always a path, but it's a check for wrong construction of constellation)
+            print(f"No available paths from {source.get_name()} to {destination.get_name()}.")
+            return []  #or could put None as return, if necessary
 
         shortest_path = min(shortest_paths, key=lambda x: len(x)) #return only one of the shortest paths, not all
-        #debug
-        #print(shortest_path)
+
         shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)] #returns all the paths with same length as the shortest
-        #print("PERCORSI per Dijkstgra", shortest_paths)
+
         for sp in shortest_paths:
-            #print(sp)
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
         
-        # Calculate distances for all paths
+        #Calculates distances for all paths remained with minimum number of hops
         path_distances = [
             (path, self._get_path_distance(path, source, destination, satellites)) 
             for path in shortest_paths
         ]
-
-        # Find the path with the minimum distance
-        shortest_path, min_distance = min(path_distances, key=lambda x: x[1])
+        shortest_path, min_distance = min(path_distances, key=lambda x: x[1]) #order and find the path with the minimum distance
 
         # Print the shortest path and its distance
         print(f"The shortest path from {source.get_name()} to {destination.get_name()} in km is: {shortest_path}")
         print(f"Total distance {min_distance:.2f} km")
 
-        #print("PATHS returned by the _get_dijkstra_shortest_paths", shortest_paths)
-        return shortest_path
+        return shortest_path #only the path with minimum distance on minimum number of hops
     
 
     #Routing decisions for bandwidth

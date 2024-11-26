@@ -118,6 +118,7 @@ ground_stations = {
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print("Traffic matrix print:", traffic_matrix)
 
+#Preparation of the environment
 countries_coordinates_df = utils.get_countries_coordinates()
 countries_internet_penetration_df = utils.get_countries_internet_penetration()
 countries_population_df = utils.get_countries_population()
@@ -144,11 +145,10 @@ for gs in ground_stations.values():
 
 env.satellites = satellites
 env.ground_stations = ground_stations
-env.prepare()
-############FIN QUI laciato 2 volte topology builder e preparato l'ambiente fino a "simulation ready to run"
+env.prepare() #prepare the environment with all necessary components
+#launch 2 topology builder (for 2 runs of simulation on 20 secs duration) until "simulation ready to run"
 
-# Inizio del blocco di codice che prepara e avvia una simulazione "standard" non finalizzata allo sviluppo di grafici o
-# all'analisi di metriche specifiche
+# Start of the code block that launches the "standard" simulation not aimed at developing graphs or analyzing specific metrics
 traffic_generators = []
 header_builders = []
 
@@ -159,22 +159,6 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-    '''
-    # Configura HeaderBuilder con sorgenti e destinazioni
-    for source_gs in ground_stations.values():
-        traffic_details = traffic_matrix[source_gs.get_name()]
-        for destination_name, rate in traffic_details.items():
-            destination_gs = ground_stations[destination_name.upper()]
-            print(f"Crea HeaderBuilder per {source_gs.get_name()} -> {destination_name} con rate {rate} Mbps")
-            HeaderBuilder(
-                rate,  # velocità del traffico
-                constants.SIMULATION_DURATION,  # durata della simulazione
-                ground_stations,  # stazioni a terra
-                satellites,  # satelliti
-                source_gs,  # stazione sorgente
-                destination_gs  # stazione destinazione
-            )
-    '''
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         for destination_name, rate in gs_traffic_details.items():
@@ -182,8 +166,10 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
             print(f"Crea HeaderBuilder per {gs.get_name()} -> {destination_name} con rate {rate} Mbps")
             hb = HeaderBuilder(rate, constants.SIMULATION_DURATION, ground_stations, satellites, gs, destination)
             header_builders.append(hb)
-    #'''
-    #HeaderBuilder(constants.SIMULATION_DURATION, ground_stations=ground_stations, satellites=satellites)
+    '''
+    if constants.DEBUG:
+        print("header_builders LIST", header_builders)
+    '''
 
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
@@ -202,11 +188,10 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
         print("traffic_generators LIST", traffic_generators)
     '''
 env.start()
-#Fine del blocco
+# End of block
 
-# Oggetto tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
+# Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
-'''
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
@@ -216,11 +201,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
     traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 else:
-    header_builder = HeaderBuilder(ground_stations, satellites)
-'''
-
-#Farei un IF o uno switch a seconda della strategia richiesta si esegue un ramo o l'altro
-#header_builder = HeaderBuilder(ground_stations, satellites)
+    header_builder = HeaderBuilder(ground_stations, satellites) #modificare per l'analisi di metriche, creare nuovo costrutto
 
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
