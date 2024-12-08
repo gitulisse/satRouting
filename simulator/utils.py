@@ -65,6 +65,19 @@ def get_closer_satellites(satellites, position: tuple[float, float], operational
     distances.sort(key=lambda x: x['distance']) #sort from closest
     return distances
 
+#identifies close satellites to build the graph structure
+def get_closer_satellites_for_graph(satellites, position: tuple[float, float], operational_only = True):
+    closer_satellites = []
+    for key, sat in satellites.items():
+        if operational_only and not sat.is_operational():  ##exclude not operational sat
+            continue
+        distance_to_gs = distance.distance((sat.get_latitude(), sat.get_longitude()), position).km
+        if distance_to_gs <= constants.SATELLITE_COVERAGE_AREA_RADIUS:  #only in the radius
+            closer_satellites.append({'name': key, 'satellite': sat, 'distance': distance_to_gs})  #add object sat
+        closer_satellites.sort(key=lambda x: x['distance']) #sort from minimum, made 2 by 2 respecting the tuple
+        chosen_satellites = [(entry['name'], entry['satellite']) for entry in closer_satellites]
+    return chosen_satellites
+
 #calculate distance between satellites in km
 def get_distance_between_satellites(sat1, sat2, satellites = None):
     if isinstance(sat1, int): #check sat1 is passed as an int

@@ -13,8 +13,8 @@ from routing_action import RoutingAction
 from skyfield.api import EarthSatellite, wgs84
 from strategy import Strategy
 import utils
+from header_builder import HeaderBuilder as hb
 
-#Satellite's constructor
 class Sat:
     def __init__(self, earth_satellite, ground_stations) -> None:
         self._earth_satellite: EarthSatellite = earth_satellite
@@ -60,7 +60,6 @@ class Sat:
         if constants.DEBUG:
             print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time().utc_strftime())
         '''
-
         self.notify_neighbor_unlink(dir) #notify link removal to neighbor
         leftovers = link.point_to_sat(sat) #stores remaining fluxes about link pointing to satellite
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
@@ -299,23 +298,39 @@ class Sat:
             self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
             self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
         else:
-            #########se il satellite è operativo allora rieseguo il route dal satellite in poi
-            routing_decisions = self.route(flux) #otherwise if satellite is operational, calculates routing for the flux (START THE ROUTE DECISION CORE)
-            self._close_internal_flux(flux.alias_id) #close the internal flux
-            if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
-                for _, f, _ in routing_decisions[1:]:
-                    f.alias_id = self.mapping_table.get_input_id(f.alias_id)
-                    f.alias_id = self.mapping_table.add(f.alias_id)
-            #analyze parameters action, f, link of routing_decisions
-            for action, f, link in routing_decisions:
-                if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
-                    self.send_flux(f, link) #send
-                elif action == RoutingAction.ERROR:
-                    self.drop_flux(f, link) #drop
-                elif action == RoutingAction.REOPEN:
-                    f.alias_id = self.mapping_table.get_input_id(f.alias_id)
-                    f.drop_steps_from(self)
-                    self.open_flux(f) #reopen
+            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                                  Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
+                                  Strategy.EXPONENTIAL_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+                print("entered reopen_flux with centralized route") #qui prendere il percorso già prefissato e inviare
+                #hb
+
+            else:
+                #########se il satellite è operativo allora rieseguo il route dal satellite in poi
+                routing_decisions = self.route(flux) #otherwise if satellite is operational, calculates routing for the flux (START THE ROUTE DECISION CORE)
+                '''
+                #Debug
+                if constants.DEBUG:
+                    print("Distributed decisions:", routing_decisions)
+                '''
+                self._close_internal_flux(flux.alias_id) #close the internal flux
+                if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
+                    for _, f, _ in routing_decisions[1:]:
+                        f.alias_id = self.mapping_table.get_input_id(f.alias_id)
+                        f.alias_id = self.mapping_table.add(f.alias_id)
+                #analyze parameters action, f, link of routing_decisions
+                for action, f, link in routing_decisions:
+                    if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
+                        self.send_flux(f, link) #send
+                    elif action == RoutingAction.ERROR:
+                        self.drop_flux(f, link) #drop
+                    elif action == RoutingAction.REOPEN:
+                        f.alias_id = self.mapping_table.get_input_id(f.alias_id)
+                        f.drop_steps_from(self)
+                        self.open_flux(f) #reopen
 
     #Manage the open of fluxes
     def open_flux(self, flux: Flux):
@@ -517,31 +532,18 @@ class Sat:
                     if r_o[0] == RoutingAction.ERROR:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
-        '''
-        #new strategy
-        elif constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            ground_stations: dict = kwargs['ground_stations']
-            satellites: dict = kwargs['satellites'] #extract the dictionary of satellites
-            print("Started DIJKSTRA")
-            for source in ground_stations.values(): #start from every source 
-                for destination in ground_stations.values(): #and all related destinations
-                    if source == destination: continue
-                    dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination) #obtain shortest paths
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0])) #first shortest path
-                    #append under the key 'distance' the minimun path distance from all dijkstra_shortest_paths for each source-destination couple
-                    self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths]))
-
-        #new strategy
-        elif constants.ROUTING_STRATEGY == Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING:
-            print("Started NO SMOOTHING ON BUFFER")
-       
-        for element in routing_output[:1]:
-          print("ELEMENTI ", element ) #print element for each single line
-        '''
 
         #print(routing_output) #AGGIUNTO PER DEBUGGARE
 
         return routing_output
+    
+    def deliver_flux(self, routing_output, flux: Flux,):
+        
+        #calculates distance from the target, if in the satellite's range, flux is delivered to GS destination
+        distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km
+        if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
+            routing_output.append((RoutingAction.DELIVER, self._gs_link))
+
     
     #Rerouting all
     def _reroute_all(self):

@@ -148,6 +148,7 @@ env.ground_stations = ground_stations
 env.prepare() #prepare the environment with all necessary components
 #launch 2 topology builder (for 2 runs of simulation on 20 secs duration) until "simulation ready to run"
 
+
 # Start of the code block that launches the "standard" simulation not aimed at developing graphs or analyzing specific metrics
 traffic_generators = []
 header_builders = []
@@ -163,7 +164,7 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
         gs_traffic_details = traffic_matrix[gs.get_name()]
         for destination_name, rate in gs_traffic_details.items():
             destination = ground_stations.get(destination_name.upper())
-            print(f"Crea HeaderBuilder per {gs.get_name()} -> {destination_name} con rate {rate} Mbps")
+            #print(f"HeaderBuilder from {gs.get_name()} -> {destination_name} with rate {rate} Mbps")
             hb = HeaderBuilder(rate, constants.SIMULATION_DURATION, ground_stations, satellites, gs, destination)
             header_builders.append(hb)
     '''
@@ -192,6 +193,7 @@ env.start()
 
 # Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
+'''
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
@@ -202,7 +204,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
     traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 else:
     header_builder = HeaderBuilder(ground_stations, satellites) #modificare per l'analisi di metriche, creare nuovo costrutto
-
+'''
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
 #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)

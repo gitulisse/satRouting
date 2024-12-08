@@ -20,13 +20,6 @@ class GroundStation:
         self.DEBUG_dropped_incoming_fluxes: list[(Flux, Time, Time)] = [] #Flusso, tempo di inizio ricezione, tempo di fine ricezione e causa drop
         self.keep_log = keep_log
 
-    #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
-    def centralized_route(self, flux: Flux):
-
-        routing_decisions = self.basic_centralized_route(flux)
-        routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
-        return routing_decisions
-
     #set satellite
     def set_satellites(self, satellites):
         self.satellites = satellites
@@ -65,6 +58,16 @@ class GroundStation:
     #get name
     def get_name(self) -> str:
         return self.name
+
+    #sender of fluxes from GS to connected satellite
+    def start_deliver_flux(self, flux: Flux):
+        self.outgoing_fluxes.append((flux, utils.get_current_time(), None))
+
+        #if constants.DEBUG:
+        #print("Start delivering flux, opening", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+
+        self.sat.open_flux(flux.clone())
+
 
     #sender of fluxes from GS to connected satellite
     def send_flux(self, flux: Flux):

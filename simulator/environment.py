@@ -122,8 +122,10 @@ def start():
             print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds")
         
         #debug
+        '''
         if constants.DEBUG:
             print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########
+        '''
         #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
         #print("AZIONI", action)
 
@@ -229,9 +231,11 @@ def topology_builder():
         elif (sat[1] > sat_link[1] or sat[1] < -150 and sat_link[1] > 150 and sat[1] < sat_link[1]) and sat[5] == None and sat_link[4] == None: #West branch
                 sat[5] = sat_key
                 sat_link[4] = key
+    ''' #controllare linking phase
     #debug            
     if constants.DEBUG:
         print("Linking phase completed. Applying...")
+    '''
 
     #for every satellite update their infos and add links
     for key, sat in temp_satellites.items():

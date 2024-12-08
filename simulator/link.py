@@ -155,3 +155,4 @@ class RadioLink(Link):
                 print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", gs.get_name(), "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
             '''
             gs.close_flux(flux.clone()) #every GS in self.target close the flux
+            
