@@ -49,8 +49,6 @@ def prepare():
             print(f"Topology builder {count}: lanciato")
         '''
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                      Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
-                                      Strategy.EXPONENTIAL_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
@@ -103,8 +101,6 @@ def start():
     
     
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                      Strategy.NO_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
-                                      Strategy.EXPONENTIAL_SMOOTHING_ON_BUFFER_SIZE_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,

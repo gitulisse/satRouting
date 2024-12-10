@@ -50,7 +50,7 @@ class HeaderBuilder:
         routing_decisions = self.basic_centralized_route(flux)
         #routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
 
-        #########print("THE ROUTING DECISIONS:", routing_decisions)
+        print("THE ROUTING DECISIONS:", routing_decisions)
         return routing_decisions
 
     def basic_centralized_route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
@@ -100,7 +100,7 @@ class HeaderBuilder:
             routing_output.append((action, flux, last_link))
 
         if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
-            print("Starting the Kshortestdisjointpaths algorithm...")
+            #print("Starting the K shortest node disjoint paths algorithm...")
             self.prepare_results_for_kshortestdisjointpaths(ground_stations=self.ground_stations)
             
             #disjoint_paths = self.calculate_k_disjoint_paths({'source': self.source, 'destination': self.destination, 'satellites': self.satellites})
@@ -109,40 +109,92 @@ class HeaderBuilder:
                 'destination': self.destination,
                 'satellites': self.satellites
             })
-
+            #Debug
+            #for path_index, path in enumerate(disjoint_paths):
+            #    print(f"Processing path {path_index + 1}: {path}")
             if not disjoint_paths:
                 #print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
             
-            # Seleziona il primo percorso disgiunto per instradare il flusso
+            # Calcola le probabilità basate sui pesi dei percorsi
+            probabilities = self.calculate_path_weights_kshortest_node_disjoint(self._graph, disjoint_paths)
+
+            # Seleziona un percorso basato sulle probabilità
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+
             routing_output = []
+            # Seleziona il primo percorso disgiunto per instradare il flusso
+            print(f"Processing selected path: {selected_path}")
+            for i in range(len(selected_path) - 1):  # Itera tra i nodi nel percorso selezionato
+                current_node = selected_path[i]
+                next_node = selected_path[i + 1]
 
-            for path_index, path in enumerate(disjoint_paths):
-                print(f"Processing path {path_index + 1}: {path}")
-                single_path_routing_output = []
-            
-                for i in range(len(path) - 2):
-                    current_node = path[i]
-                    next_node = path[i + 1]
+                link = self._get_link_between_nodes_or_ground_station(current_node, next_node, self.satellites, self.ground_stations)
+                if not link:
+                    print(f"Warning: No link found between {current_node} and {next_node}. Skipping.")
+                    continue
 
-                    link = self._get_link_between_nodes_or_ground_station(current_node, next_node, self.satellites, self.ground_stations)
-                    if not link:
-                        print(f"Warning: No link found between {current_node} and {next_node}. Skipping.")
-                        continue
+                action = RoutingAction.FORWARD
+                routing_output.append((action, flux, link))
 
-                    action = RoutingAction.FORWARD
-                    single_path_routing_output.append((action, flux, link))
-
-                last_node = path[-2]
-                last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.ground_stations)
+            # Gestisci l'ultimo nodo per la consegna alla ground station
+            last_node = selected_path[-1]
+            last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.ground_stations)
+            if last_link:
                 action = RoutingAction.DELIVER
-                single_path_routing_output.append((action, flux, last_link))
+                routing_output.append((action, flux, last_link))
+            else:
+                print(f"Warning: No link found to deliver flux from node {last_node} to destination.")
 
-                routing_output.append(single_path_routing_output)
+        if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
+            #print("Starting the Length shortest node disjoint algorithm...")
+            self.prepare_results_for_lengthshortestdisjointpaths(ground_stations=self.ground_stations)
+            
+            #disjoint_paths = self.calculate_k_disjoint_paths({'source': self.source, 'destination': self.destination, 'satellites': self.satellites})
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self.source,
+                'destination': self.destination,
+                'satellites': self.satellites
+            })
+            #Debug
+            #for path_index, path in enumerate(disjoint_paths):
+            #    print(f"Processing path {path_index + 1}: {path}")
+            if not disjoint_paths:
+                #print("No valid Disjoint paths found, returning empty routing output.")
+                return routing_output
+            
+            # Calcola le probabilità basate sui pesi dei percorsi
+            probabilities = self.calculate_path_weights_length_shortest_node_disjoint(self._graph, disjoint_paths)
+
+            # Seleziona un percorso basato sulle probabilità
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+
+            routing_output = []
+            # Seleziona il primo percorso disgiunto per instradare il flusso
+            print(f"Processing selected path: {selected_path}")
+            for i in range(len(selected_path) - 1):
+                current_node = selected_path[i]
+                next_node = selected_path[i + 1]
+
+                link = self._get_link_between_nodes_or_ground_station(current_node, next_node, self.satellites, self.ground_stations)
+                if not link:
+                    print(f"Warning: No link found between {current_node} and {next_node}. Skipping.")
+                    continue
+
+                action = RoutingAction.FORWARD
+                routing_output.append((action, flux, link))
+
+            # Gestisci l'ultimo nodo per la consegna alla ground station
+            last_node = selected_path[-1]
+            last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.ground_stations)
+            if last_link:
+                action = RoutingAction.DELIVER
+                routing_output.append((action, flux, last_link))
+            else:
+                print(f"Warning: No link found to deliver flux from node {last_node} to destination.")
 
         #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #
-
 
     def calculate_k_disjoint_paths(self, kwargs):
         source: dict = kwargs['source']
@@ -155,7 +207,10 @@ class HeaderBuilder:
             print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
             return None
 
+        print(f"Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()}")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
+        #if hasattr(self, "_graph"):
+        #    print("Il grafo è stato inizializzato con successo.")
         '''
         if not k_disjoint_paths:
             print(f"No valid path found from {source.get_name().upper()} to {destination.get_name().upper()}.")
@@ -166,17 +221,19 @@ class HeaderBuilder:
     
     def _get_k_disjoint_paths(self, satellites, source, destination):
         g= nx.DiGraph()
+        source_satellites = []
+        destination_satellites = []
         #print(source.get_name().upper(),"-", destination.get_name().upper())
         for name, sat in satellites.items():
             for dir, link in sat._links.items():  # Itera sui link del satellite
                 if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
                     g.add_edge(name, link.target.get_name(), weight=utils.get_distance_between_satellites(sat, link.target))  # Aggiungi l'arco al grafo
                     #print(f"Edge added: {name} -> {link.target.get_name()} with distance {utils.get_distance_between_satellites(sat, link.target)}")
-        ###########end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) 
+        #end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) 
         
         #connect source GS to closest satellites
         source_name = source.get_name().upper()
-        g.add_node(source_name)  # Aggiungi la ground station come nodo
+        #g.add_node(source_name)  # Aggiungi la ground station come nodo
         closer_satellites = utils.get_closer_satellites_for_graph(satellites, (source.lat, source.lon))  # Trova i satelliti più vicini
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
@@ -185,11 +242,13 @@ class HeaderBuilder:
             distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, source)  # Calcola la distanza
             #print("Distanza da GS sorgente a Sat:", distance_to_sat)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                g.add_edge(source_name, sat_name, weight=distance_to_sat)  # Collega la source al satellite
+                source_satellites.append(sat_name)
+                #g.add_edge(source_name, sat_name, weight=distance_to_sat)  # Collega la source al satellite
+        ###print("source satellites:", source_satellites)
 
         #connect last satellites to destination GS
         destination_name = destination.get_name().upper()
-        g.add_node(destination_name)  # Aggiungi la ground station come nodo
+        #g.add_node(destination_name)  # Aggiungi la ground station come nodo
         closer_satellites = utils.get_closer_satellites_for_graph(satellites, (destination.lat, destination.lon))  # Trova i satelliti più vicini
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
@@ -198,25 +257,42 @@ class HeaderBuilder:
             distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, destination)  # Calcola la distanza
             #print("Distanza da Sat a GS destinazione:", distance_to_sat)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                g.add_edge(sat_name, destination_name, weight=distance_to_sat)  # Collega il satellite alla destination
+                destination_satellites.append(sat_name)
+                #g.add_edge(sat_name, destination_name, weight=distance_to_sat)  # Collega il satellite alla destination
+        ###print("destination satellites", destination_satellites)
 
         # Debug: verifica il grafo
         #print("Nodi del grafo:", g.nodes)
         #print("Archi del grafo:", g.edges(data=True))
-
+        '''
         #check if source & destination are inside the graph 
         if source_name not in g or destination_name not in g:
             print(f"Errore: source ({source_name}) o destination ({destination_name}) non trovati nel grafo.")
             return []
+        '''
+        self._graph = g #store the graph for successive use
 
         disjoint_paths = [] #list of k paths
-        try:
-            paths = list(nx.node_disjoint_paths(g, source_name, destination_name)) #calculate disjoint paths in graph excluding already used nodes
-            disjoint_paths.extend(paths)  #add all found paths
-        except nx.NetworkXNoPath:
-            print(f"No path between {source_name} and {destination_name}.")
-        
+        if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
+            for src_sat in source_satellites:
+                for dst_sat in destination_satellites:
+                    try:
+                        paths = list(nx.edge_disjoint_paths(g, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
+                        disjoint_paths.extend(paths)  #add all found paths
+                    except nx.NetworkXNoPath:
+                        print(f"No Edge disjoint path between {src_sat} and {dst_sat}.")
+
+        if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
+            for src_sat in source_satellites:
+                for dst_sat in destination_satellites:
+                    try:
+                        paths = list(nx.node_disjoint_paths(g, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
+                        disjoint_paths.extend(paths)  #add all found paths
+                    except nx.NetworkXNoPath:
+                        print(f"No Node disjoint path between {src_sat} and {dst_sat}.")
+
         return disjoint_paths
+
 
     def calculate_dijkstra(self, kwargs):
         source: dict = kwargs['source']
@@ -353,6 +429,22 @@ class HeaderBuilder:
                         'failed' : [], #stores failed routings
                         'distance' : [] #store the travelled distances
                     }
+    
+    def prepare_results_for_lengthshortestdisjointpaths(self, ground_stations):
+        self.results = {}
+        for source in ground_stations.values():
+            for destination in ground_stations.values():
+                if source == destination: 
+                    continue
+                self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
+                    'LENGTH-SHORTEST-DISJOINT-PATHS' : {} #for K-shortest disjoint paths
+                }
+                for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy
+                    self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
+                        'successful' : [], #store succesful routings
+                        'failed' : [], #stores failed routings
+                        'distance' : [] #store the travelled distances
+                    }
 
     #found the link between two nodes of the path
     def _get_link_between_nodes(self, node1, node2, satellites):        
@@ -433,3 +525,48 @@ class HeaderBuilder:
         
         #print(f"Recupero link tra satellite '{node1}' e satellite '{node2}'.")
         return self._get_link_between_nodes(node1, node2, satellites) #two satellites case
+
+    def calculate_path_weights_kshortest_node_disjoint(self, graph, paths):
+        if graph is None:
+            raise ValueError("Il grafo è None. Assicurati che sia stato inizializzato correttamente.")
+        
+        path_weights = []
+        total_weight = 0
+
+        for path in paths:
+            try:
+                path_weight = sum(
+                    graph.edges[path[i], path[i + 1]].get("weight", 1)  # Usa un peso predefinito di 1
+                    for i in range(len(path) - 1)
+                )
+                path_weights.append(path_weight)
+                total_weight += path_weight
+            except KeyError as e:
+                print(f"Errore durante il calcolo del peso per il percorso {path}: {e}")
+                path_weights.append(float('inf'))  # Assegna un peso infinito a percorsi problematici
+
+        if total_weight == 0:
+            print("Attenzione: il peso totale dei percorsi è 0. Normalizzazione impossibile.")
+            return [1 / len(paths)] * len(paths)  # Distribuzione uniforme come fallback
+
+        normalized_weights = [
+            1 - (weight / total_weight) for weight in path_weights
+        ]
+        total_normalized = sum(normalized_weights)
+
+        probabilities = [
+            weight / total_normalized for weight in normalized_weights
+        ]
+        return probabilities
+
+    def calculate_path_weights_length_shortest_node_disjoint(self, graph, paths):
+        total_path_weights = sum([1 - (path_weight(graph, path, weight="weight") / sum([path_weight(graph, p, weight="weight") for p in paths])) for path in paths])
+
+        weights = [(1 - (path_weight(graph, path, weight="weight") / sum([path_weight(graph, p, weight="weight") for p in paths]))) / total_path_weights for path in paths]
+
+        return weights
+
+    #select path based on probabilities
+    def select_path_with_probabilities(self, paths, probabilities): 
+        selected_path = random.choices(population=paths, weights=probabilities, k=1)[0]
+        return selected_path
