@@ -270,7 +270,6 @@ class Sat:
     #Sender of fluxes
     def send_flux(self, flux: Flux, link: Link):
         if link.reserve_bandwidth(flux): #if the needed bandwidth is available return TRUE
-            
             '''
             #Debug
             if constants.DEBUG:
@@ -279,10 +278,8 @@ class Sat:
                 else:
                     print("Opened flux", flux.id, "on Satellite", self.get_name(), "with rate", flux.rate, "Mbps on link headed to", link.target.get_name(), "at time", utils.get_current_time().utc_strftime())
             '''
-            #save direction
-            self.store_flux_direction(flux, link)
+            self.store_flux_direction(flux, link) #save direction
             
-
             if isinstance(link, RadioLink):
                 flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0]) #if link is a radiolink calculates the distance satellite and GS
             else:
@@ -298,13 +295,15 @@ class Sat:
             self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
             self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
         else:
-            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
                 print("entered reopen_flux with centralized route") #qui prendere il percorso già prefissato e inviare
-                #hb
 
             else:
                 #########se il satellite è operativo allora rieseguo il route dal satellite in poi
@@ -542,7 +541,6 @@ class Sat:
         if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
             routing_output.append((RoutingAction.DELIVER, self._gs_link))
 
-    
     #Rerouting all
     def _reroute_all(self):
         if self._is_rerouting: #if satellite already rerouting, avoid double rerouting
@@ -602,7 +600,6 @@ class Sat:
             self._close_internal_flux(local_id) #close      
             if self.mapping_table.contains_local_id(local_id):
                 self.mapping_table.remove(local_id) #remove from mapping table
-        
         #self._reroute_all()
         #env.put(env.elapsed_time, self._reroute_all)
 
