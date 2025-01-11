@@ -67,12 +67,17 @@ class LaserLink(Link):
     #maintain trace of the leftover fluxes & redirect the LaserLink
     def point_to_sat(self, sat) -> list[Flux]:
         leftovers = [] #residual fluxes
+        #print(f"Fluxes: {self.fluxes}")
         while len(self.fluxes.values()) > 0: #if there are fluxes
             flux = list(self.fluxes.values())[0] #take first value of fluxes
+            #print(f"first flux is.. {flux}")
             leftovers.append(flux.clone()) #add this flux to leftovers
+            #print(f"leftovers list: {leftovers}")
             input_id = self._parent.mapping_table.remove(flux.alias_id) #remove flux id from parent mapping table & save it as input_id
+            #print(f"input:id: {input_id}")
             self._parent._close_internal_flux(flux.alias_id) #close the flux internal to parent satellite
             leftovers[-1].alias_id = input_id #set the input of the last inserted flux in leftovers
+            
         self.lat = sat.get_latitude() #lat
         self.lon = sat.get_longitude() #lon
         self.state = 0.0 #state
@@ -81,9 +86,13 @@ class LaserLink(Link):
     
     #manage idle state for the links
     def idle(self) -> list[Flux]:
+        print(f"Link {self} going idle with fluxes: {self.fluxes}")##########
         leftovers = []
         while len(self.fluxes.values()) > 0:
             flux = list(self.fluxes.values())[0]
+            if flux.alias_id not in self._parent.mapping_table.table:
+                print(f"Skipping invalid alias_id: {flux.alias_id}")
+                return
             leftovers.append(flux.clone())
             input_id = self._parent.mapping_table.remove(flux.alias_id)
             self._parent._close_internal_flux(flux.alias_id)
@@ -114,7 +123,7 @@ class LaserLink(Link):
 class RadioLink(Link):
     def __init__(self, parent_sat):
         super().__init__(parent_sat, constants.GROUND_STATION_LINK_CAPACITY)
-        self.target: list[GroundStation] = []
+        self.target: list[GroundStation] = []  #maybe a list as target for radiolink can be trivial
 
     #attach link to GS
     def attach_to_gs(self, gs):

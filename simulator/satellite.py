@@ -80,8 +80,9 @@ class Sat:
     
     #Remove a link and notify neighbor
     def remove_link(self, dir: Direction, notify_neighbor = True):
+        #print(f"Attempting to remove link {dir} for satellite {self.get_name()}")######
         link = self._links.get(dir) #obtain the link from dictionary _links
-        if not(link.is_active()): #check if active
+        if link is None or not link.is_active():  # Verifica che il link esista ed è attivo
             return
         if notify_neighbor:
             self.notify_neighbor_unlink(dir)
@@ -177,7 +178,7 @@ class Sat:
             self.state = local_state * (1 - constants.LOAD_BALANCING_WEIGHT_FACTOR) + neighbor_state * constants.LOAD_BALANCING_WEIGHT_FACTOR #real state of satellite as a mix of local state and neighbors' state
         else:
             self.state = 0
-
+        '''
         #Debug
         if constants.DEBUG:
             if self.state > 1:
@@ -185,7 +186,7 @@ class Sat:
                 raise ValueError("STATE MAGGIORE DI 1")
             if self.state > 0.1:
                 print("State:", self.state, "sat:", self.get_name())
-
+        '''
     #Update link with Ground Station
     def _update_gs_link(self):
         gs_candidates = []
@@ -512,7 +513,7 @@ class Sat:
                                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB]:
                         load_balancing_score = link.get_available_bandwidth() / constants.SATELLITE_LINK_CAPACITY * 4 #scale based on 4 degrees evaluation
                     elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
-                        load_balancing_score = (1 - link.state) * 4
+                        load_balancing_score = (1 - link.state) * 4   ######GESTIONE LOAD BALANCING 
                     candidates.append({'distance': dist, 'dir': key, 'load_balancing_score': load_balancing_score})
             candidates.sort(key=lambda x: x['distance'])
 
@@ -530,11 +531,74 @@ class Sat:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
-        #print(routing_output) #AGGIUNTO PER DEBUGGARE
+        elif constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
 
+            candidates = list()
+            for key, link in self._links.items():
+                if link in avoid:
+                    continue
+                if link.is_active():
+                    if link.target in nodes_to_be_excluded:
+                        dist = float("inf")
+                    else:
+                        dist = distance.distance((link.lat, link.lon), flux.destination).km
+                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km:
+                        #    dist = float('inf')
+
+                    # Calcolo del punteggio di bilanciamento del carico
+                    if link.get_available_bandwidth() > 0:
+                        load_balancing_score = link.get_available_bandwidth() / constants.SATELLITE_LINK_CAPACITY * 4
+                    else:
+                        load_balancing_score = 0
+                    alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]  
+
+                    #candidates.append({'distance': dist, 'dir': key, 'costs': costs})
+                    candidates.append({'distance': dist, 'dir': key, 'load_balancing_score': load_balancing_score})
+
+            # Normalizzazione delle distanze
+            finite_distances = [c['distance'] for c in candidates if c['distance'] != float('inf')]
+
+            if finite_distances:  # Evita errori se ci sono candidati validi
+                min_distance = min(finite_distances)
+                max_distance = max(finite_distances)
+                for candidate in candidates:
+                    if candidate['distance'] != float('inf'):
+                        if max_distance == min_distance:  # Evita divisione per zero
+                            candidate['normalized_distance'] = 0  # Oppure un altro valore predefinito
+                        else:
+                            candidate['normalized_distance'] = (candidate['distance'] - min_distance) / (max_distance - min_distance)
+                    else:
+                        candidate['normalized_distance'] = 1  # Se infinito, assegna il valore massimo normalizzato
+            else:
+                # Se non ci sono distanze finite, assegna un valore predefinito a tutti i candidati
+                for candidate in candidates:
+                    candidate['normalized_distance'] = 1  # Oppure un altro valore predefinito
+
+
+            # Calcolo del punteggio complessivo
+            alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            for i, candidate in enumerate(candidates):
+                ordering_score = 4 - i if candidate['distance'] != float('inf') else 0  # Vicinanza più alta = punteggio più alto
+                for alpha in alpha_values:
+                    candidate['costs_score'] = (alpha * (1 - candidate['normalized_distance'])) + \
+                                            ((1 - alpha) * candidate['load_balancing_score'])
+
+            candidates.sort(key=lambda x: x['costs_score'], reverse=True)
+
+            if not(candidates):
+                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
+
+            print("     Candidates:", candidates)
+            for candidate in candidates:
+                for r_o in routing_output:
+                    if r_o[0] == RoutingAction.ERROR:
+                        raise RuntimeError("routing_output already contains an error action")
+                routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
+        print(routing_output) # DEBUG
         return routing_output
     
-    def deliver_flux(self, routing_output, flux: Flux,):
+    def deliver_flux(self, routing_output, flux: Flux,): #new method for centralized simulation
         
         #calculates distance from the target, if in the satellite's range, flux is delivered to GS destination
         distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km
@@ -595,7 +659,7 @@ class Sat:
     #close fluxes
     def close_flux(self, flux: Flux):
         local_ids = self.mapping_table.get_local_ids(flux.alias_id) #obtains local ids associated with flux id
-
+        #print(f"local_ids are {local_ids}")
         for local_id in local_ids:
             self._close_internal_flux(local_id) #close      
             if self.mapping_table.contains_local_id(local_id):

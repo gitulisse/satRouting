@@ -31,7 +31,9 @@ class HeaderBuilder:
         self.duration = duration
         self.source = source_gs
         self.destination = destination_gs
-        self._graph = None 
+        self._graph = None
+        self._auxiliary_graph = None
+        self.excluded_links = []
         self.link_utilization = {}  #dictionary that maps link to its utilization
         self.flux = Flux(random.randint(1, 1000000), rate, (self.destination.lat, self.destination.lon)) #generate the flux
         env.put(self.delayed_start, self._begin_centralized_generation) #start generating
@@ -49,7 +51,7 @@ class HeaderBuilder:
     def centralized_route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]: #print("Flux passed to method", flux)
         routing_decisions = self.basic_centralized_route(flux)
         #routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
-        print("THE ROUTING DECISIONS:", routing_decisions)
+        #print("THE ROUTING DECISIONS:", routing_decisions)
         return routing_decisions
 
     def basic_centralized_route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
@@ -99,8 +101,10 @@ class HeaderBuilder:
             probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
             selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
             routing_output = self.process_routing_output(selected_path, flux)  #process the output for routing
+            #print("ROUTING 1______", routing_output)
             if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
+            print("ROUTING ******", routing_output)
         
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
@@ -134,9 +138,11 @@ class HeaderBuilder:
             if not disjoint_paths:
                 #print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
-            costs = self.calculate_path_costs(self._graph, disjoint_paths) #calculate the costs of k paths
-            selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
-            routing_output = self.process_routing_output(selected_path, flux) #process the output for routing  
+            alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            for alpha in alpha_values:
+                costs = self.calculate_path_costs(self._graph, disjoint_paths, self.link_utilization, alpha) #calculate the costs of k paths
+                selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
+                routing_output = self.process_routing_output(selected_path, flux) #process the output for routing  
 
         elif constants.ROUTING_STRATEGY in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
@@ -158,7 +164,7 @@ class HeaderBuilder:
             if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
 
-        
+       
         #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #
     
@@ -176,147 +182,309 @@ class HeaderBuilder:
             print(f"Shortest node disjoint paths from {source.get_name().upper()} to {destination.get_name().upper()}: {k_disjoint_paths}")
         '''
         return k_disjoint_paths
-    
-    def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions: list[tuple[RoutingAction, Flux, Link]]
-    ) -> list[tuple[RoutingAction, Flux, Link]]:
+
+    def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions: list[tuple[RoutingAction, Flux, Link]]) -> list[tuple[RoutingAction, Flux, Link]]:
         adapted_routing_decisions = []
+        #####print("flux param:", flux)
+        #print("routing decisions param:", routing_decisions)
         remaining_flux = flux.clone()
-        excluded_links = []  # Tracciatore dei link saturi
-        support_routing_decisions = routing_decisions.copy()
+        #####print("remaining flux clone:", remaining_flux)
+#[120, 113, 121, 100, 164, 106, 148, 150] [120, 144, 149, 104, 163, 128, 123, 137, 148, 106] [120, 171, 129, 154, 109, 106] [149, 144, 114, 165, 107, 126, 116, 150]
+#[149, 146, 112, 160, 122] [149, 113, 138, 130, 142, 102, 158, 119, 122]
+#[149, 144, 114, 165, 107, 126, 116, 150, 109, 154, 164, 100] 
+#[106, 109, 150, 116, 126, 107, 165, 114, 104, 149] [106, 152, 147, 108, 125, 118, 138, 146, 149] [106, 164, 154, 129, 171, 120] [150, 109, 154, 164, 100, 121, 113, 149]
+#[150, 109, 154, 164, 108, 147, 152, 140, 141, 180, 122, 128]
+#[150, 109, 154, 164, 100]
+#[128, 122, 160, 112, 146, 138, 113, 120] [128, 163, 104, 114, 144, 120] 
+#[122, 180, 141, 140, 152, 106] 
+#[122, 128, 107, 126, 116, 150, 109, 154, 164, 100]
+#[100, 121, 113, 149] 
+#[154, 164, 108, 147, 152, 140, 148, 137, 116, 150]
+#[100, 121, 113, 149, 144, 114, 165, 107, 128] la prova è funzionata perfettamente col balancing
+        support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
+        #print("support routing decisions clone:", support_routing_decisions)
+        reached_node = None  # Inizializzazione esplicita
+        ####print("SELF DESTINATION", self.destination.get_name().upper())
 
-        while remaining_flux:  # Continua finché c'è del flusso residuo da instradare
-            for i, (action, flux, link) in enumerate(routing_decisions):
-                if not remaining_flux:
-                    break  # Flusso completamente instradato
+        for i, (action, flux, link) in enumerate(routing_decisions):
+            if not remaining_flux:
+                break  # Flusso completamente instradato
 
-                if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
-                    available_bandwidth = link.get_available_bandwidth()
-                    print(f"Debug: Link {link} has available bandwidth: {available_bandwidth}")
-
-                    if available_bandwidth > 0:
-                        if available_bandwidth >= remaining_flux.rate:  # Tutto il flusso può passare
-                            adapted_routing_decisions.append((action, remaining_flux, link))
-                            link.reserve_bandwidth(remaining_flux)
-                            remaining_flux = None
-                        else:
-                            # Solo una parte del flusso passa
-                            splitted_flux, remaining_flux_to_route = remaining_flux.split(available_bandwidth)
-                            reached_node = link.target.get_name()
-                            link.reserve_bandwidth(splitted_flux)
-                            self.check_path_for_splitted_flux(
-                                splitted_flux,
-                                support_routing_decisions[i:],
-                                adapted_routing_decisions
-                            )
-                            remaining_flux = remaining_flux_to_route
-                            excluded_links.append((link._parent.get_name(), link.target.get_name()))
-                            break
+            if not reached_node:
+                if isinstance(link.target, list):
+                    if link.target:  # Lista non vuota
+                        reached_node = link.target[0].get_name()
                     else:
-                        print(f"Link {link} is fully saturated. No flux can pass.")
-                        excluded_links.append((link._parent.get_name(), link.target.get_name()))
+                        print(f"Warning: Link {link} target is an empty list.")
                 else:
-                    adapted_routing_decisions.append((action, remaining_flux, link))
+                    reached_node = link.target.get_name()
 
-            if remaining_flux:
-                new_routing_decisions = self.calculate_path_with_exclusions(remaining_flux, excluded_links, reached_node)
-                if new_routing_decisions:
-                    routing_decisions = new_routing_decisions  # Aggiorna il routing per il prossimo ciclo
+            if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
+                available_bandwidth = link.get_available_bandwidth()
+                print(f"ADAPT ROUTING: LINK {link} has available BANDWIDTH: {available_bandwidth} for {flux} with flux rate {flux.rate} ")
+
+                if available_bandwidth > 0:
+                    if available_bandwidth >= remaining_flux.rate:  # Tutto il flusso può passare
+                        print("Enough bandwidth for flux")
+                        adapted_routing_decisions.append((action, remaining_flux, link))
+                        if isinstance(link.target, list):
+                            if link.target:
+                                reached_node = link.target[0].get_name()
+                        else:
+                            reached_node = link.target.get_name()
+                        link.reserve_bandwidth(remaining_flux)   #controllare le reserve bandwidth
+                        self.check_path_for_splitted_flux( #usato per il remain flux
+                            remaining_flux,
+                            support_routing_decisions[i + 1:],
+                            adapted_routing_decisions
+                        )
+                        #print(f"Found decisions for REMAINED SUBFLUX: {adapted_routing_decisions}")
+                        remaining_flux.rate = 0  # Tutto il flusso è stato consumato
+                        break
+                    
+                    else:
+                        print("Not enough bandwidth for flux, proceed to splitting...")# Solo una parte del flusso passa
+                        splitted_flux, remaining_flux_to_route = remaining_flux.split(available_bandwidth)
+                        adapted_routing_decisions.append((action, splitted_flux, link))
+                        print(f"link PARENT {link._parent.get_name()} & link TARGET {link.target.get_name()}")
+                        print(f"SPLITTED_FLUX created {splitted_flux} and REMAINING_FLUX_TO_ROUTE {remaining_flux_to_route}")
+                        reached_node = link._parent.get_name()
+
+                        link.reserve_bandwidth(splitted_flux) #fare attenzione ai reserved bandwidth
+                        self.check_path_for_splitted_flux(
+                            splitted_flux,
+                            support_routing_decisions[i + 1:],
+                            adapted_routing_decisions
+                        )
+                        #print(f"Found decisions for SPLITTED FLUX and subfluxes: {adapted_routing_decisions}")
+                        remaining_flux = remaining_flux_to_route
+                        excluded_link = (link._parent.get_name(), link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                            self.excluded_links.append(excluded_link)
+                        break
                 else:
+                    print(f"Link {link} is fully saturated. No flux can pass.")
+                    excluded_link = (link._parent.get_name(), link.target.get_name())
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.append(excluded_link)
+                    reached_node = link._parent.get_name()
+
+            else:
+                adapted_routing_decisions.append((action, remaining_flux, link))
+
+        # Se il nodo raggiunto è la destinazione, interrompi il calcolo
+        if reached_node == self.destination.get_name().upper():
+            print(f"Reached destination: {reached_node}. Stopping recursion.")
+            adapted_routing_decisions.append((action, remaining_flux, link)) #
+            link.reserve_bandwidth(remaining_flux) #
+            return adapted_routing_decisions
+
+        # Verifica finale di reached_node
+        if remaining_flux and remaining_flux.rate > 0:
+            if not reached_node:
+                print("ATTENTION: reached_node was not set during routing decision adaptation; attempting fallback.")
+                print(f"adapted routing decisions dopo IL NO REACHED_NODE {adapted_routing_decisions}")
+                if adapted_routing_decisions:
+                    last_action, _, last_link = adapted_routing_decisions[-1]
+                    if last_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
+                        if isinstance(last_link.target, list):
+                            if last_link.target:
+                                reached_node = last_link.target[0].get_name()
+                        else:
+                            reached_node = last_link.target.get_name()
+                if not reached_node:
                     adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flux, None))
-                    remaining_flux = None
-
-        print("ADAPTED ROUTING DECISIONS:", adapted_routing_decisions)
+                    remaining_flux = None #remaing flux becomes None cause it's lost and cannot be delivered
+                    return adapted_routing_decisions
+        
+            # Calcolo dei nuovi percorsi
+            print(f"EXCLUDED LINKS {len(self.excluded_links)} for decisions: {self.excluded_links}")
+            new_routing_decisions_remaining_flux = self.calculate_path_with_exclusions(remaining_flux, reached_node, g_auxiliary=self._auxiliary_graph)
+            #print("NEW routing decisions calculated path with exclusions", new_routing_decisions_remaining_flux)
+            adapted_decisions_remaining_flux = self.adapt_routing_decisions_to_available_link_bandwidth(remaining_flux, new_routing_decisions_remaining_flux)
+            #print("ADAPTED NEW routing decisions", adapted_decisions_remaining_flux)
+            if adapted_decisions_remaining_flux:
+                adapted_routing_decisions.append(adapted_decisions_remaining_flux)
+            else:
+                adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flux, None))
+                remaining_flux = None
+        #print("ADAPTED ROUTING DECISIONS:", adapted_routing_decisions)
         return adapted_routing_decisions
 
-
     def check_path_for_splitted_flux(self, splitted_flux: Flux, support_routing_decisions: list[tuple[RoutingAction, Flux, Link]], 
-        adapted_routing_decisions: list[tuple[RoutingAction, Flux, Link]],
+        adapted_routing_decisions: list[tuple[RoutingAction, Flux, Link]]
     ):
+        #print(f"  Inside check path support decisions {support_routing_decisions}, starting adapted decisions {adapted_routing_decisions}")
         for j, (inner_action, inner_flux, inner_link) in enumerate(support_routing_decisions):
+            print(f"  Inside check path for splitted flux for cycle {splitted_flux}") #, ADAPTED_DECISIONS {adapted_routing_decisions}")
             # Aggiorna il flusso nelle routing decisions di supporto
-            decision_copy = support_routing_decisions.copy()
-            decision_copy[j] = (inner_action, splitted_flux, inner_link)
-            print(f"  Updated inner decision at index {j}: {decision_copy[j]}")
-
+            decisions_copy = support_routing_decisions.copy()
+            decisions_copy[j] = (inner_action, splitted_flux, inner_link)
+            #adapted_routing_decisions.append(decisions_copy[j])
+            ##############print(f"     Updated inner decision at index {j}: {decisions_copy[j]}")
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
+                print(f"available bandwidth for inner_link {inner_link} with available_bandwidth {available_bandwidth}")
                 if available_bandwidth >= splitted_flux.rate:
+                    if available_bandwidth == splitted_flux.rate:
+                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                            self.excluded_links.append(excluded_link)
                     inner_link.reserve_bandwidth(splitted_flux)
                     adapted_routing_decisions.append((inner_action, splitted_flux, inner_link))
+                    # Debug: verifica destinazione
+                    if isinstance(inner_link.target, list):
+                        target_node = inner_link.target[0].get_name()
+                    else:    
+                        target_node = inner_link.target.get_name()
+                    #print(f"inner_link target is {target_node}")
+                    if inner_action == RoutingAction.DELIVER:
+                        print(f"*******SUCCESS: Splitted flux {splitted_flux} reached destination {target_node}!*******")
+                    #else:
+                        #print(f"Routing splitted flux {splitted_flux} through target {target_node}")
                 else:
-                    new_splitted_flux, remaining_flux = splitted_flux.split(available_bandwidth)
+                    new_splitted_flux, remaining_flux = splitted_flux.split(available_bandwidth) #CONTROLLIAMO BENE, C'è UN MOMENTO IN CUI C'è UN PASSAGGIO SUL LINK CHE HA BANDWIDTH PARI A ZERO PROBABILMENTE QUI VA AGGIUNTO L'EXCLUDED LINK add CHE NON C'è
+                    print(f"new splitted flux created in check_path_splitted_flux {new_splitted_flux} and remaining flux {remaining_flux}")
+                    excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.append(excluded_link)
                     inner_link.reserve_bandwidth(new_splitted_flux)
                     adapted_routing_decisions.append((inner_action, new_splitted_flux, inner_link))
-                    if remaining_flux.rate > 0:  # Condizione per fermare la ricorsione
-                        self.check_path_for_splitted_flux(
-                            remaining_flux, decision_copy[j + 1:], adapted_routing_decisions
-                        )
+
+                    #if remaining_flux.rate > 0:  # Condizione per fermare la ricorsione
+                    self.check_path_for_splitted_flux( #de tab
+                        remaining_flux, 
+                        decisions_copy[j + 1:], 
+                        adapted_routing_decisions
+                    )
                     break
+        #probabilmente qui ci vorrebbe un bel return con le decisioni prese...controlliamo
     
-    def calculate_path_with_exclusions(self, remaining_flux: Flux, excluded_links: list[tuple[str, str]], reached_node) -> list[tuple[RoutingAction, Flux, Link]]:
+    def calculate_path_with_exclusions(self, remaining_flux: Flux, reached_node, g_auxiliary) -> list[tuple[RoutingAction, Flux, Link]]:
+        if reached_node is None:
+            raise ValueError("Reached_node was not set before calling calculate_path_with_exclusions")
         disjoint_paths = []
-        g_auxiliary = self._graph.copy()  # Grafo ausiliario per calcolo
-        for u, v in excluded_links:  # Rimuovi i link esclusi
+        #g_auxiliary = self._graph.copy()  # Grafo ausiliario per calcolo
+
+        # Rimuovi i link esclusi
+        for u, v in self.excluded_links:
             if g_auxiliary.has_edge(u, v):
                 g_auxiliary.remove_edge(u, v)
 
-        print("Nodes of Original graph:", list(g_auxiliary.nodes))
-        source_satellite = reached_node
+        self.print_graph_edges(self._graph, "Original graph")
+        self.print_graph_edges(g_auxiliary, "Auxiliary graph (after exclusions)")
+        if not g_auxiliary.edges:
+            raise ValueError("All links are saturated or excluded. No valid path can be calculated.")
+        
+        if isinstance(reached_node, str):  # Verifica se reached_node è una stringa
+            source_satellite = reached_node.upper()
+        else:
+            source_satellite = reached_node
         destination = self.destination
+        source = self.source
         destination_name = self.destination.get_name().upper()
         destination_satellites = []
+        source_satellites = []
 
-        closer_satellites = utils.get_closer_satellites_for_graph(self.satellites, (destination.lat, destination.lon))  # Trova i satelliti più vicini
+        closer_satellites = utils.get_closer_satellites_for_graph(self.satellites, (source.lat, source.lon))  # Trova i satelliti più vicini
         for sat_name, sat in closer_satellites:
             if sat_name not in self.satellites:
                 print(f"Satellite {sat_name} non trovato nel dizionario 'satellites'")
                 continue
-            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, destination)  # Calcola la distanza
-            #print("Distanza da Sat a GS destinazione:", distance_to_sat)
+            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, source)  # Calcola la distanza
+            #print("Distanza da GS sorgente a Sat:", distance_to_sat)
+            if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
+                source_satellites.append(sat_name)
+
+        closer_satellites = utils.get_closer_satellites_for_graph(self.satellites, (destination.lat, destination.lon))
+        for sat_name, sat in closer_satellites:
+            if sat_name not in self.satellites:
+                print(f"Satellite {sat_name} non trovato nel dizionario 'satellites'")
+                continue
+            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, destination)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 destination_satellites.append(sat_name)
-                #g_auxiliary.add_edge(sat_name, destination_name, weight=distance_to_sat)  # Collega il satellite alla destination
-        ###print("destination satellites", destination_satellites)
 
-        print("DEBUG: Checking nodes in g_auxiliary...")
-        print("Nodes in Auxiliary graph:", list(g_auxiliary.nodes))
-        print("Source satellite node:", reached_node)
-        print("Destination node:", destination_name)
-
-        #if destination_name not in g_auxiliary.nodes:
-         #   print(f"ERROR: Destination node {self.destination.get_name()} is not in the graph!")
+        selected_path = None  # Inizializza la variabile per prevenire l'errore
+        #print("Nodes in g_auxiliary:", g_auxiliary.nodes)
 
         if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+            print(f"starting node is {source_satellite}")
             for dst_sat in destination_satellites:
-                    try:
-                        paths = list(nx.node_disjoint_paths(g_auxiliary, source_satellite, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
-                        disjoint_paths.extend(paths)  #add all found paths
-                    except nx.NetworkXNoPath:
-                        print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
-            probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
-            routing_output = self.process_routing_output(selected_path, remaining_flux)
+                #print(f"dst_sat {dst_sat} in destination_satellites: {destination_satellites}")#debug
+                # Ensure destination node exists
+                if dst_sat not in g_auxiliary:
+                    raise ValueError(f"Destination node {dst_sat} not found in graph!")
+                try:
+                    paths = list(nx.node_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
+                    disjoint_paths.extend(paths)
+                except nx.NetworkXNoPath:
+                    print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
+
+            # Se non ci sono percorsi, prova un nodo sorgente alternativo
+            if not disjoint_paths and len(source_satellites) > 1:
+                print("Attempting to switch to an alternative source satellite...")
+                for alternate_satellite in source_satellites:
+                    if alternate_satellite != source_satellite:
+                        print(f"Trying alternative source satellite: {alternate_satellite}")
+                        try:
+                            disjoint_paths = []
+                            for dst_sat in destination_satellites:
+                                paths = list(nx.node_disjoint_paths(g_auxiliary, alternate_satellite, dst_sat))
+                                disjoint_paths.extend(paths)
+                            if disjoint_paths:  # Se troviamo percorsi validi, aggiorna il nodo sorgente
+                                source_satellite = alternate_satellite
+                                break
+                        except nx.NetworkXNoPath:
+                            print(f"No paths found for alternate source satellite: {alternate_satellite}.")
+
+
+            #self.print_paths(disjoint_paths, "Node disjoint paths")
+            if disjoint_paths:
+                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+        
         elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB:
             for dst_sat in destination_satellites:
-                    try:
-                        paths = list(nx.edge_disjoint_paths(g_auxiliary, source_satellite, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
-                        disjoint_paths.extend(paths)  #add all found paths
-                    except nx.NetworkXNoPath:
-                        print(f"No Edge disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
-            probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
-            routing_output = self.process_routing_output(selected_path, remaining_flux) #process the output for routing
+                try:
+                    paths = list(nx.edge_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
+                    disjoint_paths.extend(paths)
+                except nx.NetworkXNoPath:
+                    print(f"No Edge disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
+            self.print_paths(disjoint_paths, "Edge disjoint paths")
+            if disjoint_paths:
+                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+
         elif constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
             for dst_sat in destination_satellites:
                 try:
-                    paths = list(nx.node_disjoint_paths(g_auxiliary, source_satellite, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
-                    disjoint_paths.extend(paths)  #add all found paths
+                    paths = list(nx.node_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
+                    disjoint_paths.extend(paths)
                 except nx.NetworkXNoPath:
                     print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
-            probabilities = self.calculate_path_weights_length_shortest_node_disjoint(g_auxiliary, disjoint_paths) #calculate probabilities based on length of k paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
-            routing_output = self.process_routing_output(selected_path, remaining_flux) #process the output for routing
-        return routing_output
+            self.print_paths(disjoint_paths, "Length shortest node disjoint paths")
+            if disjoint_paths:
+                probabilities = self.calculate_path_weights_length_shortest_node_disjoint(g_auxiliary, disjoint_paths)
+                selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+
+        if selected_path is None:  # Se nessun percorso è stato trovato
+            print(f"No valid path could be selected for {self.source} to {self.destination}.")
+            reached_node = None
+            return []
+
+        print(f"Selected path: {selected_path}")
+        return self.process_routing_output(selected_path, remaining_flux)
+
+    def print_graph_edges(self, graph, label):
+        edges_list = [f"{edge[0]} -> {edge[1]}" for edge in graph.edges(data=True)]
+        total_edges = len(edges_list)
+        print(f"    Edges in {label} (total: {total_edges})")
+
+    def print_paths(self, paths, label):
+        print(f"{label}:")
+        for path in paths:
+            print(f"  Path: {list(zip(path[:-1], path[1:]))}")
 
     def process_routing_output(self, selected_path, flux):
         processed_output = []
@@ -347,7 +515,7 @@ class HeaderBuilder:
         if source == destination:
             print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
             return None
-        print(f"Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()}")
+        print(f"Routing calculation from <<<{source.get_name().upper()} - {destination.get_name().upper()}>>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
         '''
         if not k_disjoint_paths:
@@ -378,7 +546,8 @@ class HeaderBuilder:
             #print("Distanza da GS sorgente a Sat:", distance_to_sat)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 source_satellites.append(sat_name)
-                #g.add_edge(source_name, sat_name, weight=distance_to_sat)  # Collega la source al satellite
+                source_name = source.get_name().upper()
+                g.add_edge(source_name, sat_name, weight=distance_to_sat)  # Collega la source al satellite
         ###print("source satellites:", source_satellites)
 
         closer_satellites = utils.get_closer_satellites_for_graph(satellites, (destination.lat, destination.lon))  # Trova i satelliti più vicini
@@ -390,18 +559,32 @@ class HeaderBuilder:
             #print("Distanza da Sat a GS destinazione:", distance_to_sat)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 destination_satellites.append(sat_name)
-                #g.add_edge(sat_name, destination_name, weight=distance_to_sat)  # Collega il satellite alla destination
+                destination_name = destination.get_name().upper()
+                g.add_edge(sat_name, destination_name, weight=distance_to_sat)  # Collega il satellite alla destination
         ###print("destination satellites", destination_satellites)
 
-        for name, sat in satellites.items():
-            for dir, link in sat._links.items():
-                if link.is_active() and link.target:
+        for name, sat in satellites.items(): ################################################à
+            for dir, link in sat._links.items(): ##############################################
+                if link.is_active() and link.target: #### da togliere? #################################àààà
                    self.link_utilization[(name, link.target.get_name())] = 0  #link utilization starts with 0 values
+        
+        # Rimuovi gli archi con banda disponibile pari a 0
+        edges_to_remove = [(u, v) for u, v, data in g.edges(data=True) if data.get('available_bandwidth', 0) == 0]
+        for u, v in edges_to_remove:
+            g.remove_edge(u, v)
+        
         # Debug: verifica il grafo
         #print("Nodi del grafo:", g.nodes)
         #print("Archi del grafo:", g.edges(data=True))
+        print("Satelliti vicini alla sorgente:", source_satellites)# Debug: Satelliti vicini alla sorgente
+        print("Satelliti vicini alla destinazione:", destination_satellites)# Debug: Satelliti vicini alla destinazione
         self._graph = g #store the graph for successive use
         '''
+        if self.excluded_links:
+            for u, v in self.excluded_links:
+                if self._graph.has_edge(u, v):                    
+                    self._graph.remove_edge(u, v)
+        
         #Debug
         print("Struttura del grafo con disponibilità di banda:")
         for source, target, data in self._graph.edges(data=True):
@@ -412,6 +595,9 @@ class HeaderBuilder:
             else:
                 print("  Banda disponibile: Non definita")
         '''
+        self._auxiliary_graph = self._graph.copy()
+
+
         disjoint_paths = [] #list of k paths
         if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                           Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
@@ -443,9 +629,10 @@ class HeaderBuilder:
                         disjoint_paths.extend(paths)  #add all found paths
                     except nx.NetworkXNoPath:
                         print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
+        #print("Percorsi generati da _get_k_disjoint_paths:", disjoint_paths)
         return disjoint_paths
     
-    def calculate_path_costs(graph, paths, link_utilization, alpha=0.5, beta=0.5): #sistemare questi valori...bisogna testare tutte le combinazioni di ALPHA e 1-ALPHA(quindi togliendo direttamente beta)
+    def calculate_path_costs(self, graph, paths, link_utilization, alpha): #sistemare questi valori...bisogna testare tutte le combinazioni di ALPHA e 1-ALPHA(quindi togliendo direttamente beta)
         lengths = [path_weight(graph, path, weight="weight") for path in paths] #calculate normalized lengths of paths
         min_length = min(lengths)
         max_length = max(lengths)
@@ -463,11 +650,11 @@ class HeaderBuilder:
             link_occupation = sum(
                 link_utilization.get((path[i], path[i+1]), 0) for i in range(len(path) - 1)
             ) / (len(path) - 1)  #avarage occupation of link
-            cost = alpha * normalized_length + beta * link_occupation
+            cost = (alpha * normalized_length) + ((1 - alpha) * link_occupation)
             costs.append(cost)
         return costs
 
-    def select_path_based_on_costs(paths, costs):
+    def select_path_based_on_costs(self, paths, costs):
         total_cost = sum(costs) 
         probabilities = [1 - (cost / total_cost) for cost in costs]  # Percorsi con costi bassi hanno maggiore probabilità, conversione dei costi in probabilità
         selected_path = random.choices(population=paths, weights=probabilities, k=1)[0]
@@ -481,20 +668,49 @@ class HeaderBuilder:
                 current_node = path[i]
                 next_node = path[i + 1]
                 link_key = (current_node, next_node)
+
+                # Verifica che il collegamento esista nel grafo e abbia un peso
+                if 'weight' not in graph[current_node][next_node]:
+                    raise KeyError(f"Il collegamento tra {current_node} e {next_node} non ha un peso definito.")
+                
                 base_weight = graph[current_node][next_node]['weight'] #obtain the link's weight in graph as length
                 #print("base weight:", base_weight)
                 utilization = self.link_utilization.get(link_key, 0) #add factor of link occupation. If value doesn't exists, self.link_utilization returns 0
                 ##########fare un CHECK sulla utilization
+
                 link = self._get_link_between_nodes(current_node, next_node, self.satellites)
                 if isinstance(link, LaserLink):
                     max_capacity = constants.SATELLITE_LINK_CAPACITY  #Default for LaserLink
                 else:
                     max_capacity = constants.GROUND_STATION_LINK_CAPACITY  # Default for RadioLink
+
+                if max_capacity <= 0:
+                    raise ValueError(f"La capacità massima del link tra {current_node} e {next_node} è invalida: {max_capacity}")
+
                 penalty = (utilization / max_capacity)  #normalize utilization on maximum capacity (link load/link)
                 weight += base_weight * (1 + penalty)  #penalty for more occupied links
+                # Log di debug
+                '''
+                print(f"Path: {path}, Current Node: {current_node}, Next Node: {next_node}, "
+                    f"Base Weight: {base_weight}, Utilization: {utilization}, "
+                    f"Max Capacity: {max_capacity}, Penalty: {penalty}")
+                ''' 
             path_weights.append(weight)
+            # Controlla che i pesi non siano vuoti
+            if not path_weights:
+                raise ValueError("Nessun peso calcolato per i percorsi disgiunti.")
         total_weight = sum(path_weights) #sum all weights for normalization
-        probabilities = [1 - (w / total_weight) for w in path_weights] #lightest paths have higher probabilities
+        #print(f"total of weights {total_weight}")
+        # Verifica che il peso totale non sia zero
+        if total_weight == 0:
+            raise ValueError("Il peso totale calcolato è zero. Controlla i pesi dei percorsi o i dati del grafo.")
+        # Gestisci il caso in cui c'è un solo percorso disponibile
+        if len(path_weights) == 1:
+            probabilities = [1.0]  # Unico percorso ha probabilità 1
+        else:
+            probabilities = [1 - (w / total_weight) for w in path_weights] #lightest paths have higher probabilities
+        #print(f"Weights' list over total weight {path_weights} / {total_weight} ")
+        #print(f"Probabilities' list {probabilities}")
         return probabilities
 
     def calculate_path_weights_length_shortest_node_disjoint(self, graph, paths):
@@ -504,7 +720,7 @@ class HeaderBuilder:
 
     #select path based on probabilities
     def select_path_with_probabilities(self, paths, probabilities): 
-        selected_path = random.choices(population=paths, weights=probabilities, k=1)[0]
+        selected_path = random.choices(population=paths, weights=probabilities)[0]
         return selected_path
 
     #obtain list of closer satellites in coverage area
@@ -708,40 +924,6 @@ class HeaderBuilder:
         #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min_distance)
         return shortest_path #only the path with minimum distance on minimum number of hops
 
-    def _get_alternate_paths(self, source, target):
-        """
-        Trova percorsi alternativi tra due nodi nel grafo.
-        """
-        try:
-            paths = list(nx.all_shortest_paths(self._graph, source=source, target=target, weight='weight'))
-            return paths
-        except nx.NetworkXNoPath:
-            print(f"No alternate paths found between {source} and {target}.")
-            return []
 
-    def _is_path_feasible(self, path, flux):
-        """
-        Verifica se un percorso alternativo ha sufficiente larghezza di banda disponibile.
-        """
-        for i in range(len(path) - 1):
-            link_key = (path[i], path[i + 1])
-            current_utilization = self.link_utilization.get(link_key, 0)
-            max_capacity = constants.SATELLITE_LINK_CAPACITY if isinstance(self.satellites[path[i]]._links.get(path[i + 1]), LaserLink) else constants.GROUND_STATION_LINK_CAPACITY
-            
-            if flux.rate > (max_capacity - current_utilization):
-                return False  # Il percorso non è utilizzabile
-        return True
 
-    def _build_routing_decisions_from_path(self, path, flux):
-        """
-        Costruisce le decisioni di routing per un percorso specifico.
-        """
-        routing_decisions = []
-        for i in range(len(path) - 1):
-            source = path[i]
-            target = path[i + 1]
-            link = self._get_link_between_nodes(source, target, self.satellites)
-            if link:
-                action = RoutingAction.FORWARD
-                routing_decisions.append((action, flux, link))
-        return routing_decisions
+

@@ -39,11 +39,23 @@ class TrafficGenerator:
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                           Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                           Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                          Strategy.POSITION_GUESSING_NO_LB,
-                                          Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                          Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                          Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+                                          Strategy.POSITION_SHARING_NO_LB,
+                                          Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                          Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                          Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                          Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
             self.source_gs.send_flux(self.flux)
+        elif constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+            print("inizio della generazione")
+            self.source_gs.start_deliver_flux(self.flux)
+
 
     #stop generating traffic
     def _end_generating(self):

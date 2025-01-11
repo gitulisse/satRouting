@@ -179,7 +179,8 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_SHARING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         for destination in gs_traffic_details:
@@ -201,7 +202,8 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_SHARING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
     traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 else:
     header_builder = HeaderBuilder(ground_stations, satellites) #modificare per l'analisi di metriche, creare nuovo costrutto
