@@ -1,6 +1,7 @@
 import constants
 from copy import copy
 from enum import Enum
+from routing_action import RoutingAction
 
 class Flux:
     def __init__(self, id: int, rate: float, destination: tuple[float, float]):
@@ -18,10 +19,25 @@ class Flux:
     def get_steps(self) -> list:
         return copy(self.steps)
     
+    def add_all_centralized_steps(self, routing_decisions):
+        for decision in routing_decisions:
+            action, flux, link = decision  # Destruttura la decisione di routing
+            
+            if action == RoutingAction.FORWARD: # Aggiungi il satellite e il link al percorso del flusso
+                #target_satellite = link.target
+                self.steps.append(link.target)  # Aggiungi il satellite agli step
+                #self.paths.append(link)  # Aggiungi il link agli step
+            elif action == RoutingAction.DELIVER: # L'azione DELIVER indica la destinazione finale (Ground Station)
+                self.steps.append(link.target)  # Aggiungi la Ground Station agli step finali
+                break  # Una volta consegnato il flusso, interrompi il ciclo
+        print("adding all centralized steps -> selfsteps:", self.steps) #self.steps costituiti dai satelliti che attraversa il flusso
+        self.ttl = constants.FLUX_TTL - len(self.steps)# Riduce il TTL in base al numero di step aggiunti
+
     #add steps and reduce by 1 the TTL
     def add_step(self, sat):
         self.ttl -= 1
         self.steps.append(sat)
+        #print("selfsteps added", self.steps) #self.steps costituiti dai satelliti che attraversa il flusso
 
     #drop steps from a specific satellite
     def drop_steps_from(self, sat):

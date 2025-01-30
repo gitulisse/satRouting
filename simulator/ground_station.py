@@ -39,9 +39,10 @@ class GroundStation:
     #set serving population
     def add_population_to_serve(self, amount: int):
         self.serving_population += amount
-    
+   
     #connect GS to satellite
     def attach_to_sat(self, sat):
+       #### print("ATTACHHHHHHHHHH")
         if sat != self.sat: #check if connected satellite is different from the current satellite (connected to GS) as param
             backup_fluxes = [] #copy of fluxes
             for outgoing_flux, _, end_time in self.outgoing_fluxes: #for the outgoing fluxes check that end_time is None to copy them
@@ -60,23 +61,27 @@ class GroundStation:
         return self.name
 
     #sender of fluxes from GS to connected satellite
-    def start_deliver_flux(self, flux: Flux):
+    def send_centralized_flux(self, flux: Flux, routing_decisions):
+        if routing_decisions:
+            first_link = routing_decisions[0][2]  # extract link
+            if hasattr(first_link, '_parent') and first_link._parent:
+                self.sat = first_link._parent  #extraxt first satellite on the path
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None))
-
-        #if constants.DEBUG:
-        #print("Start delivering flux, opening", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
-
-        self.sat.open_flux(flux.clone())
-
-
+        if constants.DEBUG:
+           print("OPENING FLUX on GS -centralized-", flux, "id", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+        flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self) #distance from source GS to first satellite
+        #print("flux travelled distance to first Sat", flux.travelled_distance)
+        #flux.add_all_centralized_steps(routing_decisions) 
+        #####print("satellites in path",utils.get_satellites_in_path(routing_decisions)) #debug print
+        #####print("flux steps", flux.get_steps()) #debug print
+        self.sat.open_centralized_flux(flux.clone(), routing_decisions) #errore col clone
+ 
     #sender of fluxes from GS to connected satellite
     def send_flux(self, flux: Flux):
+        #print("FLUXXO", self.flux, "self.flux id:", self.flux.id, "alias_id:", self.flux.alias_id)
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None)) #add an outgoing flux with current time, None is the time of termination of the flux
-        '''
-        #debug
         if constants.DEBUG:
-            print("Opening flux", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
-        '''
+            print("OPENING FLUX on GS", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
         flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
         self.sat.open_flux(flux.clone())
 
@@ -98,7 +103,7 @@ class GroundStation:
                 self.outgoing_fluxes.remove(flux)
         self.sat.close_flux(flux.clone())
 
-    def open_flux(self, flux: Flux):
+    def open_flux(self, flux: Flux): #apre il flux se è alla ground station di destinazione allora copia gli step in path e diventano il percorso attuato
         if flux.destination[0] == self.lat and flux.destination[1] == self.lon:
             flux.paths.append(flux.get_steps())
             flux.state = FluxState.DELIVERED
@@ -185,12 +190,12 @@ class GroundStation:
                         print([sat.get_name() for sat in dropped_flux.get_steps()])
                     '''
 
-        '''
+        
         # Stampa tutti i percorsi del flusso
-        print("\nPercorsi per il flusso", flux.id, ":")
-        for idx, path in enumerate(flux.paths):
-            print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
-        '''
+        #print("\nPercorsi per il flusso", flux.id, ":")
+        #for idx, path in enumerate(flux.paths):
+         #   print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
+        
         
         return (total_data_sent, total_data_received, total_data_dropped)
         
@@ -220,6 +225,7 @@ class GroundStation:
                 self.DEBUG_dropped_incoming_fluxes.remove(flux)
 
     def reattach(self):
+        ####print("REEEEEEEEEEATTACH")
         distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False)
         new_sat = self.satellites.get(distances[0]['name'])
         '''

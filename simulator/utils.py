@@ -152,3 +152,16 @@ def create_new_flux(destination: tuple[float, float], rate: float):
 def randomword(length):
     letters = string.ascii_lowercase
     return ''.join(random.choice(letters) for i in range(length))
+
+def get_satellites_in_path(routing_decisions):
+    satellites_in_path = []
+    for action, flux, link in routing_decisions:
+        # Aggiungi il satellite sorgente (parent) se non già nella lista
+        if link._parent not in satellites_in_path:
+            satellites_in_path.append(link._parent)
+        # Aggiungi il satellite di destinazione (target) se esiste e non è già nella lista
+        if link.target is not None and link.target not in satellites_in_path:
+            satellites_in_path.append(link.target)
+
+    return satellites_in_path
+

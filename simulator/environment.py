@@ -54,14 +54,29 @@ def prepare():
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
         print("entrato in centralized del Topology Builder")
-    
+        #update positions
+        for sat in env.satellites.values(): 
+            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+                env.put(i, update_satellites_position)
+        #update neighbors
+        for sat in env.satellites.values():
+            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+                env.put(i, sat.update_neighbors)
+        #########################################
+        #reroute
+        #for sat in env.satellites.values():
+         #   for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+          #      env.put(i, sat._reroute_all)
+
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
+                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                      Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]: ####
         #update positions
         for sat in env.satellites.values(): 
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
@@ -91,7 +106,15 @@ def start():
     print("- Topology update scheduled each", constants.TOPOLOGY_UPDATE_TIME, "seconds")
 
     #if the strategy requires LB print the current UPDATE_TIME
-    if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB,
+    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                      Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                      Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION,
+                                      Strategy.POSITION_SHARING_NO_LB,
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:

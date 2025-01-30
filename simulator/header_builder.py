@@ -21,6 +21,7 @@ from networkx.algorithms.connectivity import (
 )
 from typing import Dict, List, Tuple, Self
 from networkx.classes.function import path_weight
+from mapping_table import MappingTable
 
 class HeaderBuilder:
     def __init__(self, rate, duration, ground_stations, satellites, source_gs, destination_gs, **kwargs ):
@@ -36,16 +37,50 @@ class HeaderBuilder:
         self.excluded_links = []
         self.link_utilization = {}  #dictionary that maps link to its utilization
         self.flux = Flux(random.randint(1, 1000000), rate, (self.destination.lat, self.destination.lon)) #generate the flux
+        self.header_mapping_table = MappingTable()  # global table for mapping
         env.put(self.delayed_start, self._begin_centralized_generation) #start generating
         env.put(self.duration, self._end_centralized_generation) #stop generating
 
     def _begin_centralized_generation(self):
+        print("Generating centralized", self.flux.rate, "Mbps from", self.source.get_name(), "to", self.destination.get_name(), "for", self.duration, "seconds.")
+        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+            routing_decisions = self.centralized_route(self.flux)
+            #####print(f"**** ROUTING DECISIONS -{len(routing_decisions)}- : {routing_decisions}")
+            #self._populate_header_mapping_table(routing_decisions)  # Aggiorna le mapping tables
+            #print("<<<Header Mapping Table>>>", self.header_mapping_table.table)
+            unique_fluxes = set()
+            for action, flux, link in routing_decisions:
+                unique_fluxes.add(flux)
+            for flux in unique_fluxes:
+                #cloned_flux = flux.clone() #############NON DEVO CLONARE, PROVIAMO SENZA CLONARE
+                print(f"Processing now {flux} Flux ID: {flux.id}, Alias ID: {flux.alias_id}")
+                self.source.send_centralized_flux(flux, routing_decisions) #send the flux to the source GS
         #print("Calculating shortest path in the costellation...")
-        self.centralized_route(self.flux)
-        #self.source.start_deliver_flux(self.flux) ################## modificare correttamente il percorso dei sender/deliver usati
+        #######self.centralized_route(self.flux) 
+        #self.source.send_centralized_flux(self.flux) ################## modificare correttamente il percorso dei sender/deliver usati
 
     def _end_centralized_generation(self):
+        self.source.close_outgoing_flux(self.flux) #close the flux outgoing
+        end_time = utils.get_current_time() #set end_time
+        source_gs_flux_info = self.source.get_flux_info(self.flux, end_time, precision=1) #get flux info from source GS
+        destination_gs_flux_info = self.destination.get_flux_info(self.flux, end_time, precision=1) #get flux info from destination GS
+        print("Sent", source_gs_flux_info[0], "Mb from", self.source.get_name(), "to", self.destination.get_name())
+        print("Received", destination_gs_flux_info[1], "Mb from", self.source.get_name(), "to", self.destination.get_name())
+        print("Lost", destination_gs_flux_info[2], "Mb from", self.source.get_name(), "to", self.destination.get_name())
         print("Finished centralized route.")
+    
+    def _populate_header_mapping_table(self, routing_decisions):
+        for action, flux, link in routing_decisions:
+            print(f"Processing: Action={action}, Flux ID={flux.id}, Link={link}")
+            flux.alias_id = self.header_mapping_table.add(flux.alias_id)
+
 
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def centralized_route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]: #print("Flux passed to method", flux)
@@ -104,7 +139,7 @@ class HeaderBuilder:
             #print("ROUTING 1______", routing_output)
             if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
-            print("ROUTING ******", routing_output)
+            #print("ROUTING ******", routing_output)
         
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
