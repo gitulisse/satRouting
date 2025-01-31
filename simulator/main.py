@@ -6,7 +6,8 @@ import environment as env
 from itertools import chain
 import json
 import matplotlib.pyplot as plt
-from mpl_toolkits.basemap import Basemap
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import numpy as np
 import random
 from satellite import Sat
@@ -17,6 +18,7 @@ from traffic_generator import TrafficGenerator
 import utils
 from link import Link
 from strategy import Strategy
+from itertools import chain
 
 import sys
 sys.setrecursionlimit(10000)
@@ -26,50 +28,52 @@ def read_from_json(filename):
     with open(f'{filename}.json', 'r', encoding='utf-8') as f:
         return json.load(f)
 
-#Constellation map generated
-def show_constellation_map(satellites: list[Sat], ground_stations: list[GroundStation], **kwargs):
-    def draw_map(m, scale=0.2):
-        # draw a shaded-relief image
-        m.shadedrelief(scale=scale)
-        
-        # lats and longs are returned as a dictionary
-        lats = m.drawparallels(np.linspace(-90, 90, 13))
-        lons = m.drawmeridians(np.linspace(-180, 180, 13))
+# Constellation map generated
+def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
+    def draw_map(ax):
+        # Add basic map features
+        ax.add_feature(cfeature.LAND, color='lightgray')
+        ax.add_feature(cfeature.OCEAN, color='lightblue')
+        ax.add_feature(cfeature.COASTLINE, edgecolor='black')
+        ax.add_feature(cfeature.BORDERS, linestyle=':')
 
-        # keys contain the plt.Line2D instances
-        lat_lines = chain(*(tup[1][0] for tup in lats.items()))
-        lon_lines = chain(*(tup[1][0] for tup in lons.items()))
-        all_lines = chain(lat_lines, lon_lines)
-        
-        # cycle through these lines and set the desired style
-        for line in all_lines:
-            line.set(linestyle='-', alpha=0., color='w')
+        # Draw parallels and meridians
+        parallels = np.linspace(-90, 90, 13)
+        meridians = np.linspace(-180, 180, 13)
 
-    plt.figure(figsize=(8, 6), edgecolor='w')
-    m = Basemap(projection='cyl', resolution=None,
-                llcrnrlat=-90, urcrnrlat=90,
-                llcrnrlon=-180, urcrnrlon=180,)
-    draw_map(m)
+        # Add gridlines
+        gridlines = ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.7, linestyle='--')
+        gridlines.xlabels_top = gridlines.ylabels_right = False
 
+    plt.figure(figsize=(8, 6))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+
+    # Draw the map with features
+    draw_map(ax)
+
+    # Plot satellites on the map
     for satellite in satellites:
         x = satellite.get_longitude()
         y = satellite.get_latitude()
-        plt.plot(x, y, 'ok', markersize=3)
-        plt.text(x, y, str(satellite.get_name()), fontsize=7)
-    
+        plt.plot(x, y, 'ok', markersize=3, transform=ccrs.PlateCarree())
+        plt.text(x, y, str(satellite.get_name()), fontsize=7, transform=ccrs.PlateCarree())
+
+    # Plot ground stations on the map
     for gs in ground_stations:
         x = gs.lon
         y = gs.lat
-        plt.plot(x, y, 'or', markersize=20)
-        #plt.text(x - 5, y + 3, str(gs.get_name()), fontsize=9, fontweight='bold')
+        plt.plot(x, y, 'or', markersize=10, transform=ccrs.PlateCarree())
+        # plt.text(x - 5, y + 3, str(gs.get_name()), fontsize=9, fontweight='bold')
 
+    # Plot links if provided
     if 'links' in kwargs:
         links = kwargs['links']
         for link in links:
             plt.plot([link[0].get_longitude(), link[1].get_longitude()], 
-                    [link[0].get_latitude(), link[1].get_latitude()],
-                    color='0.50')
-    
+                     [link[0].get_latitude(), link[1].get_latitude()],
+                     color='0.50', transform=ccrs.PlateCarree())
+
+    # Plot paths if provided
     if 'paths' in kwargs:
         paths = kwargs['paths']
         used_c = []
@@ -81,10 +85,11 @@ def show_constellation_map(satellites: list[Sat], ground_stations: list[GroundSt
             old_node = path[0]
             for node in path[1:]:
                 plt.plot([old_node.get_longitude(), node.get_longitude()], 
-                    [old_node.get_latitude(), node.get_latitude()],
-                    color = c)
+                         [old_node.get_latitude(), node.get_latitude()],
+                         color=c, transform=ccrs.PlateCarree())
                 old_node = node
 
+    plt.title("Constellation Map")
     plt.show()
 
 
