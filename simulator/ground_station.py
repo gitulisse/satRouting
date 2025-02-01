@@ -78,7 +78,6 @@ class GroundStation:
  
     #sender of fluxes from GS to connected satellite
     def send_flux(self, flux: Flux):
-        #print("FLUXXO", self.flux, "self.flux id:", self.flux.id, "alias_id:", self.flux.alias_id)
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None)) #add an outgoing flux with current time, None is the time of termination of the flux
         if constants.DEBUG:
             print("OPENING FLUX on GS", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
@@ -189,17 +188,12 @@ class GroundStation:
                         print(total_data_dropped, utils.get_seconds_between(start_time, end_time) * dropped_flux.rate, "dropped for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", dropped_flux.rate, "with alias id", dropped_flux.alias_id, "reason", dropped_flux.state)
                         print([sat.get_name() for sat in dropped_flux.get_steps()])
                     '''
-
-        
         # Stampa tutti i percorsi del flusso
         #print("\nPercorsi per il flusso", flux.id, ":")
         #for idx, path in enumerate(flux.paths):
          #   print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
-        
-        
         return (total_data_sent, total_data_received, total_data_dropped)
         
-
     def DEBUG_get_dropped_flux(self, flux: Flux):
         flux.paths.append(flux.get_steps())
         self.DEBUG_dropped_incoming_fluxes.append((flux, utils.get_current_time(), None))
@@ -208,7 +202,7 @@ class GroundStation:
             print("Logged opening of dropped flux", flux.id, "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
             print("Steps:", [step.get_name() for step in flux.get_steps()])
         '''
-            
+  
     def DEBUG_close_dropped_flux(self, flux: Flux):
         if self.keep_log:
             for i, (dropped_flux, start_time, end_time) in enumerate(self.DEBUG_dropped_incoming_fluxes):

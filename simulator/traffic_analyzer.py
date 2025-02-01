@@ -180,7 +180,7 @@ class TrafficAnalyzer:
                     env.start()
                 constants.ROUTING_STRATEGY = strategy_backup
 
-        #print("questo è il results: ", self.results)
+        print("Results of Analizing: ", self.results)
 
         #if duration is longer then 60 secs cretes a random file with srtored results of simulation
         if constants.SIMULATION_DURATION >= 60:
@@ -224,7 +224,6 @@ class TrafficAnalyzer:
                         min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths])
                     )
                 '''
-                
                 # Aggiunge un controllo per verificare che dijkstra_shortest_paths non sia vuoto
                 if dijkstra_shortest_paths:
                     # Se ci sono percorsi, aggiungi la lunghezza del primo percorso trovato
@@ -310,7 +309,6 @@ class TrafficAnalyzer:
         distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites) #calculate distance between GS and the first satellite
         distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites) #calculate & add the distance between last satellite and GS
         older_hop = path[0] #first satellite of path
-
         #for every hop after the first one, calucate & add distance between satellites
         for hop in path[1:]: 
             distance += utils.get_distance_between_satellites(older_hop, hop, satellites=satellites)
@@ -338,19 +336,16 @@ class TrafficAnalyzer:
         if not shortest_paths:
             print(f"Non ci sono percorsi disponibili da {source.get_name()} a {destination.get_name()}.")
             return []  # Oppure None, a seconda di come vuoi gestire l'assenza di percorsi
-
         # Filtra e trova il percorso più breve
         shortest_path = min(shortest_paths, key=lambda x: len(x))
         #debug
         #print(shortest_path)
         shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
         #print("PERCORSI", shortest_paths)
-
         for sp in shortest_paths:
             #print(sp)
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
-        
         return shortest_paths
 
     #prepare the dictionary for avarage link occupation analysis
@@ -385,7 +380,6 @@ class TrafficAnalyzer:
         all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(None, satellites) #store satellite and link occupations during the transmission
         average = statistics.mean([link_occupation for _, link_occupation in all_sats_and_link_occupations]) #calculate mean occupation of links
         involved_satellites = len(set([sat_name for sat_name, _ in all_sats_and_link_occupations])) #calculate the number of involved hops
-
         #store the values
         self.results[constants.ROUTING_STRATEGY.name]['average_link_occupation'].append(average)
         self.results[constants.ROUTING_STRATEGY.name]['involved_satellites'].append(involved_satellites)
@@ -455,7 +449,6 @@ class TrafficAnalyzer:
                 _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time()) #total_data_sent/total_data_delivered/total_data_dropped (the first one isn't used)
                 delivered_data += delivered
                 dropped_data += dropped
-
         #store the results
         self.results[constants.ROUTING_STRATEGY.name]['delivered'].append(delivered_data)
         self.results[constants.ROUTING_STRATEGY.name]['dropped'].append(dropped_data)
@@ -512,7 +505,6 @@ class TrafficAnalyzer:
                 _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time()) #total_data_sent/total_data_delivered/total_data_dropped (the first one isn't used)
                 delivered_data += delivered
                 dropped_data += dropped
-
         #store the results
         self.results[constants.ROUTING_STRATEGY.name][neighbors_update_time]['delivered'].append(delivered_data)
         self.results[constants.ROUTING_STRATEGY.name][neighbors_update_time]['dropped'].append(dropped_data)
@@ -559,7 +551,6 @@ class TrafficAnalyzer:
         all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(None, satellites) #store satellite and link occupation between satellites
         average = statistics.mean([link_occupation for _, link_occupation in all_sats_and_link_occupations]) #calculate mean occupation
         involved_satellites = len(set([sat_name for sat_name, _ in all_sats_and_link_occupations])) #calculate amount of involved satellite
-
         #store the results
         self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['average_link_occupation'].append(average)
         self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['involved_satellites'].append(involved_satellites)
@@ -570,7 +561,6 @@ class TrafficAnalyzer:
             for destination in ground_stations.values():
                 flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #retrieve a specific flux from fluxes using source and destination
                 dropped_data += destination.get_flux_info(flux, until = utils.get_current_time())[2] #calculate dropped data getting flux info as the [2] that corresponds to dropped data variable of the flux
-
         self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['cumulative_dropped_data'].append(dropped_data) #store data under the key of load balancing weight factor
         print(f"Average link occupation: {average}. {involved_satellites} satellites involved in routing. Cumulative dropped data: {dropped_data}")
 
@@ -621,10 +611,7 @@ class TrafficAnalyzer:
                 delivered_data += delivered
                 dropped_data += dropped
                 distance_data += flux.travelled_distance
-
-        if len(fluxes) > 0:
-            distance_data /= len(fluxes) #calculate the avarage distance travelled, dividing by number of fluxes
-
+        distance_data /= len(fluxes) #calculate the avarage distance travelled, dividing by number of fluxes
         #store the results
         self.results[constants.ROUTING_STRATEGY.name]['delivered'].append(delivered_data)
         self.results[constants.ROUTING_STRATEGY.name]['dropped'].append(dropped_data)
@@ -638,3 +625,4 @@ class TrafficAnalyzer:
             for destination in ground_stations.values():
                 flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
                 source.close_outgoing_flux(flux) #close flux
+    

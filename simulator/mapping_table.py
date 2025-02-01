@@ -18,17 +18,16 @@ class MappingTable:
         #print(f"Added mapping: {input_id} -> {out_id}")
         return out_id
 
+    '''
     #remove id couple from mapping table
     def remove(self, local_id: int) -> int:
         ##############print(f"Try to remove {local_id} in Current mapping table: {self.table}")
         for in_id, out_id in self.table:
             if out_id == local_id: #removing based on output_id if equal to current local_id as param
                 self.table.remove((in_id, out_id)) #remove
-                '''
                 #debug
                 if constants.DEBUG:
                     print(f"Removed pair ({in_id}, {out_id}) from mapping table")
-                '''
                 print(f"Removed local_id {local_id} eraising pair ({in_id}-->{out_id}) from mapping table")
                 return in_id
         else:
@@ -38,7 +37,18 @@ class MappingTable:
             #print(f"Current mapping table: {self.table}")
             #print(f"Tried to remove local_id: {local_id}")
             raise RuntimeError("No mapping found for local_id: " + str(local_id))
-      
+    '''
+
+    def remove(self, local_id: int) -> int:
+        for in_id, out_id in self.table:
+            if out_id == local_id:
+                self.table.remove((in_id, out_id))
+                if constants.DEBUG:
+                    print(f"Removed pair ({in_id}, {out_id}) from mapping table")
+                return in_id
+        else:
+            raise RuntimeError("No mapping found for local_id: " + str(local_id))
+
     #check if input_id is in table to get output_id
     def contains_input_id(self, input_id: int) -> bool:
         try:
@@ -59,7 +69,6 @@ class MappingTable:
 
     #get the input_id associated with current output_id
     def get_input_id(self, local_id: int) -> int:
-        ######################print(f"    Looking for local_id: {local_id} into Mapping table contents: {self.table}")
         for in_id, out_id in self.table:
             if out_id == local_id:
                 return in_id

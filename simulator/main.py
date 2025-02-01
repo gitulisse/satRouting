@@ -200,7 +200,6 @@ env.start()
 
 # Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
-'''
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
@@ -210,9 +209,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
     traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
-else:
-    header_builder = HeaderBuilder(ground_stations, satellites) #modificare per l'analisi di metriche, creare nuovo costrutto
-'''
+
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
 #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)

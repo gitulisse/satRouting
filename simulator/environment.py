@@ -40,11 +40,11 @@ def prepare():
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
     print("Preparing environment...")
-    count=0
+    #count=0
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
         '''
-        if True: #constants.DEBUG:
+        if constants.DEBUG:
             count+=1
             print(f"Topology builder {count}: lanciato")
         '''
@@ -124,7 +124,6 @@ def start():
     if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
         print("- Adaptive load balancing weight factor:", constants.LOAD_BALANCING_WEIGHT_FACTOR)
     
-    
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
@@ -134,8 +133,7 @@ def start():
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
         print("- Launching Centralized Strategy of Simulation.")
-    
-        
+      
     #while the queue has actions then execute all actions
     while env.actions_queue.is_not_empty():
 
@@ -144,21 +142,17 @@ def start():
         if time != env.elapsed_time: 
             env.elapsed_time = time
             print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds")
-        
-        #debug
         '''
         if constants.DEBUG:
             print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########
         '''
         #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
         #print("AZIONI", action)
-
         if kwargs:
             action(kwargs)
         else:
             action()
         
-
     print("Simulation ended.")
 
 #reset the environment
@@ -185,7 +179,6 @@ def reset():
         gs.outgoing_fluxes.clear() #cleare outgoing fluxes
         gs.incoming_fluxes.clear() #clear incoming fluxes
         gs.DEBUG_dropped_incoming_fluxes.clear() #clear debug dropped fluxes
-
     env.ready = False #set ready to False
     print("Environment reset.")
 
@@ -193,15 +186,13 @@ def reset():
 def update_satellites_position():
     for sat in env.satellites.values():
         sat._update_position() #update position
-        sat._update_gs_link() #update link to GS
-        
+        sat._update_gs_link() #update link to GS 
     for gs in env.ground_stations.values():
         gs.reattach() #reattach with GS
 
 #topology builder
 def topology_builder():
     update_satellites_position() #updates positions and link to GS
-
     temp_satellites = {} #create temporary dictionary for satellites
     for key, sat in env.satellites.items():
         temp_satellites[key] = [sat.get_latitude(), #populate temp_satellites with lat, lon and links
@@ -212,7 +203,6 @@ def topology_builder():
                                 None] #Western link
     
     distances = list() #list for distances with other satellites
-
     for key, sat in temp_satellites.items():
         if sat[0] > constants.LATITUDE_CUTOFF or sat[0] < -constants.LATITUDE_CUTOFF: #if lat>70° or lat<-70° not consider satellites for link creation
             sat[2] = None
@@ -220,7 +210,6 @@ def topology_builder():
             sat[4] = None
             sat[5] = None
             continue
-
         for key_link, sat_link in temp_satellites.items(): 
             if key == key_link: #if the key of any satellite is equal to key_link don't calculate distance to itself and skip
                 continue
@@ -255,7 +244,7 @@ def topology_builder():
         elif (sat[1] > sat_link[1] or sat[1] < -150 and sat_link[1] > 150 and sat[1] < sat_link[1]) and sat[5] == None and sat_link[4] == None: #West branch
                 sat[5] = sat_key
                 sat_link[4] = key
-    ''' #controllare linking phase
+    '''
     #debug            
     if constants.DEBUG:
         print("Linking phase completed. Applying...")

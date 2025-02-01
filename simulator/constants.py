@@ -40,15 +40,3 @@ TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Mbps passed by u
 
 drawing_queue = Queue()
 
-
-'''
-class NetworkParameters:
-    LEO_GEO_GS_TD = 0.35 # seconds
-    PACKET_SIZE = 1_500  # bytes
-    SATELLITE_QUEUE_SIZE = 0 # bytes
-    TOTAL_VOLUME_OF_TRAFFIC = 1_000_000_000 # bit / second
-    CITIES_FILE_PATH = 'cities.yaml'
-    SATELLITE_PORT_RATE = 0  # bit / second
-    LINK_SWITCH_DELAY = 0.25  # seconds
-    LIMIT_BYTES = True
-'''

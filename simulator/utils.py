@@ -112,11 +112,11 @@ def get_coupled_link_direction(dir: Direction) -> Direction:
 
 #calculate delay in queue
 def queuing_delay(queue_size, bandwidth) -> float:
-    return queue_size / bandwidth #Mbit/Mbps
+    return queue_size / bandwidth 
 
 #calculate delay in transmission
 def transmission_delay(packet_size, bandwidth) -> float:
-    return packet_size / bandwidth #Mbit/Mbps
+    return packet_size / bandwidth 
 
 #calculate signal delay propagation between two positions
 def propagation_delay(position1, position2) -> float:
@@ -162,6 +162,5 @@ def get_satellites_in_path(routing_decisions):
         # Aggiungi il satellite di destinazione (target) se esiste e non è già nella lista
         if link.target is not None and link.target not in satellites_in_path:
             satellites_in_path.append(link.target)
-
     return satellites_in_path
 

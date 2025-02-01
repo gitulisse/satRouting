@@ -94,29 +94,12 @@ class LaserLink(Link):
             print("Fluxes in point_to_sat", self.fluxes)##########
             flux = list(self.fluxes.values())[0] #take first value of fluxes
             print(f"first flux is.. {flux} id {flux.id} alias_id {flux.alias_id}")##########
-            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                leftovers.append(flux.clone())
-                print(f"parent sat {self._parent.get_name()} CENTRALIZED leftovers list: {leftovers}")
-                print(f"mapping table of the parent sat {self._parent.mapping_table.table}")
-                input_id = self._parent.mapping_table.remove(flux.alias_id) #remove flux id from parent mapping table & save it as input_id
-                print(f"input:id: {input_id}")
-                self._parent._close_internal_flux(flux.alias_id) #close the flux internal to parent satellite
-                leftovers[-1].alias_id = input_id #set the input of the last inserted flux in leftovers
-            else:
-                leftovers.append(flux.clone()) #add this flux to leftovers
-                print(f"DISTRIBUTED leftovers list: {leftovers}")
-                input_id = self._parent.mapping_table.remove(flux.alias_id) #remove flux id from parent mapping table & save it as input_id
-                print(f"input:id: {input_id}")
-                self._parent._close_internal_flux(flux.alias_id) #close the flux internal to parent satellite
-                leftovers[-1].alias_id = input_id #set the input of the last inserted flux in leftovers
-            
+            leftovers.append(flux.clone()) #add this flux to leftovers
+            print(f"leftovers list: {leftovers}")
+            input_id = self._parent.mapping_table.remove(flux.alias_id) #remove flux id from parent mapping table & save it as input_id
+            print(f"input:id: {input_id}")
+            self._parent._close_internal_flux(flux.alias_id) #close the flux internal to parent satellite
+            leftovers[-1].alias_id = input_id #set the input of the last inserted flux in leftovers
         self.lat = sat.get_latitude() #lat
         self.lon = sat.get_longitude() #lon
         self.state = 0.0 #state
@@ -138,27 +121,21 @@ class LaserLink(Link):
                                     Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                     Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
                 print(f"IDLE Alias id {flux.alias_id} on parent Mapping Table {self._parent.mapping_table.table}")
-
-                if flux.alias_id not in self._parent.mapping_table.table:
-                    print(f"Skipping invalid alias_id -centralized-: {flux.alias_id}")
-                    return
-                
+                #if flux.alias_id not in self._parent.mapping_table.table:
+                 #   print(f"Skipping invalid alias_id -centralized-: {flux.alias_id}")
+                  #  return
                 leftovers.append(flux.clone())
                 input_id = self._parent.mapping_table.remove(flux.alias_id)
                 self._parent._close_internal_flux(flux.alias_id)
                 leftovers[-1].alias_id = input_id
-
             else:
-
-                if flux.alias_id not in self._parent.mapping_table.table:
-                    print(f"Skipping invalid alias_id -distributed-: {flux.alias_id}")
-                    return
-                
+                #if flux.alias_id not in self._parent.mapping_table.table:
+                 #   print(f"Skipping invalid alias_id -distributed-: {flux.alias_id}")
+                  #  return
                 leftovers.append(flux.clone())
                 input_id = self._parent.mapping_table.remove(flux.alias_id)
                 self._parent._close_internal_flux(flux.alias_id)
                 leftovers[-1].alias_id = input_id
-
         self._set_target(None)
         self.lat = None
         self.lon = None
@@ -208,14 +185,7 @@ class RadioLink(Link):
     #get the self.target list of GS connected to RadioLink
     def get_attached_gs(self) -> list[GroundStation]:
         return self.target
-    '''
-    #sender for centralized flux
-    def send_centralized_flux(self, flux: Flux):
-        if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error
-            raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        for gs in self.target:
-            gs.open_flux(flux.clone())
-    '''
+
     #send flux
     def send_flux(self, flux: Flux):
         if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error

@@ -18,7 +18,6 @@ class TrafficGenerator:
         env.put(self.delayed_start, self._begin_generating) #start generating
         env.put(self.duration, self._end_generating) #stop generating
         
-
     #set the starting GS
     def set_source(self, gs: GroundStation):
         self.source_gs = gs
@@ -36,15 +35,7 @@ class TrafficGenerator:
     #start generating traffic
     def _begin_generating(self):
         print("Generating", self.flux.rate, "Mbps from", self.source_gs.get_name(), "to", self.destination_gs.get_name(), "for", self.duration, "seconds.")
-        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                          Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                          Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                          Strategy.POSITION_SHARING_NO_LB,
-                                          Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                          Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                          Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                          Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
-            self.source_gs.send_flux(self.flux)
+        self.source_gs.send_flux(self.flux)
 
     #stop generating traffic
     def _end_generating(self):
@@ -56,7 +47,6 @@ class TrafficGenerator:
         print("Received", destination_gs_flux_info[1], "Mb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
         print("Lost", destination_gs_flux_info[2], "Mb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
 
-        #debug
         if constants.DEBUG:
             all_ids = []
             all_sats = []

@@ -55,7 +55,6 @@ class Sat:
         link = self._links.get(dir)
         if link.target == sat: #if link already exists, avoid duplicates and return
             return
-        #debug log
         #if constants.DEBUG:
            # print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time().utc_strftime())
         self.notify_neighbor_unlink(dir) #notify link removal to neighbor
@@ -64,13 +63,10 @@ class Sat:
                                           Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                           Strategy.POSITION_GUESSING_PROGRESSIVE_LB]:
             self._update_position() #update
-
         if leftovers:
-            for flux in leftovers:
-                
+            for flux in leftovers:   
                 if constants.DEBUG:
                     print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
-                
                 flux.drop_steps_from(self) #remove flux's steps that pass through this link of the satellite
                 self.open_flux(flux)
         self._reroute_all() #rerouting
@@ -84,7 +80,6 @@ class Sat:
             return
         if notify_neighbor:
             self.notify_neighbor_unlink(dir)
-        
         #if constants.DEBUG:
         print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
         print(f"Link {dir} removed for satellite {self.get_name()}")######
@@ -113,6 +108,14 @@ class Sat:
     def get_longitude(self):
         return self._lon
     
+    def store_flux_direction(self, flux: Flux, link: Link):
+        if flux.alias_id not in self.fluxes.keys():
+            self.fluxes[flux.alias_id] = (flux, link)
+        else:
+            raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id)
+        #if constants.DEBUG:
+         #   print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
+    '''
     #Store tuple (flux, link)
     def store_flux_direction(self, flux: Flux, link: Link):
         if flux.alias_id not in self.fluxes.keys(): #check if flux id is NOT stored in dict fluxes (tuples of flux and link)
@@ -124,10 +127,10 @@ class Sat:
                 return  # Non fare nulla se il link esistente è None
             else:  # Flusso già attivo, errore
                 raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id)
-        '''
+    
         if constants.DEBUG:
             print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
-        '''
+    '''
             
     #Return tuple (flux, link) if the flux id is stored
     def get_stored_flux_direction(self, alias_id: int) -> list[(Flux, Link)]:
@@ -160,7 +163,7 @@ class Sat:
     #Update infos on neighbors
     def update_neighbors(self):
         #self._update_position() #update satellite position ###
-        self._update_gs_link() #update connection to Ground Station ###
+        #self._update_gs_link() #update connection to Ground Station ###
         self._update_state() #update satellite state
         for dir, link in self._links.items(): #update for every link, dir
             if link.is_active():
@@ -421,7 +424,6 @@ class Sat:
 
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
-
         routing_decisions = self.basic_route(flux)
         #print("     ###Basic Route results", routing_decisions)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
@@ -484,7 +486,6 @@ class Sat:
 
     #Route method
     def basic_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
-        
         #definition of function get_nodes_to_be_excluded_from_next_hop_candidates to redefine it for every simulation, not execution of function
         #Excludes node (next hop) from candidates to avoid Loops
         def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list: #get_nodes_to_be_excluded_from_next_hop_candidates PERMETTE DI VALUTARE QUALE SARA' IL PROSSIMO HOP
@@ -501,7 +502,6 @@ class Sat:
                 return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
         
         routing_output = list()
-
         #calculates distance from the target, if in the satellite's range, flux is delivered to GS destination
         distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km
         if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
@@ -680,9 +680,7 @@ class Sat:
         if self._is_rerouting: #if satellite already rerouting, avoid double rerouting
             return
         self._is_rerouting = True #otherwise set attribute to True
-
         if self.fluxes.keys(): #if there are active fluxes
-            #Debug
             if constants.DEBUG:
                 print("Rerouting traffic from satellite", self.get_name())
 
@@ -706,15 +704,12 @@ class Sat:
                     ###########print("reroute all distributed")
                     basic_route_decisions.append((flux, [(action, link) for action, link in self.basic_route(flux.clone())])) #add tuples (flux, [action, link]) based on basic_route on a copy of flux
                     ###########print("REROUTE ALL - BASIC ROUTE DECISIONS", basic_route_decisions)
-
             #print(f"Into VALUES of Flux {flux} BASIC ROUTE DECISIONS {basic_route_decisions}")
             simulation = self.simulate_adapt_routing_decisions_to_available_link_bandwidth(basic_route_decisions) #simulation on available bandwidth
             #print("SIMULATION", simulation)#################
-
             while pointer < len(self.fluxes.values()): #until there's a flux that is managed, at least one
                 flux, link = list(self.fluxes.values())[pointer] #extract flux & link, accessing through a pointer as index
                 flux_simulation = simulation.get(flux.alias_id) #get ids from simulation
-                
                 #check if flux_simulation exists & from first flux take third element([0][2]) must be different from current link
                 #and check if flux_simulation[0][2] not instance of FluxState and link exists
                 if flux_simulation and flux_simulation[0][2] != link and not(isinstance(flux_simulation[0][2], FluxState) and link == None): 
