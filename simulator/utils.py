@@ -60,6 +60,7 @@ def get_closer_satellites(satellites, position: tuple[float, float], operational
     for key, sat in satellites.items(): #check for satellites
         if operational_only: #if attribute True
             if sat.is_operational() == False: #double check if satellite it's really active
+                print(f"Satellite {sat.get_name()} is not operational") #print the satellite not operational
                 continue #so ignore that satellite
         distances.append({'distance': (distance.distance((sat.get_latitude(), sat.get_longitude()), position).km), 'name': key}) #for each active satellite calculate the distance from destination
     distances.sort(key=lambda x: x['distance']) #sort from closest

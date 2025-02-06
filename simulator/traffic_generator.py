@@ -6,10 +6,10 @@ from skyfield.api import Timescale
 from flux import Flux
 from strategy import Strategy
 import utils
-from header_builder import HeaderBuilder 
+
 
 class TrafficGenerator:
-    def __init__(self, rate, duration, **kwargs): #header_builder=None,
+    def __init__(self, rate, duration, **kwargs): 
         self.source_gs = kwargs['source_gs'] if 'source_gs' in kwargs else None #optional param 
         self.destination_gs = kwargs['destination_gs'] if 'destination_gs' in kwargs else None #optional param
         self.delayed_start = kwargs['delayed_start'] if 'delayed_start' in kwargs else 0 #optional param

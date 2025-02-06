@@ -38,6 +38,7 @@ class Link:
 
     #send fluxes 
     def send_flux(self, flux: Flux):
+        print("sendflux link base class")
         if flux.alias_id not in self.fluxes.keys(): #if alias_id isn't in fluxes keys raise error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         self.target.open_flux(flux.clone()) #cloned flux sent to target
@@ -120,7 +121,7 @@ class LaserLink(Link):
                                     Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                     Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                     Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                print(f"IDLE Alias id {flux.alias_id} on parent Mapping Table {self._parent.mapping_table.table}")
+                print(f"IDLE FLUX ID {flux.id} & Alias id {flux.alias_id} on parent Mapping Table {self._parent.mapping_table.table}")
                 #if flux.alias_id not in self._parent.mapping_table.table:
                  #   print(f"Skipping invalid alias_id -centralized-: {flux.alias_id}")
                   #  return
@@ -188,6 +189,7 @@ class RadioLink(Link):
 
     #send flux
     def send_flux(self, flux: Flux):
+        print("sendflux radiolink")
         if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         for gs in self.target:

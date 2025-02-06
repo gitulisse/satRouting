@@ -2,17 +2,15 @@ import constants
 import dijkstra
 from flux import Flux, FluxState
 from link import Link, LaserLink, RadioLink
-from routing_action import RoutingAction
 from strategy import Strategy
 import utils
 import networkx as nx
 import matplotlib.pyplot as plt
 from routing_action import RoutingAction
-from ground_station import GroundStation
+#from ground_station import GroundStation
 from geopy import distance
 import environment as env
 import random
-import constants
 from itertools import islice
 from networkx.algorithms.flow import build_residual_network
 from networkx.algorithms.connectivity import (
@@ -24,7 +22,7 @@ from networkx.classes.function import path_weight
 from mapping_table import MappingTable
 
 class HeaderBuilder:
-    def __init__(self, rate, duration, ground_stations, satellites, source_gs, destination_gs, **kwargs ):
+    def __init__(self, rate, duration, ground_stations, satellites, source_gs, destination_gs, **kwargs):
         self.results = None
         self.ground_stations = ground_stations
         self.satellites = satellites
@@ -32,17 +30,18 @@ class HeaderBuilder:
         self.duration = duration
         self.source = source_gs
         self.destination = destination_gs
-        self._graph = None
-        self._auxiliary_graph = None
-        self.excluded_links = []
-        self.link_utilization = {}  #dictionary that maps link to its utilization
+        #self._graph = None
+        #self._auxiliary_graph = None
+        #self.excluded_links = []
+        #self.link_utilization = {}  #dictionary that maps link to its utilization
         self.flux = Flux(random.randint(1, 1000000), rate, (self.destination.lat, self.destination.lon)) #generate the flux
-        self.header_mapping_table = MappingTable()  # global table for mapping
+        #self.header_mapping_table = MappingTable()  # global table for mapping
         env.put(self.delayed_start, self._begin_centralized_generation) #start generating
         env.put(self.duration, self._end_centralized_generation) #stop generating
 
     def _begin_centralized_generation(self):
         print("Generating centralized", self.flux.rate, "Mbps from", self.source.get_name(), "to", self.destination.get_name(), "for", self.duration, "seconds.")
+        '''
         if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
@@ -51,12 +50,15 @@ class HeaderBuilder:
                                             Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+        '''
+        self.source.start_centralized_routing(self.flux, self.ground_stations, self.destination) #send the flux to the source GS
+        '''
             routing_decisions = self.centralized_route(self.flux)
             #####print(f"**** ROUTING DECISIONS -{len(routing_decisions)}- : {routing_decisions}")
             #self._populate_header_mapping_table(routing_decisions)  # Aggiorna le mapping tables
             #print("<<<Header Mapping Table>>>", self.header_mapping_table.table)
             unique_fluxes = set()
-            for action, flux, link in routing_decisions:
+            for _, flux, _ in routing_decisions: #for action, flux, link in routing_decisions:
                 unique_fluxes.add(flux)
             for flux in unique_fluxes:
                 #cloned_flux = flux.clone() #############NON DEVO CLONARE, PROVIAMO SENZA CLONARE
@@ -65,7 +67,8 @@ class HeaderBuilder:
         #print("Calculating shortest path in the costellation...")
         #######self.centralized_route(self.flux) 
         #self.source.send_centralized_flux(self.flux) ################## modificare correttamente il percorso dei sender/deliver usati
-
+        '''
+            
     def _end_centralized_generation(self):
         self.source.close_outgoing_flux(self.flux) #close the flux outgoing
         end_time = utils.get_current_time() #set end_time
@@ -76,12 +79,35 @@ class HeaderBuilder:
         print("Lost", destination_gs_flux_info[2], "Mb from", self.source.get_name(), "to", self.destination.get_name())
         print("Finished centralized route.")
     
+    '''
     def _populate_header_mapping_table(self, routing_decisions):
         for action, flux, link in routing_decisions:
             print(f"Processing: Action={action}, Flux ID={flux.id}, Link={link}")
             flux.alias_id = self.header_mapping_table.add(flux.alias_id)
-
-
+    '''
+    #def recalculate_centralized_route(self):
+     #   routing_decisions = self.centralized_route(self.flux)
+      #  return routing_decisions
+        #self.source.send_centralized_flux(self.flux, routing_decisions)
+    '''   
+    def reattach_by_header(self, gs: GroundStation):
+        routing_decisions = self.centralized_route(self.flux)
+        first_link = routing_decisions[0][2]
+        starting_sat = first_link._parent
+        if starting_sat != gs.sat:
+            backup_fluxes = [] #copy of fluxes
+            for outgoing_flux, _, end_time in gs.outgoing_fluxes: #for the outgoing fluxes check that end_time is None to copy them
+                if end_time == None:
+                    backup_fluxes.append(outgoing_flux)
+                    gs.close_outgoing_flux(outgoing_flux) #close
+            if gs.sat != None: 
+                gs.sat.serving_gs = None
+            gs.sat = starting_sat #change of satellite that is serving the GS
+            gs.sat.serving_gs = gs #connect to GS
+            for backup_flux in backup_fluxes: 
+                gs.send_centralized_flux(backup_flux, routing_decisions) #send the flux to the source GS
+    '''
+    
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def centralized_route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]: #print("Flux passed to method", flux)
         routing_decisions = self.basic_centralized_route(flux)
@@ -203,6 +229,8 @@ class HeaderBuilder:
         #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #
     
+    '''
+    #####calculate k disjoint paths    
     def calculate_k_disjoint_paths_remaining_flux(self, kwargs):
         source: dict = kwargs['source']
         destination: dict = kwargs['destination']
@@ -210,12 +238,12 @@ class HeaderBuilder:
         k = constants.K_SHORTEST_VALUE  # Number of disjoint paths required
         
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
-        '''
+        
         if not k_disjoint_paths:
             print(f"No valid path found from {source.get_name().upper()} to {destination.get_name().upper()}.")
         else:
             print(f"Shortest node disjoint paths from {source.get_name().upper()} to {destination.get_name().upper()}: {k_disjoint_paths}")
-        '''
+        
         return k_disjoint_paths
 
     def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions: list[tuple[RoutingAction, Flux, Link]]) -> list[tuple[RoutingAction, Flux, Link]]:
@@ -224,18 +252,6 @@ class HeaderBuilder:
         #print("routing decisions param:", routing_decisions)
         remaining_flux = flux.clone()
         #####print("remaining flux clone:", remaining_flux)
-#[120, 113, 121, 100, 164, 106, 148, 150] [120, 144, 149, 104, 163, 128, 123, 137, 148, 106] [120, 171, 129, 154, 109, 106] [149, 144, 114, 165, 107, 126, 116, 150]
-#[149, 146, 112, 160, 122] [149, 113, 138, 130, 142, 102, 158, 119, 122]
-#[149, 144, 114, 165, 107, 126, 116, 150, 109, 154, 164, 100] 
-#[106, 109, 150, 116, 126, 107, 165, 114, 104, 149] [106, 152, 147, 108, 125, 118, 138, 146, 149] [106, 164, 154, 129, 171, 120] [150, 109, 154, 164, 100, 121, 113, 149]
-#[150, 109, 154, 164, 108, 147, 152, 140, 141, 180, 122, 128]
-#[150, 109, 154, 164, 100]
-#[128, 122, 160, 112, 146, 138, 113, 120] [128, 163, 104, 114, 144, 120] 
-#[122, 180, 141, 140, 152, 106] 
-#[122, 128, 107, 126, 116, 150, 109, 154, 164, 100]
-#[100, 121, 113, 149] 
-#[154, 164, 108, 147, 152, 140, 148, 137, 116, 150]
-#[100, 121, 113, 149, 144, 114, 165, 107, 128] la prova è funzionata perfettamente col balancing
         support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
         #print("support routing decisions clone:", support_routing_decisions)
         reached_node = None  # Inizializzazione esplicita
@@ -552,12 +568,12 @@ class HeaderBuilder:
             return None
         print(f"Routing calculation from <<<{source.get_name().upper()} - {destination.get_name().upper()}>>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
-        '''
+        
         if not k_disjoint_paths:
             print(f"No valid path found from {source.get_name().upper()} to {destination.get_name().upper()}.")
         else:
             print(f"Shortest node disjoint paths from {source.get_name().upper()} to {destination.get_name().upper()}: {k_disjoint_paths}")
-        '''
+        
         return k_disjoint_paths
     
     def _get_k_disjoint_paths(self, satellites, source, destination):
@@ -614,7 +630,7 @@ class HeaderBuilder:
         print("Satelliti vicini alla sorgente:", source_satellites)# Debug: Satelliti vicini alla sorgente
         print("Satelliti vicini alla destinazione:", destination_satellites)# Debug: Satelliti vicini alla destinazione
         self._graph = g #store the graph for successive use
-        '''
+        
         if self.excluded_links:
             for u, v in self.excluded_links:
                 if self._graph.has_edge(u, v):                    
@@ -629,7 +645,7 @@ class HeaderBuilder:
                 print(f"  Banda disponibile: {data['available_bandwidth']} Mbps")
             else:
                 print("  Banda disponibile: Non definita")
-        '''
+        
         self._auxiliary_graph = self._graph.copy()
 
 
@@ -725,11 +741,11 @@ class HeaderBuilder:
                 penalty = (utilization / max_capacity)  #normalize utilization on maximum capacity (link load/link)
                 weight += base_weight * (1 + penalty)  #penalty for more occupied links
                 # Log di debug
-                '''
+                
                 print(f"Path: {path}, Current Node: {current_node}, Next Node: {next_node}, "
                     f"Base Weight: {base_weight}, Utilization: {utilization}, "
                     f"Max Capacity: {max_capacity}, Penalty: {penalty}")
-                ''' 
+                 
             path_weights.append(weight)
             # Controlla che i pesi non siano vuoti
             if not path_weights:
@@ -782,11 +798,11 @@ class HeaderBuilder:
         if node2 not in satellites:
             raise ValueError(f"Node2 '{node2}' not found in satellites.")
         satellite1 = satellites[node1] #source satellite
-        '''
+        
         #Debug
         if constants.DEBUG:
             print(f" Satellite '{node1}' has links: {satellite1._links}")
-        '''
+        
         for direction, link in satellite1._links.items(): #for the links of source satellite key:direction and value:link
             if link.target is None:  #if link as a target
                 #print(f"Link with {direction} from '{node1}' has no target.")
@@ -938,7 +954,7 @@ class HeaderBuilder:
         for sp in shortest_paths:
             print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
         print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
-        '''
+        
         #debugging for links
         if constants.DEBUG:
             for name, sat in env.satellites.items():
@@ -947,7 +963,7 @@ class HeaderBuilder:
                     for dir, link in sat._links.items() if link.is_active()
                 ]
                 print(f"Check for links of Satellite {name} links: {active_links}")
-        '''
+        
         #Calculates distances for all paths remained with minimum number of hops
         path_distances = [(path, self._get_path_distance(path, source, destination, satellites)) for path in shortest_paths]
         shortest_path, min_distance = min(path_distances, key=lambda x: x[1]) #order and find the path with the minimum distance
@@ -958,7 +974,7 @@ class HeaderBuilder:
         #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(shortest_path))
         #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min_distance)
         return shortest_path #only the path with minimum distance on minimum number of hops
-
+        '''
 
 
 

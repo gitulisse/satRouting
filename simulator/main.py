@@ -16,7 +16,7 @@ from traffic_analyzer import AnalysisMetric, TrafficAnalyzer
 from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
 import utils
-from link import Link
+#from link import Link
 from strategy import Strategy
 from itertools import chain
 
@@ -173,10 +173,6 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
             #print(f"HeaderBuilder from {gs.get_name()} -> {destination_name} with rate {rate} Mbps")
             hb = HeaderBuilder(rate, constants.SIMULATION_DURATION, ground_stations, satellites, gs, destination)
             header_builders.append(hb)
-    '''
-    if constants.DEBUG:
-        print("header_builders LIST", header_builders)
-    '''
 
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,

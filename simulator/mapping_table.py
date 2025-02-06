@@ -43,8 +43,8 @@ class MappingTable:
         for in_id, out_id in self.table:
             if out_id == local_id:
                 self.table.remove((in_id, out_id))
-                if constants.DEBUG:
-                    print(f"Removed pair ({in_id}, {out_id}) from mapping table")
+                #if constants.DEBUG:
+                 #   print(f"Removed pair ({in_id}, {out_id}) from mapping table")
                 return in_id
         else:
             raise RuntimeError("No mapping found for local_id: " + str(local_id))

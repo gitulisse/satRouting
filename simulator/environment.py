@@ -6,6 +6,7 @@ from skyfield.api import Timescale
 from strategy import Strategy
 import utils
 
+
 satellites: dict
 ground_stations: dict
 
@@ -36,6 +37,7 @@ def put(time, function, **kwargs):
 
 #used to configure the environment before the simulation
 def prepare():
+    print("PREPARE(((())))) called.")
     if env.ready == True:
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
@@ -65,11 +67,10 @@ def prepare():
         for sat in env.satellites.values():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
-        #########################################
         #reroute
-        #for sat in env.satellites.values():
-         #   for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-          #      env.put(i, sat._reroute_all)
+        for sat in env.satellites.values():
+            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+                env.put(i, sat._reroute_all)
 
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
@@ -188,7 +189,17 @@ def update_satellites_position():
         sat._update_position() #update position
         sat._update_gs_link() #update link to GS 
     for gs in env.ground_stations.values():
-        gs.reattach() #reattach with GS
+        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, #rivedere sta parte perchè non c'è il riferimento alla GS
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+            gs.reattach()
+        else:
+            gs.reattach() #reattach with GS
 
 #topology builder
 def topology_builder():

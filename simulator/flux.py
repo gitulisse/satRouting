@@ -14,6 +14,11 @@ class Flux:
         self.alias_id = id
         self.state: FluxState = FluxState.NOT_DEFINED
         self.travelled_distance = 0 #km
+    
+    def get_ground_station_by_coordinates(self, lat, lon, ground_stations):
+        for gs in ground_stations:
+            if gs.lat == lat and gs.lon == lon:
+                return gs
 
     #get steps of the flux as satellite list
     def get_steps(self) -> list:
