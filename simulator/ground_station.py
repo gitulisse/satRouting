@@ -30,7 +30,6 @@ class GroundStation:
         self.incoming_fluxes: list[Flux, Time, Time] = [] #Flusso, tempo di inizio ricezione e tempo di fine ricezione
         self.DEBUG_dropped_incoming_fluxes: list[(Flux, Time, Time)] = [] #Flusso, tempo di inizio ricezione, tempo di fine ricezione e causa drop
         self.keep_log = keep_log
-        self.ground_stations = None
         self.results = None
         self._graph = None
         self._auxiliary_graph = None
@@ -58,37 +57,37 @@ class GroundStation:
     def add_population_to_serve(self, amount: int):
         self.serving_population += amount
 
-    def start_centralized_routing(self, flux: Flux, ground_stations, destination):
-        self.destination = destination
+    def start_centralized_routing(self, flux: Flux, ground_stations):
+        ######self.destination = destination
         #meglio qui calcolare la destination a partire dal flusso col metodo flux.get_ground_station_by_coordinates
-        self.ground_stations = ground_stations
+        self.gss = ground_stations
+        flux.source = self
         routing_decisions = self.centralized_route(flux)
         unique_fluxes = set()
         for _, flux, _ in routing_decisions: #for action, flux, link in routing_decisions:
             unique_fluxes.add(flux)
         for flux in unique_fluxes:
-            print(f"Processing now {flux} Flux ID: {flux.id}, Alias ID: {flux.alias_id}")
+            flux_destination = flux.get_ground_station_by_coordinates(flux.destination[0], flux.destination[1], self.gss.values())
+            print(f"Processing now {flux} Flux ID: {flux.id}, Alias ID: {flux.alias_id} from {self.get_name().upper()} to {flux_destination.get_name().upper()} rate {flux.rate} Mbps")
             self.send_centralized_flux(flux, routing_decisions) #send the flux to the source GS
         
 
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def centralized_route(self, flux: Flux): #print("Flux passed to method", flux)
+
         routing_decisions = self.basic_centralized_route(flux)
-        routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
+        #routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions) ###non necessario, è presente nei metodi con LB
         #print("THE ROUTING DECISIONS:", routing_decisions)
         return routing_decisions
 
     def basic_centralized_route(self, flux: Flux):
         routing_output = list() #
-        #destination_gs = flux.get_ground_station_by_coordinates(self.destination.lat, self.destination.lon, self.ground_stations)
+        self.destination = flux.get_ground_station_by_coordinates(flux.destination[0], flux.destination[1], self.gss.values())
 
         if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            self.prepare_results_for_dijkstra(ground_stations=self.ground_stations)
-            dijkstra_shortest_path = self.calculate_dijkstra({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites
-            })
+            #self.prepare_results_for_dijkstra(ground_stations=self.gss)
+            dijkstra_shortest_path = self.calculate_dijkstra({'source': self,'destination': self.destination,'satellites': self.satellites})
+
             if not dijkstra_shortest_path:
                 #print("No valid path found for Dijkstra, returning empty routing output.")
                 return routing_output
@@ -103,16 +102,16 @@ class GroundStation:
                 action = RoutingAction.FORWARD #determinates the action that must be executed
                 routing_output.append((action, flux, link)) #add the action to the decisions
                 #env.put(0, self.calculate_dijkstra, source=self.source, destination=self.destination, satellites=self.satellites)
-                #env.put(0, self.calculate_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites)  # come output ritorna i "dijkstra_shortest_paths" esegui la simulazione con Dijkstra 
+                #env.put(0, self.calculate_dijkstra, ground_stations=self.gss, satellites=self.satellites)  # come output ritorna i "dijkstra_shortest_paths" esegui la simulazione con Dijkstra 
                 #env.start()
             last_node = dijkstra_shortest_path[-1]
-            last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.ground_stations)
+            last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
             action = RoutingAction.DELIVER
             routing_output.append((action, flux, last_link))
 
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-            self.prepare_results_for_disjointpaths(ground_stations=self.ground_stations)
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -133,7 +132,7 @@ class GroundStation:
         
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-            self.prepare_results_for_disjointpaths(ground_stations=self.ground_stations)
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -151,7 +150,7 @@ class GroundStation:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
 
         elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION:
-            self.prepare_results_for_disjointpaths(ground_stations=self.ground_stations)
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -171,7 +170,7 @@ class GroundStation:
 
         elif constants.ROUTING_STRATEGY in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-            self.prepare_results_for_disjointpaths(ground_stations=self.ground_stations)
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -189,7 +188,6 @@ class GroundStation:
             if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
 
-       
         #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #
 
@@ -209,6 +207,7 @@ class GroundStation:
         '''
         return k_disjoint_paths
 
+    #adaptive method used only for LB mstrategies
     def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions):
         adapted_routing_decisions = []
         #####print("flux param:", flux)
@@ -219,11 +218,9 @@ class GroundStation:
         #print("support routing decisions clone:", support_routing_decisions)
         reached_node = None  # Inizializzazione esplicita
         ####print("SELF DESTINATION", self.destination.get_name().upper())
-
         for i, (action, flux, link) in enumerate(routing_decisions):
             if not remaining_flux:
                 break  # Flusso completamente instradato
-
             if not reached_node:
                 if isinstance(link.target, list):
                     if link.target:  # Lista non vuota
@@ -326,17 +323,23 @@ class GroundStation:
         return adapted_routing_decisions
 
     def check_path_for_splitted_flux(self, splitted_flux: Flux, support_routing_decisions, adapted_routing_decisions):
-        #print(f"  Inside check path support decisions {support_routing_decisions}, starting adapted decisions {adapted_routing_decisions}")
         for j, (inner_action, inner_flux, inner_link) in enumerate(support_routing_decisions):
-            print(f"  Inside check path for splitted flux for cycle {splitted_flux}") #, ADAPTED_DECISIONS {adapted_routing_decisions}")
-            # Aggiorna il flusso nelle routing decisions di supporto
+            print(f"  Inside check path for splitted flux for cycle {splitted_flux}")
+            
             decisions_copy = support_routing_decisions.copy()
             decisions_copy[j] = (inner_action, splitted_flux, inner_link)
-            #adapted_routing_decisions.append(decisions_copy[j])
-            ##############print(f"     Updated inner decision at index {j}: {decisions_copy[j]}")
+            
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
                 print(f"available bandwidth for inner_link {inner_link} with available_bandwidth {available_bandwidth}")
+                
+                if available_bandwidth == 0:
+                    print(f"Skipping saturated link {inner_link}.")
+                    excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.append(excluded_link)
+                    continue
+                
                 if available_bandwidth >= splitted_flux.rate:
                     if available_bandwidth == splitted_flux.rate:
                         excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
@@ -344,33 +347,35 @@ class GroundStation:
                             self.excluded_links.append(excluded_link)
                     inner_link.reserve_bandwidth(splitted_flux)
                     adapted_routing_decisions.append((inner_action, splitted_flux, inner_link))
-                    # Debug: verifica destinazione
+
                     if isinstance(inner_link.target, list):
                         target_node = inner_link.target[0].get_name()
                     else:    
                         target_node = inner_link.target.get_name()
-                    #print(f"inner_link target is {target_node}")
+
                     if inner_action == RoutingAction.DELIVER:
                         print(f"*******SUCCESS: Splitted flux {splitted_flux} reached destination {target_node}!*******")
-                    #else:
-                        #print(f"Routing splitted flux {splitted_flux} through target {target_node}")
+                    
                 else:
-                    new_splitted_flux, remaining_flux = splitted_flux.split(available_bandwidth) #CONTROLLIAMO BENE, C'è UN MOMENTO IN CUI C'è UN PASSAGGIO SUL LINK CHE HA BANDWIDTH PARI A ZERO PROBABILMENTE QUI VA AGGIUNTO L'EXCLUDED LINK add CHE NON C'è
+                    new_splitted_flux, remaining_flux = splitted_flux.split(available_bandwidth)
                     print(f"new splitted flux created in check_path_splitted_flux {new_splitted_flux} and remaining flux {remaining_flux}")
-                    excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
-                    if excluded_link not in self.excluded_links:
-                        self.excluded_links.append(excluded_link)
-                    inner_link.reserve_bandwidth(new_splitted_flux)
-                    adapted_routing_decisions.append((inner_action, new_splitted_flux, inner_link))
+                    
+                    if new_splitted_flux.rate > 0:
+                        inner_link.reserve_bandwidth(new_splitted_flux)
+                        adapted_routing_decisions.append((inner_action, new_splitted_flux, inner_link))
+                    
+                    if remaining_flux.rate > 0:
+                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                            self.excluded_links.append(excluded_link)
+                        self.check_path_for_splitted_flux(
+                            remaining_flux,
+                            decisions_copy[j + 1:], 
+                            adapted_routing_decisions
+                        )
+                        break
+        return adapted_routing_decisions
 
-                    #if remaining_flux.rate > 0:  # Condizione per fermare la ricorsione
-                    self.check_path_for_splitted_flux( #de tab
-                        remaining_flux, 
-                        decisions_copy[j + 1:], 
-                        adapted_routing_decisions
-                    )
-                    break
-        #probabilmente qui ci vorrebbe un bel return con le decisioni prese...controlliamo
     
     def calculate_path_with_exclusions(self, remaining_flux: Flux, reached_node, g_auxiliary):
         if reached_node is None:
@@ -501,17 +506,28 @@ class GroundStation:
     def process_routing_output(self, selected_path, flux):
         processed_output = []
         print(f"Processing selected path: {selected_path}") #select first disjoint path for routing flux
+        if len(selected_path) == 1:
+            single_node = selected_path[0]
+            # Verifica se esiste un collegamento per consegna diretta al GS
+            last_link = self._get_link_to_ground_station(single_node, self.destination, self.satellites, self.gss)
+            if last_link:
+                action = RoutingAction.DELIVER
+                processed_output.append((action, flux, last_link))
+            else:
+                print(f"Warning: No link found to deliver flux from single node {single_node} to destination.")
+            return processed_output
+
         for i in range(len(selected_path) - 1):
             current_node = selected_path[i]
             next_node = selected_path[i + 1]
-            link = self._get_link_between_nodes_or_ground_station(current_node, next_node, self.satellites, self.ground_stations)
+            link = self._get_link_between_nodes_or_ground_station(current_node, next_node, self.satellites, self.gss)
             if not link:
                 print(f"Warning: No link found between {current_node} and {next_node}. Skipping.")
                 continue
             action = RoutingAction.FORWARD
             processed_output.append((action, flux, link))
         last_node = selected_path[-1] #manage last node for delivery to GS
-        last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.ground_stations)
+        last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
         if last_link:
             action = RoutingAction.DELIVER
             processed_output.append((action, flux, last_link))
@@ -524,9 +540,7 @@ class GroundStation:
         destination: dict = kwargs['destination']
         satellites: dict = kwargs['satellites']
         k = constants.K_SHORTEST_VALUE  # Number of disjoint paths required
-        if source == destination:
-            print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
-            return None
+
         print(f"Routing calculation from <<<{source.get_name().upper()} - {destination.get_name().upper()}>>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
         '''
@@ -548,7 +562,7 @@ class GroundStation:
                     g.add_edge(name, link.target.get_name(), weight=utils.get_distance_between_satellites(sat, link.target), available_bandwidth=link.get_available_bandwidth())  # Aggiungi l'arco al grafo
                     #print(f"Edge added: {name} -> {link.target.get_name()} with distance {utils.get_distance_between_satellites(sat, link.target)}")
         #end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) 
-        
+        #satelliti più vicini alla sorgente
         closer_satellites = utils.get_closer_satellites_for_graph(satellites, (source.lat, source.lon))  # Trova i satelliti più vicini
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
@@ -561,7 +575,7 @@ class GroundStation:
                 source_name = source.get_name().upper()
                 g.add_edge(source_name, sat_name, weight=distance_to_sat)  # Collega la source al satellite
         ###print("source satellites:", source_satellites)
-
+        #satelliti più vicini alla destinazione
         closer_satellites = utils.get_closer_satellites_for_graph(satellites, (destination.lat, destination.lon))  # Trova i satelliti più vicini
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
@@ -575,29 +589,16 @@ class GroundStation:
                 g.add_edge(sat_name, destination_name, weight=distance_to_sat)  # Collega il satellite alla destination
         ###print("destination satellites", destination_satellites)
 
-        for name, sat in satellites.items(): ################################################à
-            for dir, link in sat._links.items(): ##############################################
-                if link.is_active() and link.target: #### da togliere? #################################àààà
-                   self.link_utilization[(name, link.target.get_name())] = 0  #link utilization starts with 0 values
-        
         # Rimuovi gli archi con banda disponibile pari a 0
         edges_to_remove = [(u, v) for u, v, data in g.edges(data=True) if data.get('available_bandwidth', 0) == 0]
         for u, v in edges_to_remove:
             g.remove_edge(u, v)
-        
-        # Debug: verifica il grafo
         #print("Nodi del grafo:", g.nodes)
         #print("Archi del grafo:", g.edges(data=True))
         print("Satelliti vicini alla sorgente:", source_satellites)# Debug: Satelliti vicini alla sorgente
         print("Satelliti vicini alla destinazione:", destination_satellites)# Debug: Satelliti vicini alla destinazione
         self._graph = g #store the graph for successive use
         '''
-        if self.excluded_links:
-            for u, v in self.excluded_links:
-                if self._graph.has_edge(u, v):                    
-                    self._graph.remove_edge(u, v)
-        
-        #Debug
         print("Struttura del grafo con disponibilità di banda:")
         for source, target, data in self._graph.edges(data=True):
             print(f"Link: {source} -> {target}")
@@ -609,10 +610,16 @@ class GroundStation:
         '''
         self._auxiliary_graph = self._graph.copy()
 
-
         disjoint_paths = [] #list of k paths
         if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                           Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+            if source == destination:
+                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
+                disjoint_paths = []
+                disjoint_paths.append([closer_sats[0]['name']])
+                print("disj", disjoint_paths)
+                return disjoint_paths
             for src_sat in source_satellites:
                 for dst_sat in destination_satellites:
                     try:
@@ -676,6 +683,10 @@ class GroundStation:
         from link import LaserLink
         path_weights = []
         for path in disjoint_paths:
+            if len(path) == 1:
+                #print(f"Single bounce node: {path}. Probability 1.0.")
+                return [1.0]
+
             weight = 0
             for i in range(len(path) - 1):
                 current_node = path[i]
@@ -797,7 +808,7 @@ class GroundStation:
         #print(f"Destination ground station: {destination_gs}")
         #print(f"Checking links between {last_satellite} and ground station...")
         #print(f"Available satellites: {list(self.satellites.keys())}")
-        #print(f"Available ground stations: {list(self.ground_stations.keys())}")
+        #print(f"Available ground stations: {list(self.gss.keys())}")
         # Controlla il collegamento radio verso la stazione di terra
         #if satellite._gs_link.is_active():
          #   print(f"Found active radio link from satellite '{node}' to ground station '{destination.get_name()}'.")
@@ -837,6 +848,8 @@ class GroundStation:
                     }
     
     def prepare_results_for_disjointpaths(self, ground_stations):
+        if isinstance(ground_stations, list):
+            ground_stations = {gs.name: gs for gs in ground_stations}
         self.results = {}
         for source in ground_stations.values():
             for destination in ground_stations.values():
@@ -940,49 +953,16 @@ class GroundStation:
     def reattach(self):
         distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False)
         new_sat = self.satellites.get(distances[0]['name'])
-        '''
-        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-            #print("Reattaching GS", self.get_name(), "to Satellite", new_sat.get_name(), "at time", utils.get_current_time().utc_strftime())
-            self.attach_to_sat_centralized(new_sat)
-        else:
-            
-            if constants.DEBUG:
-                if new_sat != self.sat:
-                    print("Attaching Ground Station", self.get_name(), "to Satellite", new_sat.get_name(), "at time", utils.get_current_time().utc_strftime())
-            '''
+        #if constants.DEBUG:
+         #   if new_sat != self.sat:
+        #print("Attaching Ground Station", self.get_name(), "to Satellite", new_sat.get_name(), "at time", utils.get_current_time().utc_strftime())
         self.attach_to_sat(new_sat)
 
-    def attach_to_sat_centralized(self, sat):
-        #routing_decisions = hb.centralized_route(sat,backup_flux)
-        #first_link = routing_decisions[0][2]
-        #starting_sat = first_link._parent
-        if sat != self.sat: #check if connected satellite is different from the current satellite (connected to GS) as param
-            backup_fluxes = [] #copy of fluxes
-            for outgoing_flux, _, end_time in self.outgoing_fluxes: #for the outgoing fluxes check that end_time is None to copy them
-                if end_time == None:
-                    backup_fluxes.append(outgoing_flux)
-                    self.close_outgoing_flux(outgoing_flux) #close
-            if self.sat != None: 
-                self.sat.serving_gs = None #change attribute serving_gs of current satellite to None
-            self.sat = sat #change of satellite that is serving the GS
-            self.sat.serving_gs = self #connect to GS
-            for backup_flux in backup_fluxes:
-                print("qui arriviamo")
-                #routing_decisions = hb.centralized_route(backup_flux) 
-                
-                ############# self.send_centralized_flux(backup_flux, routing_decisions) #send the flux to the source GS        
-            
     #connect GS to satellite
     def attach_to_sat(self, sat):
         if sat != self.sat: #check if connected satellite is different from the current satellite (connected to GS) as param
             backup_fluxes = [] #copy of fluxes
+            print("outgoing_fluxes in attach_to_sat", self.outgoing_fluxes)
             for outgoing_flux, _, end_time in self.outgoing_fluxes: #for the outgoing fluxes check that end_time is None to copy them
                 if end_time == None:
                     backup_fluxes.append(outgoing_flux)
@@ -992,10 +972,9 @@ class GroundStation:
             self.sat = sat #change of satellite that is serving the GS
             self.sat.serving_gs = self #connect to GS
             # Itera su ogni flusso nella lista `backup_fluxes`
-            print("Fluxes to send", backup_fluxes)
+            print("Backup_fluxes", backup_fluxes)
             for flux in backup_fluxes:
-                print(f"Fluxes to send {flux} ID: {flux.id}, Alias ID: {flux.alias_id}")
-            
+                print(f"Fluxes to send {flux} ID: {flux.id}, Alias ID: {flux.alias_id} with rate {flux.rate} Mbps. Destination {flux.destination}")
             for backup_flux in backup_fluxes: 
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
@@ -1005,11 +984,14 @@ class GroundStation:
                                   Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                    print("backup_flux", backup_flux)
-                    routing_decisions = self.centralized_route(backup_flux)
-                    self.send_centralized_flux(backup_flux, routing_decisions) #send the flux to the source GS
+                    print(f"-> Backup flux Centr print {backup_flux} id {backup_flux.id} alias {backup_flux.alias_id} rate {backup_flux.rate} destination {backup_flux.destination}")
+                    #print("stampa le self.GSS Stations", self.gss)
+                    self.destination = backup_flux.get_ground_station_by_coordinates(backup_flux.destination[0], backup_flux.destination[1], self.gss.values())
+                    #print("destination of backup flux", self.destination.get_name().upper())
+                    self.start_centralized_routing(backup_flux, self.gss) #send the flux to the source GS Routing 
                 else:
-                    self.send_flux(backup_flux) #send copied fluxes  #ECCOLOOOOOOOOOOOOO
+                    print(f"-> Backup flux Distrib print {backup_flux} id {backup_flux.id} alias {backup_flux.alias_id} rate {backup_flux.rate} destination {backup_flux.destination}")
+                    self.send_flux(backup_flux) #send copied fluxes 
 
     #get name
     def get_name(self) -> str:
@@ -1022,20 +1004,19 @@ class GroundStation:
             if hasattr(first_link, '_parent') and first_link._parent:
                 self.sat = first_link._parent  #extraxt first satellite on the path
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None))
+        #print("send outgoing_fluxes", self.outgoing_fluxes)
         if constants.DEBUG:
-            print("OPENING FLUX on GS -centralized-", flux, "id", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "to", self.destination.get_name() , "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+            print(" OPENING FLUX on GS -centralized-", flux, "id", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "to", self.destination.get_name() , "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
         flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self) #distance from source GS to first satellite
         #print("flux travelled distance to first Sat", flux.travelled_distance)
-        #flux.add_all_centralized_steps(routing_decisions) 
-        #####print("satellites in path",utils.get_satellites_in_path(routing_decisions)) #debug print
-        #####print("flux steps", flux.get_steps()) #debug print
+        #####print("satellites in path",utils.get_satellites_in_path(routing_decisions),"flux steps", flux.get_steps() ) #debug print
         self.sat.open_centralized_flux(flux.clone(), routing_decisions) #errore col clone
  
     #sender of fluxes from GS to connected satellite
     def send_flux(self, flux: Flux):
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None)) #add an outgoing flux with current time, None is the time of termination of the flux
         if constants.DEBUG:
-            print("OPENING FLUX on GS -distributed-", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
+            print(" OPENING FLUX on GS -distributed-", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
         flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
         self.sat.open_flux(flux.clone())
 
@@ -1047,10 +1028,10 @@ class GroundStation:
                     self.outgoing_fluxes[i] = (outgoing_flux, start_time, utils.get_current_time())
                     #outgoing_flux.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
                     outgoing_flux.travelled_distance = 0
-                    '''
+                    
                     if constants.DEBUG:
                         print("Closed outgoing flux", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
-                    '''
+                    
                     break
         else:
             while self.outgoing_fluxes.__contains__(flux):

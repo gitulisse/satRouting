@@ -168,10 +168,10 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
-        for destination_name, rate in gs_traffic_details.items():
-            destination = ground_stations.get(destination_name.upper())
+        for destination in gs_traffic_details:
+            #destination = ground_stations.get(destination_name.upper())
             #print(f"HeaderBuilder from {gs.get_name()} -> {destination_name} with rate {rate} Mbps")
-            hb = HeaderBuilder(rate, constants.SIMULATION_DURATION, ground_stations, satellites, gs, destination)
+            hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
             header_builders.append(hb)
 
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,

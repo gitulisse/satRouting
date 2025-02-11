@@ -4,10 +4,11 @@ from enum import Enum
 from routing_action import RoutingAction
 
 class Flux:
-    def __init__(self, id: int, rate: float, destination: tuple[float, float]):
+    def __init__(self, id: int, rate: float, destination: tuple[float, float], source: tuple[float, float] = None):
         self.id = id
         self.rate = rate #Mbps
         self.destination = destination
+        self.source = source
         self.ttl = constants.FLUX_TTL
         self.steps = list()
         self.paths = list()

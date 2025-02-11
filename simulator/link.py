@@ -26,6 +26,7 @@ class Link:
     
     #manage sending flux on link in centralized route
     def send_centralized_flux(self, flux: Flux, routing_decisions):
+        ########## print("sendflux centralized link base class")
         if flux.alias_id not in self.fluxes.keys():  # Check if alias_id is reserved
             raise RuntimeError("Resources need to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         if isinstance(self.target, list): # Handle the case where target is a list
@@ -38,7 +39,7 @@ class Link:
 
     #send fluxes 
     def send_flux(self, flux: Flux):
-        print("sendflux link base class")
+        ############print("sendflux link base class")
         if flux.alias_id not in self.fluxes.keys(): #if alias_id isn't in fluxes keys raise error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         self.target.open_flux(flux.clone()) #cloned flux sent to target
@@ -52,6 +53,7 @@ class Link:
         '''
         self.target.close_flux(flux.clone()) #cloned flux sent to target will be closed by the target
 
+    #store fluxes, bandwidth is already reserved
     def reserve_centralized_bandwidth(self, flux: Flux) -> bool:
         self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
         '''
@@ -121,7 +123,7 @@ class LaserLink(Link):
                                     Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                     Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                     Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                print(f"IDLE FLUX ID {flux.id} & Alias id {flux.alias_id} on parent Mapping Table {self._parent.mapping_table.table}")
+                #print(f"IDLE FLUX ID {flux.id} & Alias id {flux.alias_id} on parent Mapping Table {self._parent.mapping_table.table}")
                 #if flux.alias_id not in self._parent.mapping_table.table:
                  #   print(f"Skipping invalid alias_id -centralized-: {flux.alias_id}")
                   #  return
@@ -189,7 +191,7 @@ class RadioLink(Link):
 
     #send flux
     def send_flux(self, flux: Flux):
-        print("sendflux radiolink")
+        ############# print("sendflux radiolink")
         if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         for gs in self.target:

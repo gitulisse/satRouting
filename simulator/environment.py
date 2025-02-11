@@ -68,9 +68,9 @@ def prepare():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
         #reroute
-        for sat in env.satellites.values():
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, sat._reroute_all)
+        #for sat in env.satellites.values():
+         #   for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+          #      env.put(i, sat._reroute_all)   #è necesario??????????????????????
 
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
@@ -204,6 +204,7 @@ def update_satellites_position():
 #topology builder
 def topology_builder():
     update_satellites_position() #updates positions and link to GS
+    print("update satellites position")
     temp_satellites = {} #create temporary dictionary for satellites
     for key, sat in env.satellites.items():
         temp_satellites[key] = [sat.get_latitude(), #populate temp_satellites with lat, lon and links
@@ -270,6 +271,7 @@ def topology_builder():
         west_link = env.satellites.get(sat[5])
 
         #add the links if there is effectively a north_link else remove link because there isn't a sattellite in the north to connect with
+        #print("north_link", north_link)
         satellite.add_link(north_link, Direction.NORTH) if north_link != None else satellite.remove_link(Direction.NORTH)
         satellite.add_link(south_link, Direction.SOUTH) if south_link != None else satellite.remove_link(Direction.SOUTH)
         satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)

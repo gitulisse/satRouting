@@ -69,7 +69,7 @@ class Sat:
                     print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                 flux.drop_steps_from(self) #remove flux's steps that pass through this link of the satellite
                 self.open_flux(flux)
-        #print("add_link")
+        print("add_link method")
         self._reroute_all() #rerouting
         #env.put(env.elapsed_time, self._reroute_all)
     
@@ -327,7 +327,6 @@ class Sat:
         else:
             #########se il satellite è operativo allora rieseguo il route dal satellite in poi
             routing_decisions = self.route(flux) #otherwise if satellite is operational, calculates routing for the flux (START THE ROUTE DECISION CORE)
-            #if constants.DEBUG:
              #   print("Distributed decisions:", routing_decisions)
             self._close_internal_flux(flux.alias_id)
             #print("ALIAS 1", flux.alias_id, "for flux", flux) ####close the internal flux
@@ -335,12 +334,11 @@ class Sat:
             if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
                 #print("-----decisions", routing_decisions, "selezionato ->>", routing_decisions[1:])
                 for _, f, _ in routing_decisions[1:]:
-                    print("FLUSSO UTILIZZATO", f, "id", f.id, "alias_id", f.alias_id)
+                    print("FLUSSO UTILIZZATO distrib", f, "id", f.id, "alias_id", f.alias_id, "rate", f.rate)
                     #print("ALIAS 2", f.alias_id, "for flux", f)
                     #print("f", f)
                     f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                     f.alias_id = self.mapping_table.add(f.alias_id)
-            #analyze parameters action, f, link of routing_decisions
             for action, f, link in routing_decisions:
                 if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                     self.send_flux(f, link) #send
@@ -352,7 +350,7 @@ class Sat:
                     self.open_flux(f) #reopen
  
     def _reopen_centralized_flux(self, flux: Flux, routing_decisions: list):
-        #print("  REopening flux", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time().utc_strftime())
+        print("  REopening flux", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time().utc_strftime())
         if self.is_operational() == False:
             self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
             self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
@@ -364,13 +362,19 @@ class Sat:
             #if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
                 #routing_centralized_decisions = routing_decisions[0] 
             routing_centralized_decisions = []
-            routing_centralized_decisions.append(routing_decisions[0])
+            decision = (routing_decisions[0][0], flux, routing_decisions[0][2])
+            routing_centralized_decisions.append(decision)
             #if self.mapping_table.contains_input_id(f.alias_id): 
-             #   f.alias_id = self.mapping_table.get_input_id(f.alias_id) #debugging printing looking for local_id
+            #f.alias_id = self.mapping_table.get_input_id(f.alias_id) 
             #f.alias_id = self.mapping_table.add(f.alias_id)
             #analyze parameters action, f, link of routing_decisions
             #for action, f, link in routing_decisions:
+            #PASSIAMO IL FLUX AL ROUTING CENTRALIZED DECISIONS
             for action, f, link in routing_centralized_decisions:
+                print("FLUSSO UTILIZZATO centr", f, "id", f.id, "alias_id", f.alias_id, "rate", f.rate)
+                #print("ALIAS 2", f.alias_id, "for flux", f)
+                #f.alias_id = self.mapping_table.get_input_id(f.alias_id) 
+                #f.alias_id = self.mapping_table.add(f.alias_id)
                 if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                     #print(f"-DELIVER OR FORWARD flux- {f}")
                     routing_decisions.pop(0)
@@ -379,7 +383,7 @@ class Sat:
                     print(f"-ERROR flux- {f}")
                     routing_decisions.pop(0)
                     self.drop_flux(f, link) #drop
-                elif action == RoutingAction.REOPEN: #non necessario nel centralized
+                elif action == RoutingAction.REOPEN: #non necessario nel centralized 149, 113, 121, 100, 164, 106, 109, 150]
                     print(f"-REOPEN flux- {f}")
                     f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                     f.drop_steps_from(self)
@@ -395,19 +399,18 @@ class Sat:
         #print("  Opening flux2", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps") #, "at time", utils.get_current_time().utc_strftime())
         #here the table starts as empty
         flux.alias_id = self.mapping_table.add(flux.alias_id) #update of the id, added to the mapping table
-        print(f"***TABLE*** for sat {self.get_name()} : {self.mapping_table.table}")
+        ######################print(f"***TABLE*** for sat {self.get_name()} : {self.mapping_table.table}")
         #print("  Opening flux3", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps") #, "at time", utils.get_current_time().utc_strftime()) #qui cambia quindi prima di questo metodo tiro fuori il flux
         if flux.ttl == 0:
             self.drop_flux(flux, FluxState.EXPIRED_TTL)
         else:
             self._reopen_centralized_flux(flux, routing_decisions)
-            print("  Opening flux4", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps") #, "at time", utils.get_current_time().utc_strftime())
+            #print("  Opening flux4", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps") #, "at time", utils.get_current_time().utc_strftime())
     
     def open_flux(self, flux: Flux): #Manage the open of fluxes #qui il flux è GIA CLONATO
         ###########print("Flux sat.open_flux", flux, "ID", flux.id, "with alias id", flux.alias_id)
-        
         #if constants.DEBUG:
-         #   print("  Opening flux1 on Sat", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time().utc_strftime())
+        #print("  Opening flux1 on Sat", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps", "at time", utils.get_current_time().utc_strftime())
         flux.add_step(self) #flux is added to the self satellite
         #print("  Opening flux2", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Mbps")
         flux.alias_id = self.mapping_table.add(flux.alias_id)#update of the id, added to the mapping table
@@ -665,7 +668,7 @@ class Sat:
             if not(candidates):
                 routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
 
-            print("     Candidates:", candidates)
+            #print("     Print Candidates:", candidates)
             for candidate in candidates:
                 for r_o in routing_output:
                     if r_o[0] == RoutingAction.ERROR:
