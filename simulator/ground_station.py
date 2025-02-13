@@ -15,6 +15,7 @@ import environment as env
 import random
 from networkx.classes.function import path_weight
 from mapping_table import MappingTable
+from itertools import chain
 
 
 class GroundStation:
@@ -64,7 +65,9 @@ class GroundStation:
         flux.source = self
         routing_decisions = self.centralized_route(flux)
         unique_fluxes = set()
-        for _, flux, _ in routing_decisions: #for action, flux, link in routing_decisions:
+        #print("DEBUG: routing_decisions =", routing_decisions)
+        flat_routing_decisions = utils.flatten(routing_decisions)
+        for _, flux, _ in flat_routing_decisions: #for action, flux, link in routing_decisions:
             unique_fluxes.add(flux)
         for flux in unique_fluxes:
             flux_destination = flux.get_ground_station_by_coordinates(flux.destination[0], flux.destination[1], self.gss.values())
@@ -187,25 +190,8 @@ class GroundStation:
             routing_output = self.process_routing_output(selected_path, flux) #process the output for routing
             if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
-
         #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #
-
-    #####calculate k disjoint paths    
-    def calculate_k_disjoint_paths_remaining_flux(self, kwargs):
-        source: dict = kwargs['source']
-        destination: dict = kwargs['destination']
-        satellites: dict = kwargs['satellites']
-        k = constants.K_SHORTEST_VALUE  # Number of disjoint paths required
-        
-        k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
-        '''
-        if not k_disjoint_paths:
-            print(f"No valid path found from {source.get_name().upper()} to {destination.get_name().upper()}.")
-        else:
-            print(f"Shortest node disjoint paths from {source.get_name().upper()} to {destination.get_name().upper()}: {k_disjoint_paths}")
-        '''
-        return k_disjoint_paths
 
     #adaptive method used only for LB mstrategies
     def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions):
@@ -398,7 +384,7 @@ class GroundStation:
         else:
             source_satellite = reached_node
         destination = self.destination
-        source = self.source
+        source = self
         destination_name = self.destination.get_name().upper()
         destination_satellites = []
         source_satellites = []
@@ -486,7 +472,7 @@ class GroundStation:
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
         if selected_path is None:  # Se nessun percorso è stato trovato
-            print(f"No valid path could be selected for {self.source} to {self.destination}.")
+            print(f"No valid path could be selected for {self.get_name()} to {self.destination.get_name()}.")
             reached_node = None
             return []
 
@@ -543,12 +529,14 @@ class GroundStation:
 
         print(f"Routing calculation from <<<{source.get_name().upper()} - {destination.get_name().upper()}>>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
+        k_disjoint_paths = k_disjoint_paths[:k] 
         '''
         if not k_disjoint_paths:
             print(f"No valid path found from {source.get_name().upper()} to {destination.get_name().upper()}.")
         else:
             print(f"Shortest node disjoint paths from {source.get_name().upper()} to {destination.get_name().upper()}: {k_disjoint_paths}")
         '''
+        print("K PATHS", k_disjoint_paths)
         return k_disjoint_paths
     
     def _get_k_disjoint_paths(self, satellites, source, destination):
@@ -631,6 +619,13 @@ class GroundStation:
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+            if source == destination:
+                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
+                disjoint_paths = []
+                disjoint_paths.append([closer_sats[0]['name']])
+                print("disj", disjoint_paths)
+                return disjoint_paths
             for src_sat in source_satellites:
                 for dst_sat in destination_satellites:
                     try:
@@ -641,6 +636,13 @@ class GroundStation:
 
         elif constants.ROUTING_STRATEGY in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+            if source == destination:
+                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
+                disjoint_paths = []
+                disjoint_paths.append([closer_sats[0]['name']])
+                print("disj", disjoint_paths)
+                return disjoint_paths
             for src_sat in source_satellites:
                 for dst_sat in destination_satellites:
                     try:
@@ -666,15 +668,20 @@ class GroundStation:
         
         costs = []
         for path, normalized_length in zip(paths, normalized_lengths): #calculate costs for each path
-            link_occupation = sum(
-                link_utilization.get((path[i], path[i+1]), 0) for i in range(len(path) - 1)
-            ) / (len(path) - 1)  #avarage occupation of link
-            cost = (alpha * normalized_length) + ((1 - alpha) * link_occupation)
-            costs.append(cost)
+            if len(path) == 1:  # Se il percorso ha un solo nodo, non ha link
+                costs.append(0) 
+            else:
+                link_occupation = sum(
+                    link_utilization.get((path[i], path[i+1]), 0) for i in range(len(path) - 1)
+                ) / (len(path) - 1)  #avarage occupation of link
+                cost = (alpha * normalized_length) + ((1 - alpha) * link_occupation)
+                costs.append(cost)
         return costs
 
     def select_path_based_on_costs(self, paths, costs):
         total_cost = sum(costs) 
+        if total_cost == 0:
+            return paths[0]
         probabilities = [1 - (cost / total_cost) for cost in costs]  # Percorsi con costi bassi hanno maggiore probabilità, conversione dei costi in probabilità
         selected_path = random.choices(population=paths, weights=probabilities, k=1)[0]
         return selected_path
@@ -700,7 +707,6 @@ class GroundStation:
                 base_weight = graph[current_node][next_node]['weight'] #obtain the link's weight in graph as length
                 #print("base weight:", base_weight)
                 utilization = self.link_utilization.get(link_key, 0) #add factor of link occupation. If value doesn't exists, self.link_utilization returns 0
-                ##########fare un CHECK sulla utilization
 
                 link = self._get_link_between_nodes(current_node, next_node, self.satellites)
                 if isinstance(link, LaserLink):
@@ -738,12 +744,17 @@ class GroundStation:
         return probabilities
 
     def calculate_path_weights_length_shortest_node_disjoint(self, graph, paths):
+        sum_weights = sum([path_weight(graph, p, weight="weight") for p in paths])
+        if sum_weights == 0:
+            return 0 
         total_path_weights = sum([1 - (path_weight(graph, path, weight="weight") / sum([path_weight(graph, p, weight="weight") for p in paths])) for path in paths]) #total weights as length of paths
         weights = [(1 - (path_weight(graph, path, weight="weight") / sum([path_weight(graph, p, weight="weight") for p in paths]))) / total_path_weights for path in paths] #normalized weights
         return weights
 
     #select path based on probabilities
     def select_path_with_probabilities(self, paths, probabilities): 
+        if len(paths) == 1:
+            return paths[0]
         selected_path = random.choices(population=paths, weights=probabilities)[0]
         return selected_path
 

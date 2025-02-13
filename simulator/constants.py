@@ -20,7 +20,7 @@ GROUND_STATION_LINK_CAPACITY = 1000 #Gbps
 
 TIME_MULTIPLIER = 1
 
-K_SHORTEST_VALUE = 3 #constant that decides how many disjoint paths should be found by k shortest algorithm
+K_SHORTEST_VALUE = 5 #constant that decides how many disjoint paths should be found by k shortest algorithm
 
 parser = argparse.ArgumentParser(prefix_chars='-')
 parser.add_argument("-s", "--strategy", type=int)

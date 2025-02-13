@@ -142,7 +142,7 @@ def start():
         time, action, kwargs = env.actions_queue.get()
         if time != env.elapsed_time: 
             env.elapsed_time = time
-            print("Simulating", time, "/", constants.SIMULATION_DURATION, "seconds")
+            print("|||Simulating", time, "/", constants.SIMULATION_DURATION, "seconds|||")
         '''
         if constants.DEBUG:
             print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########

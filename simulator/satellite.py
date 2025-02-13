@@ -69,7 +69,7 @@ class Sat:
                     print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
                 flux.drop_steps_from(self) #remove flux's steps that pass through this link of the satellite
                 self.open_flux(flux)
-        print("add_link method")
+        #print("add_link method")
         self._reroute_all() #rerouting
         #env.put(env.elapsed_time, self._reroute_all)
     
@@ -194,7 +194,7 @@ class Sat:
         '''
     #Update link with Ground Station
     def _update_gs_link(self):
-        #print("UPDATE GS LINK")
+        #print("UPDATE GS LINK method")
         gs_candidates = []
         for gs in self._ground_stations.values():
             distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km #calculate distance between 2 points using Geopy
@@ -213,7 +213,7 @@ class Sat:
                     
                     flux.drop_steps_from(self) #remaining fluxes are dropped
                     self.open_flux(flux) #reopen of these fluxes for resend
-            #print("update_gs_link method")
+            #print("update_gs_link method leftovers")
             self._reroute_all() #rerouting for resend
             #env.put(env.elapsed_time, self._reroute_all)
 
@@ -277,7 +277,7 @@ class Sat:
     
     #Sender of centralized fluxes
     def send_centralized_flux(self, flux: Flux, link: Link, routing_decisions: list):
-        if link.reserve_centralized_bandwidth(flux): #sistemata: la bandwidth viene già riservata durante il calcolo del percorso, quindi NON va riservata nuovamente
+        if link.reserve_bandwidth(flux): #sistemata: la bandwidth viene già riservata durante il calcolo del percorso, quindi NON va riservata nuovamente
             '''
             #Debug
             if constants.DEBUG:
@@ -371,7 +371,11 @@ class Sat:
             #for action, f, link in routing_decisions:
             #PASSIAMO IL FLUX AL ROUTING CENTRALIZED DECISIONS
             for action, f, link in routing_centralized_decisions:
-                print("FLUSSO UTILIZZATO centr", f, "id", f.id, "alias_id", f.alias_id, "rate", f.rate)
+                if isinstance(link, RadioLink):
+                    print("FLUSSO UTILIZZATO centr", f, "id", f.id, "alias_id", f.alias_id, "rate", f.rate, "on", self.get_name(), "to", link.target[0].get_name(), "bandwidth", link.capacity)
+                #print("ALIAS 2", f.alias_id, "for flux", f)
+                elif isinstance(link, LaserLink):
+                    print("FLUSSO UTILIZZATO centr", f, "id", f.id, "alias_id", f.alias_id, "rate", f.rate, "on", self.get_name(), "to", link.target.get_name(), "bandwidth", link.capacity)
                 #print("ALIAS 2", f.alias_id, "for flux", f)
                 #f.alias_id = self.mapping_table.get_input_id(f.alias_id) 
                 #f.alias_id = self.mapping_table.add(f.alias_id)
@@ -680,12 +684,13 @@ class Sat:
 
     #Rerouting all
     def _reroute_all(self):
+        #print("_reroute_all method")
         if self._is_rerouting: #if satellite already rerouting, avoid double rerouting
             return
         self._is_rerouting = True #otherwise set attribute to True
         if self.fluxes.keys(): #if there are active fluxes
             #if constants.DEBUG:
-             #   print("Rerouting traffic from satellite", self.get_name())
+            #print("Rerouting traffic from satellite", self.get_name())
 
             fluxes_copy = [] #to keep fluxes
             pointer = 0

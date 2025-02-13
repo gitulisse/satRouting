@@ -60,7 +60,7 @@ def get_closer_satellites(satellites, position: tuple[float, float], operational
     for key, sat in satellites.items(): #check for satellites
         if operational_only: #if attribute True
             if sat.is_operational() == False: #double check if satellite it's really active
-                print(f"Satellite {sat.get_name()} is not operational") #print the satellite not operational
+                #print(f"Satellite {sat.get_name()} is not operational") #print the satellite not operational
                 continue #so ignore that satellite
         distances.append({'distance': (distance.distance((sat.get_latitude(), sat.get_longitude()), position).km), 'name': key}) #for each active satellite calculate the distance from destination
     distances.sort(key=lambda x: x['distance']) #sort from closest
@@ -165,3 +165,11 @@ def get_satellites_in_path(routing_decisions):
             satellites_in_path.append(link.target)
     return satellites_in_path
 
+def flatten(nested_list): #flatten a nested list
+    flat_list = []
+    for item in nested_list:
+        if isinstance(item, list):
+            flat_list.extend(flatten(item))  # Ricorsione per appiattire gli elementi annidati
+        else:
+            flat_list.append(item)
+    return flat_list

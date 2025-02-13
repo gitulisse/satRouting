@@ -55,13 +55,21 @@ class Link:
 
     #store fluxes, bandwidth is already reserved
     def reserve_centralized_bandwidth(self, flux: Flux) -> bool:
-        self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
-        '''
-        #debug
-        if constants.DEBUG:
-            print("Reserved", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
-        '''
-        return True
+        if self.get_available_bandwidth() >= flux.rate: 
+            self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
+            '''
+            #debug
+            if constants.DEBUG:
+                print("Reserved", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
+            '''
+            return True
+        else:
+            '''
+            #debug
+            if constants.DEBUG:
+                print("Failed to reserve", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
+            '''
+            return False
 
     #manage reservation of bandwidth for a specified Flux
     def reserve_bandwidth(self, flux: Flux) -> bool:
