@@ -10,7 +10,7 @@ class Link:
         self._parent = parent_sat
         self.target = None
         self.fluxes: dict[int, Flux] = {}
-        self.capacity = capacity #Mbps
+        self.capacity = capacity #Gbps
 
     #set attribute target
     def _set_target(self, target):
@@ -20,8 +20,10 @@ class Link:
     def is_active(self) -> bool:
         return self.target != None
     
+
     #calculate remaining available bandwidth
     def get_available_bandwidth(self) -> float:
+        #print("Available Bandwidth", self.capacity - sum([flux.rate for flux in self.fluxes.values()]))
         return self.capacity - sum([flux.rate for flux in self.fluxes.values()])
     
     #manage sending flux on link in centralized route
@@ -29,17 +31,21 @@ class Link:
         ########## print("sendflux centralized link base class")
         if flux.alias_id not in self.fluxes.keys():  # Check if alias_id is reserved
             raise RuntimeError("Resources need to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        if isinstance(self.target, list): # Handle the case where target is a list
-            #print("target is a list", self.target)
-            for target in self.target:
-                #print("target is", target.get_name())
-                target.open_flux(flux.clone())
+        if isinstance(self.target, list): # case of radiolink
+            target=self.target[0]
+            target.open_flux(flux.clone())
         else:
-            self.target.open_centralized_flux(flux.clone(), routing_decisions) # Standard case: single target
+            self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
+
+    def send_centralized_flux(self, flux: Flux, routing_decisions):
+        # print("sendflux centralized link base class")
+        if flux.alias_id not in self.fluxes.keys():
+            raise RuntimeError("Resources needs to be reserved before sending centralized flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
+        self.target.open_flux(flux.clone())
 
     #send fluxes 
     def send_flux(self, flux: Flux):
-        ############print("sendflux link base class")
+        #print("sendflux link base class")
         if flux.alias_id not in self.fluxes.keys(): #if alias_id isn't in fluxes keys raise error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         self.target.open_flux(flux.clone()) #cloned flux sent to target
@@ -49,45 +55,40 @@ class Link:
         self.fluxes.pop(flux.alias_id) #remove flux id
         '''
         if constants.DEBUG:
-            print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+            print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flux.rate, "Gbps at time", utils.get_current_time().utc_strftime())
         '''
         self.target.close_flux(flux.clone()) #cloned flux sent to target will be closed by the target
-
+    
     #store fluxes, bandwidth is already reserved
     def reserve_centralized_bandwidth(self, flux: Flux) -> bool:
-        if self.get_available_bandwidth() >= flux.rate: 
-            self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
-            '''
-            #debug
-            if constants.DEBUG:
-                print("Reserved", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
-            '''
-            return True
-        else:
-            '''
-            #debug
-            if constants.DEBUG:
-                print("Failed to reserve", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
-            '''
-            return False
-
+        self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
+        target_name = (self.target[0].get_name() 
+                if isinstance(self.target, list) and self.target 
+                else self.target.get_name())
+        print("For link", self._parent.get_name(), "-", target_name, "Already Reserved bandwidth centralized", flux.rate, "Gb, for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
+        return True
+    
     #manage reservation of bandwidth for a specified Flux
     def reserve_bandwidth(self, flux: Flux) -> bool:
-        if self.get_available_bandwidth() >= flux.rate: 
+        if self.get_available_bandwidth() >= flux.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all fluxes' rate in self.fluxes
             self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
-            '''
-            #debug
-            if constants.DEBUG:
-                print("Reserved", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
-            '''
+            target_name = (self.target[0].get_name() 
+                if isinstance(self.target, list) and self.target 
+                else self.target.get_name())
+
+            #print("Reserving for link", self._parent.get_name(), "-", target_name, "Reserved bandwidth", flux.rate, "Gb, for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime()) #"remaining capacity", self.capacity
             return True
         else:
-            '''
-            #debug
-            if constants.DEBUG:
-                print("Failed to reserve", flux.rate, "Mb for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
-            '''
+            #print("Reserving for link", self._parent.get_name(), "-", target_name, "Failed to reserve", flux.rate, "Gb, for flux", flux.id, "with alias id", flux.alias_id, "at time", utils.get_current_time().utc_strftime())
             return False
+    '''
+    #check bandwidth availability without reserve it
+    def search_available_bandwidth(self) -> float:
+        temp_capacity = self.capacity
+        temp_capacity -= sum([flux.rate for flux in self.fluxes.values()])
+        print ("Actual Capacity", temp_capacity)
+        return temp_capacity
+    '''
 
 #Laserlink between satellites
 class LaserLink(Link):
@@ -197,9 +198,20 @@ class RadioLink(Link):
     def get_attached_gs(self) -> list[GroundStation]:
         return self.target
 
+        #manage sending flux on link in centralized route
+    def send_centralized_flux(self, flux: Flux, routing_decisions):
+        ########## print("sendflux centralized link base class")
+        if flux.alias_id not in self.fluxes.keys():  # Check if alias_id is reserved
+            raise RuntimeError("Resources need to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
+        if isinstance(self.target, list): # case of radiolink
+            target=self.target[0]
+            target.open_flux(flux.clone())
+        else:
+            self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
+
     #send flux
     def send_flux(self, flux: Flux):
-        ############# print("sendflux radiolink")
+        # print("sendflux radiolink")
         if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         for gs in self.target:
@@ -212,7 +224,7 @@ class RadioLink(Link):
             '''
             #debug
             if constants.DEBUG:
-                print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", gs.get_name(), "with rate", flux.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+                print("Closed flux", flux.id, "with alias id", flux.alias_id, "on Satellite", self._parent.get_name(), "headed to", gs.get_name(), "with rate", flux.rate, "Gbps at time", utils.get_current_time().utc_strftime())
             '''
             gs.close_flux(flux.clone()) #every GS in self.target close the flux
             

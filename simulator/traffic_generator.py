@@ -34,7 +34,7 @@ class TrafficGenerator:
 
     #start generating traffic
     def _begin_generating(self):
-        print("--|> Generating distributed", self.flux.rate, "Mbps from", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), "for", self.duration, "seconds.")
+        print("--|> Generating distributed flux", self.flux, self.flux.rate, "Gbps from", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), "for", self.duration, "seconds.")
         self.source_gs.send_flux(self.flux)
 
     #stop generating traffic
@@ -43,9 +43,9 @@ class TrafficGenerator:
         end_time = utils.get_current_time() #set end_time
         source_gs_flux_info = self.source_gs.get_flux_info(self.flux, end_time, precision=1) #get flux info from source GS
         destination_gs_flux_info = self.destination_gs.get_flux_info(self.flux, end_time, precision=1) #get flux info from destination GS
-        print("Sent", source_gs_flux_info[0], "Mb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Received", destination_gs_flux_info[1], "Mb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Lost", destination_gs_flux_info[2], "Mb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Sent", source_gs_flux_info[0], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Received", destination_gs_flux_info[1], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Lost", destination_gs_flux_info[2], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
 
         if constants.DEBUG:
             all_ids = []

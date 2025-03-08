@@ -81,8 +81,9 @@ def show_shortest_paths_table(results: dict):
 
     refactored_results = {
         'DIJKSTRA' : {},
-        Strategy.POSITION_GUESSING_NO_LB.name : {},
-        Strategy.POSITION_SHARING_NO_LB.name : {}
+        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {}
+        #Strategy.POSITION_GUESSING_NO_LB.name : {},
+        #Strategy.POSITION_SHARING_NO_LB.name : {}
     }
 
     for key in refactored_results.keys():
@@ -183,7 +184,7 @@ def show_average_link_occupation_chart(results: dict):
 
 def show_delivered_dropped_ratio_chart(results: dict):
     #colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
-    markers = ['.','v','s','p','H','x','d','|','_']
+    markers = ['.','v','s','p','H','x','d','|','_','o','*','+','^','<','>','1','2','3','4']
 
     ax = plt.subplot()
     box = ax.get_position()

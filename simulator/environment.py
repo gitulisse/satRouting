@@ -37,7 +37,7 @@ def put(time, function, **kwargs):
 
 #used to configure the environment before the simulation
 def prepare():
-    print("PREPARE(((())))) called.")
+    #print("prepare() called.")
     if env.ready == True:
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
@@ -58,7 +58,6 @@ def prepare():
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-        print("entrato in centralized del Topology Builder")
         #update positions
         for sat in env.satellites.values(): 
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
@@ -68,9 +67,9 @@ def prepare():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
         #reroute
-        #for sat in env.satellites.values():
-         #   for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-          #      env.put(i, sat._reroute_all)   #è necesario??????????????????????
+        for gs in env.ground_stations.values():
+            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+                env.put(i, gs._reroute_all)
 
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
@@ -102,7 +101,7 @@ def start():
     print("- Routing strategy:", constants.ROUTING_STRATEGY.name)
     print("- Simulation time:", utils.get_current_time().utc_strftime()) #datetime
     print("- Duration:", constants.SIMULATION_DURATION, "seconds")
-    print("- Total traffic in network:", constants.TOTAL_VOLUME_OF_TRAFFIC, "Mbps")
+    print("- Total traffic in network:", constants.TOTAL_VOLUME_OF_TRAFFIC, "Gbps")
     print("- Involved ground stations:", len(env.ground_stations))
     print("- Topology update scheduled each", constants.TOPOLOGY_UPDATE_TIME, "seconds")
 
@@ -180,11 +179,13 @@ def reset():
         gs.outgoing_fluxes.clear() #cleare outgoing fluxes
         gs.incoming_fluxes.clear() #clear incoming fluxes
         gs.DEBUG_dropped_incoming_fluxes.clear() #clear debug dropped fluxes
+        gs.undeliverable_flows.clear() #clear undeliverable flows ##################################
     env.ready = False #set ready to False
     print("Environment reset.")
 
 #updater of satellites position
 def update_satellites_position():
+    #print("*update satellites position method")
     for sat in env.satellites.values():
         sat._update_position() #update position
         sat._update_gs_link() #update link to GS 
@@ -204,7 +205,7 @@ def update_satellites_position():
 #topology builder
 def topology_builder():
     update_satellites_position() #updates positions and link to GS
-    print("update satellites position")
+    #print("update satellites position")
     temp_satellites = {} #create temporary dictionary for satellites
     for key, sat in env.satellites.items():
         temp_satellites[key] = [sat.get_latitude(), #populate temp_satellites with lat, lon and links
@@ -279,9 +280,9 @@ def topology_builder():
 
     
     #debug
-    if constants.DEBUG:
-        #print("DISTANZE", distances)
-        print("Applied.")
+    #if constants.DEBUG:
+    #print("DISTANZE", distances)
+    #print("Topology Builder applied to environment.")
 
 #calculate the value of control_traffic_data used during the simulation
 def log_control_traffic_message(bytes: int):

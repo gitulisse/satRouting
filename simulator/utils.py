@@ -125,7 +125,7 @@ def propagation_delay(position1, position2) -> float:
 
 #get time
 def get_current_time() -> Time:
-    return ts.utc(2024, 11, 10, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00 #23/10/15 always finds paths
+    return ts.utc(2023, 10, 15, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00 #23/10/15 always finds paths
 
 #manage hour shift for globe or simulation
 def set_hour_shift(shift):

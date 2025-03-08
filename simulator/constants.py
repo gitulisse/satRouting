@@ -4,7 +4,7 @@ from strategy import Strategy
 
 #Contant values to run the application
 
-DEBUG = True
+DEBUG = False
 
 LATITUDE_CUTOFF = 70
 
@@ -36,7 +36,7 @@ FLUX_TTL = 31
 LOOP_AVOIDANCE_CUTOFF = 9 #loop avoidance
 
 SIMULATION_DURATION = args.duration if args.duration else 60 #if there is no durantion it'll be set to 60 secs
-TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Mbps passed by user in the command else 20
+TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 20 #Gbps passed by user in the command else 20
 
 drawing_queue = Queue()
 

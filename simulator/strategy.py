@@ -21,10 +21,6 @@ class Strategy(Enum):
     LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB = 14
     KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION = 15 #path cost selection
 
-    
-    
-    #PORT_FORWARDING = 88   per l'esecuzione della simulazione?
-    #EARLY_DISCARDING = 99
 
     
 

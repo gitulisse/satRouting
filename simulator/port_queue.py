@@ -5,7 +5,7 @@ import sys
 class PortQueue:
     def __init__(self):
         self.queue = list[Flux]
-        self.capacity = 1 #Mbps
+        self.capacity = 1 #Gbps
 
     #add a flux
     def enqueue(self, flux: Flux):

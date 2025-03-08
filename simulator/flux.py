@@ -4,18 +4,17 @@ from enum import Enum
 from routing_action import RoutingAction
 
 class Flux:
-    def __init__(self, id: int, rate: float, destination: tuple[float, float], source: tuple[float, float] = None):
+    def __init__(self, id: int, rate: float, destination: tuple[float, float]):
         self.id = id
-        self.rate = rate #Mbps
+        self.rate = rate #Gbps
         self.destination = destination
-        self.source = source
         self.ttl = constants.FLUX_TTL
         self.steps = list()
         self.paths = list()
         self.alias_id = id
         self.state: FluxState = FluxState.NOT_DEFINED
         self.travelled_distance = 0 #km
-    
+
     def get_ground_station_by_coordinates(self, lat, lon, ground_stations):
         for gs in ground_stations:
             if gs.lat == lat and gs.lon == lon:

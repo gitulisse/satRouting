@@ -47,6 +47,8 @@ class MappingTable:
                  #   print(f"Removed pair ({in_id}, {out_id}) from mapping table")
                 return in_id
         else:
+            print(f"[ERRORE] Tentativo di rimuovere local_id non presente: {local_id}")
+            print(f"[ERRORE] Stato attuale della tabella mapping_table: {self.table}")
             raise RuntimeError("No mapping found for local_id: " + str(local_id))
 
     #check if input_id is in table to get output_id

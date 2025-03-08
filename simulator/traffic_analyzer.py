@@ -48,10 +48,9 @@ class TrafficAnalyzer:
                     utils.set_hour_shift(i) #repeat simulation shifting hour from 0 to simulation_duration_backup
                     env.reset()
                     env.prepare()
-                    #USE DIJKSTRA AS BASELINE
                     env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites) #execute the simulation with dijkstra algorithm
                     env.start()
-                for strategy in [Strategy.POSITION_GUESSING_NO_LB, Strategy.POSITION_SHARING_NO_LB]: #assign these strateies to ROUTIING_STRATEGY
+                for strategy in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING]: #, Strategy.POSITION_GUESSING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, Strategy.POSITION_SHARING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]: #assign these strateies to ROUTIING_STRATEGY
                     constants.ROUTING_STRATEGY = strategy 
                     fluxes = {} #empty dictionary of fluxes
                     for i in range(0, simulation_duration_backup): #repeat simulation shifting hour from 0 to simulation_duration_backup with new strategies
@@ -199,8 +198,13 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
                     'DIJKSTRA' : {}, #key that will contain results for dijkstra
-                    Strategy.POSITION_GUESSING_NO_LB.name : {}, #key that will contain results for position guessing no lb
-                    Strategy.POSITION_SHARING_NO_LB.name : {} #key that will contain results for  position sharing no lb
+                    Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {} #key that will contain results for k shortest edge disjoint source routing
+                    #Strategy.POSITION_GUESSING_NO_LB.name : {}, #key that will contain results for position guessing no lb
+                    #Strategy.POSITION_SHARING_NO_LB.name : {}, #key that will contain results for  position sharing no lb
+                    #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {}, #key that will contain results for position guessing progressive lb
+                    #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {}, #key that will contain results for position sharing lb on saturated link
+                    #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {}, #key that will contain results for position sharing progressive lb
+                    #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION.name : {} #key that will contain results for position sharing with costs selection
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy (even dijkstra) 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {

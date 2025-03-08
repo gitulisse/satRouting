@@ -170,7 +170,7 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
         gs_traffic_details = traffic_matrix[gs.get_name()]
         for destination in gs_traffic_details:
             #destination = ground_stations.get(destination_name.upper())
-            #print(f"HeaderBuilder from {gs.get_name()} -> {destination_name} with rate {rate} Mbps")
+            #print(f"HeaderBuilder from {gs.get_name()} -> {destination_name} with rate {rate} Gbps")
             hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
             header_builders.append(hb)
 
