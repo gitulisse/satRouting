@@ -34,7 +34,7 @@ class TrafficGenerator:
 
     #start generating traffic
     def _begin_generating(self):
-        print("--|> Generating distributed flux", self.flux, self.flux.rate, "Gbps from", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), "for", self.duration, "seconds.")
+        print("-----|> Generating distributed flux", self.flux, self.flux.rate, "Gbps from", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), "for", self.duration, "seconds.")
         self.source_gs.send_flux(self.flux)
 
     #stop generating traffic

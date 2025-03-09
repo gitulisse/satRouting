@@ -32,7 +32,7 @@ class HeaderBuilder:
         env.put(self.duration, self._end_centralized_generation) #stop generating
 
     def _begin_centralized_generation(self):
-        print("--|> Generating centralized flux", self.flux, self.flux.rate, "Gbps from <<<", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), ">>> for", self.duration, "seconds.")
+        print("-----|> Generating centralized flux", self.flux, self.flux.rate, "Gbps from <<<", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), ">>> for", self.duration, "seconds.")
         self.source_gs.start_centralized_routing(self.flux, self.gss) #send the flux to the source GS
             
     def _end_centralized_generation(self):
