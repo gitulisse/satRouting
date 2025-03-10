@@ -20,6 +20,8 @@ class Link:
     def is_active(self) -> bool:
         return self.target != None
     
+    def reset_bandwidth(self):
+        self.fluxes.clear()
 
     #calculate remaining available bandwidth
     def get_available_bandwidth(self) -> float:
@@ -28,7 +30,7 @@ class Link:
     
     #manage sending flux on link in centralized route
     def send_centralized_flux(self, flux: Flux, routing_decisions):
-        ########## print("sendflux centralized link base class")
+        print("sendflux centralized link base class")
         if flux.alias_id not in self.fluxes.keys():  # Check if alias_id is reserved
             raise RuntimeError("Resources need to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         if isinstance(self.target, list): # case of radiolink
@@ -36,12 +38,6 @@ class Link:
             target.open_flux(flux.clone())
         else:
             self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
-
-    def send_centralized_flux(self, flux: Flux, routing_decisions):
-        # print("sendflux centralized link base class")
-        if flux.alias_id not in self.fluxes.keys():
-            raise RuntimeError("Resources needs to be reserved before sending centralized flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        self.target.open_flux(flux.clone())
 
     #send fluxes 
     def send_flux(self, flux: Flux):
@@ -70,6 +66,7 @@ class Link:
     
     #manage reservation of bandwidth for a specified Flux
     def reserve_bandwidth(self, flux: Flux) -> bool:
+        print("Reserve bandwidth....")
         if self.get_available_bandwidth() >= flux.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all fluxes' rate in self.fluxes
             self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
             target_name = (self.target[0].get_name() 

@@ -39,6 +39,14 @@ class GroundStation:
         self._is_rerouting = False #if rerouting connections
         self.undeliverable_flows = [] #flows that generates errors in routing
 
+    def reset_all_bandwidth(self, satellites):
+        for sat in satellites:
+            # reset LaserLinks
+            for link in sat._links.values():
+                link.reset_bandwidth()
+            # reset RadioLink
+            sat._gs_link.reset_bandwidth()
+
 
     def split_flux_by_min_available_bandwidth(self, selected_path, flux: Flux):
         # Determina la minima capacità disponibile sul percorso
@@ -146,8 +154,8 @@ class GroundStation:
                 print(f"[INFO]: Flux {flux.id} is already listed as undeliverable.")
             return
 
-        flux_destination = flux.get_ground_station_by_coordinates(flux.destination[0], flux.destination[1], self.gss.values())
-        print(f">>>> Processing now {flux} Flux ID: {flux.id}, Alias ID: {flux.alias_id} from {self.get_name().upper()} to {flux_destination.get_name().upper()} rate {flux.rate} Gbps")
+        #flux_destination = flux.get_ground_station_by_coordinates(flux.destination[0], flux.destination[1], self.gss.values())
+        #print(f">>>> Processing now {flux} Flux ID: {flux.id}, Alias ID: {flux.alias_id} from {self.get_name().upper()} to {flux_destination.get_name().upper()} rate {flux.rate} Gbps")
         self.send_centralized_flux(flux, routing_decisions) #send the flux to the source GS
 
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
@@ -155,6 +163,8 @@ class GroundStation:
         #print(f"--------------------------------------------------------DEBUG: flux = {flux}, type = {type(flux)}")
         routing_decisions = self.basic_centralized_route(flux)
         #routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions) ###non necessario, è presente nei metodi con LB
+            # Qui effettui il reset prima di avviare l'effettivo invio distribuito
+        self.reset_all_bandwidth(self.satellites.values())
         #print("THE ROUTING DECISIONS:", routing_decisions)
         return routing_decisions
 
@@ -283,48 +293,6 @@ class GroundStation:
         #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #
 
-    '''
-    def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions):
-        adapted_routing_decisions = []
-        remaining_flux = flux.clone()
-        # Trova la banda minima disponibile lungo il percorso selezionato
-        min_available_bw = float('inf')
-        for action, _, link in routing_decisions:
-            available_bw = link.get_available_bandwidth()
-            if available_bw < min_available_bw:
-                min_available_bw = available_bw
-        print(f"[DEBUG] Min available bandwidth along path: {min_available_bw} Gbps")
-        # Adatta il flusso alla minima banda disponibile
-        if remaining_flux.rate > min_available_bw:
-            splitted_flux, remaining_flux = remaining_flux.split(min_available_bw)
-            print(f"[INFO] Flux {flux.id} split: instradato {splitted_flux.rate} Gbps, rimasto {remaining_flux.rate} Gbps")
-        else:
-            splitted_flux = remaining_flux
-            remaining_flux = None
-            print(f"[INFO] Flux {flux.id} fully routed: {splitted_flux.rate} Gbps")
-        # Riserva effettivamente la banda lungo il percorso
-        for action, _, link in routing_decisions:
-            reserved = link.reserve_bandwidth(splitted_flux)
-            target_name = link.target[0].get_name() if isinstance(link.target, list) else link.target.get_name()
-            if reserved:
-                adapted_routing_decisions.append((action, splitted_flux, link))
-                print(f"[SUCCESS] Reserved bandwidth {splitted_flux.rate} Gbps on link {link._parent.get_name()} -> {target_name}")
-            else:
-                print(f"[ERROR] Failed to reserve bandwidth on link {link._parent.get_name()} -> {link.target.get_name()}")
-                self.undeliverable_flows.append(splitted_flux)
-                adapted_routing_decisions.append((RoutingAction.ERROR, splitted_flux, None))
-                break
-        # Se c'è un flusso residuo, inseriscilo negli undeliverable_flows
-        if remaining_flux:
-            self.undeliverable_flows.append(remaining_flux)
-            print(f"[WARNING] Flux {remaining_flux.id} (residual) added to undeliverable flows.")
-
-        print("Check undeliverable flows and their rates:")
-        for flow in self.undeliverable_flows:
-            print(f"Flow ID: {flow.id}, Rate: {flow.rate}")
-        return adapted_routing_decisions
-
-    '''
 
     def extract_separated_decision_lists(self, nested_decisions):
         separated_lists = []
@@ -349,6 +317,18 @@ class GroundStation:
         #####print("flux param:", flux)
         #print("routing decisions param:", routing_decisions)
         remaining_flux = flux.clone()
+
+        #caso speciale origine = destinazione
+        if self.get_name().upper() == self.destination.get_name().upper():
+            link = routing_decisions[0][2]
+            action = RoutingAction.DELIVER
+            if link.get_available_bandwidth() >= remaining_flux.rate:
+                link.reserve_bandwidth(remaining_flux)
+                adapted_routing_decisions.append([(action, remaining_flux, link)])
+            else:
+                adapted_routing_decisions.append([(RoutingAction.ERROR, remaining_flux, None)])
+            return adapted_routing_decisions
+
         #####print("remaining flux clone:", remaining_flux)
         support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
         #print("support routing decisions clone:", support_routing_decisions)
@@ -386,7 +366,6 @@ class GroundStation:
                             adapted_routing_decisions
                         )
                         #print(f"Found decisions for REMAINED SUBFLUX: {adapted_routing_decisions}")
-                        remaining_flux.rate = 0  # Tutto il flusso è stato consumato
                         break
                     else:
                         print("Not enough bandwidth for flux, proceed to splitting...")# Solo una parte del flusso passa
@@ -1257,7 +1236,7 @@ class GroundStation:
         #routing_decisions = self.flatten_to_separate_lists(routing_decisions)
         routing_decisions = self.extract_separated_decision_lists(routing_decisions)
         
-        print("* Send Centralized DECISIONS", routing_decisions)
+        #print("* Send Centralized DECISIONS", routing_decisions)
         self.outgoing_fluxes.append((flux, utils.get_current_time(), None)) #print("!!!!!!!!!!!!!!!send outgoing_fluxes", self.outgoing_fluxes)
         #if constants.DEBUG:
         #print(" OPENING FLUX on GS -centralized-", flux, "id", flux.id, "with alias id", flux.alias_id, "from", self.get_name(), "to", self.destination.get_name() , "with rate", flux.rate, "at time", utils.get_current_time().utc_strftime())
@@ -1265,17 +1244,12 @@ class GroundStation:
         
         if not isinstance(routing_decisions[0], list):
             routing_decisions = [routing_decisions]
-        
+
         for routing_sequence in routing_decisions:
-            for decision in routing_sequence:
-                action, flux, link = decision
-                if action == RoutingAction.ERROR:
-                    print(f"[ERROR] Cannot route flux {flux.id}")
-                    continue
-                # Apri il flusso usando direttamente il flux già presente nella decisione
-                print("***********************decision", decision)
-                self.sat.open_centralized_flux(flux.clone(), [decision])
-        #self.sat.open_centralized_flux(flux.clone(), routing_decisions)
+            decision_flux = routing_sequence[0][1]
+            print(" @ Flow ID", decision_flux.id, "Alias ID", decision_flux.alias_id, "Rate", decision_flux.rate, "Destination", decision_flux.destination)
+            print("Processing routing sequence:", routing_sequence)
+            self.sat.open_centralized_flux(decision_flux.clone(), routing_sequence)
  
     #sender of fluxes from GS to connected satellite
     def send_flux(self, flux: Flux):
