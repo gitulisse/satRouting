@@ -40,11 +40,14 @@ class Link:
             self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
 
     #send fluxes 
-    def send_flux(self, flux: Flux):
+    def send_flux(self, flux: Flux, routing_decisions=None):
         #print("sendflux link base class")
         if flux.alias_id not in self.fluxes.keys(): #if alias_id isn't in fluxes keys raise error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        self.target.open_flux(flux.clone()) #cloned flux sent to target
+        if routing_decisions is None or isinstance(self.target, GroundStation): #if routing_decisions is None or target is a GroundStation
+            self.target.open_flux(flux.clone()) #cloned flux sent to target
+        else:
+            self.target.open_flux(flux.clone(), routing_decisions) #cloned flux sent to target
 
     #close fluxes
     def close_flux(self, flux: Flux):
@@ -66,7 +69,7 @@ class Link:
     
     #manage reservation of bandwidth for a specified Flux
     def reserve_bandwidth(self, flux: Flux) -> bool:
-        print("Reserve bandwidth....")
+        #print("Reserve bandwidth....")
         if self.get_available_bandwidth() >= flux.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all fluxes' rate in self.fluxes
             self.fluxes[flux.alias_id] = flux #store flux in fluxes using alias_id as key
             target_name = (self.target[0].get_name() 
@@ -207,12 +210,13 @@ class RadioLink(Link):
             self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
 
     #send flux
-    def send_flux(self, flux: Flux):
+    def send_flux(self, flux: Flux, routing_decisions=None):
         # print("sendflux radiolink")
         if flux.alias_id not in self.fluxes.keys(): #if id isn't among the keys of fluxes return error
             raise RuntimeError("Resources needs to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
         for gs in self.target:
             gs.open_flux(flux.clone())
+
 
     #close flux
     def close_flux(self, flux: Flux):

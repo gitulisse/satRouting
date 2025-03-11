@@ -33,6 +33,7 @@ class Flux:
     #drop steps from a specific satellite
     def drop_steps_from(self, sat):
         indices = [i for i, x in enumerate(self.steps) if x == sat] #obtain the list of indeces and satellites equal to sat
+        print("STEPS RIMANENTI", self.steps)
         self.steps = self.steps[:indices[-1]] #the list is cut off till the last index found, every satellite after that point is cut off
         self.ttl = constants.FLUX_TTL - len(self.steps) #recalculate the TTL subtracting the new length of steps
 
