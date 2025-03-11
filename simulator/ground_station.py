@@ -116,7 +116,16 @@ class GroundStation:
                 print(f"[INFO]: Flux {flux} id {flux.id} is already listed as dropped flux.")
             return 
         #da qui devo modificare tuttooooooooooo 
-        self.send_centralized_flux(flux, routing_decisions) #send the flux to the source GS
+
+        routing_decisions = self.extract_separated_decision_lists(routing_decisions) #decisioni estratte annidate
+        #decisioni ripulite
+        routing_decisions = [
+                sublist for sublist in routing_decisions
+                if all(action != RoutingAction.ERROR for action, _, _ in sublist)
+            ]
+        #ora che ho tutte le liste di tutti i flussi voglio inviare i singoli flussi con le loro decisioni sulla rete, uno alla volta
+        for decisions in routing_decisions:
+            self.send_centralized_flux(flux, decisions) #send the flux to the source GS
 
     def centralized_route(self, flux: Flux): #print("Flux passed to method", flux)
         routing_decisions = self.basic_centralized_route(flux)
@@ -169,12 +178,12 @@ class GroundStation:
             #print("Selected path from select_path_with_probabilities", selected_path)
             routing_output = self.process_routing_output(selected_path, flux)  #process the output for routing
 
-            print("ROUTING 1______", routing_output)
+            #print("ROUTING 1______", routing_output)
             if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
                 routing_output = self.adapt_routing_with_single_split(flux, routing_output)
             if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_output) ################ adapt
-            print("ROUTING ******", routing_output)
+            #print("ROUTING ******", routing_output)
         
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
@@ -1348,3 +1357,19 @@ class GroundStation:
         else:
             while self.DEBUG_dropped_incoming_fluxes.__contains__(flux):
                 self.DEBUG_dropped_incoming_fluxes.remove(flux)
+
+    def extract_separated_decision_lists(self, nested_decisions):
+        separated_lists = []
+
+        while nested_decisions:
+            current_list = []
+            while nested_decisions and not isinstance(nested_decisions[0], list):
+                current_list.append(nested_decisions.pop(0))
+
+            if current_list:
+                separated_lists.append(current_list)
+
+            if nested_decisions and isinstance(nested_decisions[0], list):
+                nested_decisions = nested_decisions.pop(0)
+
+        return separated_lists
