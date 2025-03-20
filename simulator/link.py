@@ -12,6 +12,10 @@ class Link:
         self.fluxes: dict[int, Flux] = {}
         self.capacity = capacity #Gbps
 
+    def reset_bandwidth(self):
+        self.fluxes.clear()
+        self.available_bandwidth = self.capacity
+
     #set attribute target
     def _set_target(self, target):
         self.target = target
@@ -28,17 +32,6 @@ class Link:
         #print("Available Bandwidth", self.capacity - sum([flux.rate for flux in self.fluxes.values()]))
         return self.capacity - sum([flux.rate for flux in self.fluxes.values()])
     
-    #manage sending flux on link in centralized route
-    def send_centralized_flux(self, flux: Flux, routing_decisions):
-        print("sendflux centralized link base class")
-        if flux.alias_id not in self.fluxes.keys():  # Check if alias_id is reserved
-            raise RuntimeError("Resources need to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        if isinstance(self.target, list): # case of radiolink
-            target=self.target[0]
-            target.open_flux(flux.clone())
-        else:
-            self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
-
     #send fluxes 
     def send_flux(self, flux: Flux, routing_decisions=None):
         #print("sendflux link base class")
@@ -197,17 +190,6 @@ class RadioLink(Link):
     #get the self.target list of GS connected to RadioLink
     def get_attached_gs(self) -> list[GroundStation]:
         return self.target
-
-        #manage sending flux on link in centralized route
-    def send_centralized_flux(self, flux: Flux, routing_decisions):
-        ########## print("sendflux centralized link base class")
-        if flux.alias_id not in self.fluxes.keys():  # Check if alias_id is reserved
-            raise RuntimeError("Resources need to be reserved before sending flux " + str(flux.id) + " with alias id " + str(flux.alias_id))
-        if isinstance(self.target, list): # case of radiolink
-            target=self.target[0]
-            target.open_flux(flux.clone())
-        else:
-            self.target.open_centralized_flux(flux.clone(), routing_decisions) # case of laserlink
 
     #send flux
     def send_flux(self, flux: Flux, routing_decisions=None):

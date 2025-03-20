@@ -66,6 +66,7 @@ def get_closer_satellites(satellites, position: tuple[float, float], operational
     distances.sort(key=lambda x: x['distance']) #sort from closest
     return distances
 
+#identifies the only one closest satellite
 def get_closest_satellite_for_graph(satellites, position: tuple[float, float], operational_only=True):
     closest_satellite = None
     min_distance = float('inf')
