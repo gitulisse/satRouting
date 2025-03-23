@@ -316,7 +316,7 @@ class GroundStation:
                         splitted_flux, remaining_flux_to_route = remaining_flux.split(available_bandwidth)
                         print("Not enough bandwidth, proceed to splitting...", splitted_flux, "and remaining flow", remaining_flux_to_route)
                         adapted_routing_decisions.append((action, splitted_flux, link))
-                        print(f"SPLITTED_FLOW created {splitted_flux} rate {splitted_flux.rate} and REMAINING_FLOW_TO_ROUTE {remaining_flux_to_route} rate {remaining_flux_to_route.rate}")
+                        print(f"SPLITTED FLOW created {splitted_flux} rate {splitted_flux.rate} and REMAINING_FLOW_TO_ROUTE {remaining_flux_to_route} rate {remaining_flux_to_route.rate}")
                         print(f"Inner-link first split {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
                         reached_node = link._parent.get_name()
 
@@ -732,10 +732,10 @@ class GroundStation:
 
         print(f"<<< Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()} >>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
-        #print("K disjoint paths calculated:", k_disjoint_paths)
+        print("K disjoint paths calculated:", k_disjoint_paths)
 
         if not k_disjoint_paths:  # Controllo corretto se nessun percorso è disponibile
-            #print(f"[WARNING] Nessun percorso disponibile per il flusso {flux.id}")
+            print(f"[WARNING] Nessun percorso disponibile per il flusso {flux.id}")
             if flux not in self.DEBUG_dropped_fluxes:
                 self.DEBUG_dropped_fluxes.append(flux)  # Aggiungi il flusso non instradabile
             return []  # Restituisci immediatamente una lista vuota
@@ -754,7 +754,7 @@ class GroundStation:
                     #print(f"Edge added: {name} -> {link.target.get_name()} with distance {utils.get_distance_between_satellites(sat, link.target)}")
         #end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) 
 
-        #modifica nel trovare il satellite più vicino alla SORGETNE!
+        #modifica nel trovare il satellite più vicino alla SORGENTE!
         closer_satellites = utils.get_closest_satellite_for_graph(satellites, (source.lat, source.lon))  # Trova i satelliti più vicini
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
@@ -786,12 +786,13 @@ class GroundStation:
         edges_to_remove = [(u, v) for u, v, data in g.edges(data=True) if data.get('available_bandwidth', 0) == 0]
         for u, v in edges_to_remove:
             g.remove_edge(u, v)
-        #print("Nodi del grafo:", g.nodes)
+        print("Nodi del grafo:", g.nodes)
         #print("Archi del grafo:", g.edges(data=True))
         #print("Satelliti vicini alla sorgente:", source_satellites)# Debug: Satelliti vicini alla sorgente
         #print("Satelliti vicini alla destinazione:", destination_satellites)# Debug: Satelliti vicini alla destinazione
         self._graph = g #store the graph for successive use
 
+        #gestione grafi da rivedere
         self._auxiliary_graph = self._graph.copy()
 
         disjoint_paths = [] #list of k paths
@@ -821,7 +822,7 @@ class GroundStation:
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 disjoint_paths.append([closer_sats[0]['name']])
-                print("percorso con destinazione uguale a sorgente", disjoint_paths)
+                #print("percorso con destinazione uguale a sorgente", disjoint_paths)
                 return disjoint_paths
             for src_sat in source_satellites:
                 for dst_sat in destination_satellites:
@@ -838,7 +839,7 @@ class GroundStation:
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 disjoint_paths.append([closer_sats[0]['name']])
-                print("percorso con destinazione uguale a sorgente", disjoint_paths)
+                #print("percorso con destinazione uguale a sorgente", disjoint_paths)
                 return disjoint_paths
             for src_sat in source_satellites:
                 for dst_sat in destination_satellites:
@@ -847,12 +848,10 @@ class GroundStation:
                         disjoint_paths.extend(paths)  #add all found paths
                     except nx.NetworkXNoPath:
                         print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
-        print("Percorsi generati da _get_k_disjoint_paths:", disjoint_paths)
+        #print("Percorsi generati da _get_k_disjoint_paths:", disjoint_paths)
         return disjoint_paths
    
 
-
-   
     def calculate_path_costs(self, graph, paths, link_utilization, alpha): #sistemare questi valori...bisogna testare tutte le combinazioni di ALPHA e 1-ALPHA(quindi togliendo direttamente beta)
         lengths = [path_weight(graph, path, weight="weight") for path in paths] #calculate normalized lengths of paths
         min_length = min(lengths)
