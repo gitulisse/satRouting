@@ -171,14 +171,14 @@ def reset():
         satellite.remove_link(Direction.WEST)
         satellite.state = 0.0
 
-    #for all GS close the outoging fluxes without end_time
+    #for all GS close the outoging flows without end_time
     for gs in env.ground_stations.values():
-        for flux, _, end_time in gs.outgoing_fluxes:
+        for flow, _, end_time in gs.outgoing_flows:
             if end_time == None:
-                gs.close_outgoing_flux(flux) #close
-        gs.outgoing_fluxes.clear() #cleare outgoing fluxes
-        gs.incoming_fluxes.clear() #clear incoming fluxes
-        gs.DEBUG_dropped_incoming_fluxes.clear() #clear debug dropped fluxes
+                gs.close_outgoing_flow(flow) #close
+        gs.outgoing_flows.clear() #cleare outgoing flows
+        gs.incoming_flows.clear() #clear incoming flows
+        gs.DEBUG_dropped_incoming_flows.clear() #clear debug dropped flows
         gs.undeliverable_flows.clear() #clear undeliverable flows ##################################
     env.ready = False #set ready to False
     print("Environment reset.")

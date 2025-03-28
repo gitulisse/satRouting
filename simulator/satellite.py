@@ -2,7 +2,7 @@ import constants
 from copy import copy
 from direction import Direction
 import environment as env
-from flux import Flux, FluxState
+from flow import Flow, FlowState
 from geopy import distance
 from ground_station import GroundStation
 from link import Link, LaserLink, RadioLink
@@ -26,8 +26,8 @@ class Sat:
         self._links[Direction.EAST] = LaserLink(self) #Directional laser links
         self._links[Direction.WEST] = LaserLink(self) #Directional laser links
         self._gs_link = RadioLink(self) #Link to Ground Station
-        self.fluxes: dict[int, (Flux, Link)] = {} #Dictionary that maps TUPLES of int about identifiers of Fluxes and Links
-        self.DEBUG_dropped_fluxes: list[Flux] = [] #List of Dropped Fluxes
+        self.flows: dict[int, (Flow, Link)] = {} #Dictionary that maps TUPLES of int about identifiers of Flowes and Links
+        self.DEBUG_dropped_flows: list[Flow] = [] #List of Dropped Flowes
         self.mapping_table = MappingTable()
         self._ground_stations = ground_stations #Selected Ground Stations for simulation
         self.state = 0.0 #Operative state of satellite
@@ -58,17 +58,17 @@ class Sat:
         #if constants.DEBUG:
            # print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time().utc_strftime())
         self.notify_neighbor_unlink(dir) #notify link removal to neighbor
-        leftovers = link.point_to_sat(sat) #stores remaining fluxes about link pointing to satellite
+        leftovers = link.point_to_sat(sat) #stores remaining flows about link pointing to satellite
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                           Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                           Strategy.POSITION_GUESSING_PROGRESSIVE_LB]:
             self._update_position() #update
         if leftovers:
-            for flux in leftovers:   
+            for flow in leftovers:   
                 if constants.DEBUG:
-                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
-                flux.drop_steps_from(self) #remove flux's steps that pass through this link of the satellite
-                self.open_flux(flux)
+                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
+                self.open_flow(flow)
         #print("add_link method")
         self._reroute_all() #rerouting
         #env.put(env.elapsed_time, self._reroute_all)
@@ -84,13 +84,13 @@ class Sat:
         #if constants.DEBUG:
         print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
         print(f"Link {dir} removed for satellite {self.get_name()}")######
-        leftovers = self._links[dir].idle() #stores remaining fluxes
+        leftovers = self._links[dir].idle() #stores remaining flows
         if leftovers and self.is_operational():
-            for flux in leftovers:
+            for flow in leftovers:
                 #if constants.DEBUG:
-                #print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
-                flux.drop_steps_from(self)
-                self.open_flux(flux)
+                #print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                flow.drop_steps_from(self)
+                self.open_flow(flow)
         if not(self.is_operational()):
             if self.serving_gs:
                 #if constants.DEBUG:
@@ -109,44 +109,44 @@ class Sat:
     def get_longitude(self):
         return self._lon
     
-    def store_flux_direction(self, flux: Flux, link: Link):
-        if flux.alias_id not in self.fluxes.keys():
-            ############## print(f"    Storing flux {flux.alias_id} in satellite {self.get_name()} headed to link {flux},{link if link != None else None} at time {utils.get_current_time().utc_strftime()}")
-            self.fluxes[flux.alias_id] = (flux, link)
-            #print("Fluxes in satellite", self.get_name(), "are", self.fluxes)
+    def store_flow_direction(self, flow: Flow, link: Link):
+        if flow.alias_id not in self.flows.keys():
+            ############## print(f"    Storing flow {flow.alias_id} in satellite {self.get_name()} headed to link {flow},{link if link != None else None} at time {utils.get_current_time().utc_strftime()}")
+            self.flows[flow.alias_id] = (flow, link)
+            #print("Flowes in satellite", self.get_name(), "are", self.flows)
         else:
-            raise RuntimeError("Alias id already present in fluxes structure.", flux.alias_id)
+            raise RuntimeError("Alias id already present in flows structure.", flow.alias_id)
         #if constants.DEBUG:
-         #   print("Stored new flux with alias id", flux.alias_id, "with rate", flux.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
+         #   print("Stored new flow with alias id", flow.alias_id, "with rate", flow.rate, "headed to link", link if link != None else None, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
 
             
-    #Return tuple (flux, link) if the flux id is stored
-    def get_stored_flux_direction(self, alias_id: int) -> list[(Flux, Link)]:
-        if alias_id in self.fluxes.keys():
-            return self.fluxes[alias_id]
+    #Return tuple (flow, link) if the flow id is stored
+    def get_stored_flow_direction(self, alias_id: int) -> list[(Flow, Link)]:
+        if alias_id in self.flows.keys():
+            return self.flows[alias_id]
         return []
 
-    #Manage drop of fluxes
-    def drop_flux(self, flux: Flux, reason: FluxState):
+    #Manage drop of flows
+    def drop_flow(self, flow: Flow, reason: FlowState):
         if constants.DEBUG: #debugging messages
-            msg = "Flux " + str(flux.id) + " with alias id " + str(flux.alias_id) + " with rate " + str(flux.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
-            if reason == FluxState.SATELLITE_CONGESTED:
+            msg = "Flow " + str(flow.id) + " with alias id " + str(flow.alias_id) + " with rate " + str(flow.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
+            if reason == FlowState.SATELLITE_CONGESTED:
                 msg += "Satellite is congested."
-            elif reason == FluxState.LINK_CONGESTED:
+            elif reason == FlowState.LINK_CONGESTED:
                 msg += "Link is congested."
-            elif reason == FluxState.EXPIRED_TTL:
+            elif reason == FlowState.EXPIRED_TTL:
                 msg += "TTL is 0."
-            elif reason == FluxState.SATELLITE_NOT_OPERATIONAL:
+            elif reason == FlowState.SATELLITE_NOT_OPERATIONAL:
                 msg += "Satellite is not operational."
             else:
                 raise ValueError("The reason is not expected.", reason)
             print(msg)
-        #print(f"SONO PRESENTI self.fluxes in satellite {self.get_name()}: {self.fluxes}")
-        flux.state = reason #update flux's state with reason for the drop
-        self.store_flux_direction(flux, None) #flux dropped and no more connected to active link
-        self.DEBUG_dropped_fluxes.append(flux) 
-        ############print(f"DEBUG_dropped_fluxes in satellite: {self.DEBUG_dropped_fluxes}")
-        self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flux.destination[0] and gs.lon == flux.destination[1]][0]].DEBUG_get_dropped_flux(flux)
+        #print(f"SONO PRESENTI self.flows in satellite {self.get_name()}: {self.flows}")
+        flow.state = reason #update flow's state with reason for the drop
+        self.store_flow_direction(flow, None) #flow dropped and no more connected to active link
+        self.DEBUG_dropped_flows.append(flow) 
+        ############print(f"DEBUG_dropped_flows in satellite: {self.DEBUG_dropped_flows}")
+        self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flow.destination[0] and gs.lon == flow.destination[1]][0]].DEBUG_get_dropped_flow(flow)
  
     #Update infos on neighbors
     def update_neighbors(self):
@@ -201,17 +201,17 @@ class Sat:
                                                         Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
                         # Routing CENTRALIZZATO: drop dei leftovers
-                        for flux in leftovers:
-                            flux.drop_steps_from(self)
-                            self.drop_flux(flux, FluxState.LINK_CONGESTED)
+                        for flow in leftovers:
+                            flow.drop_steps_from(self)
+                            self.drop_flow(flow, FlowState.LINK_CONGESTED)
                     else:
                         # strategia decentralizzata: routing autonomo
-                        for flux in leftovers:
-                            flux.drop_steps_from(self)
-                            self.open_flux(flux)    
+                        for flow in leftovers:
+                            flow.drop_steps_from(self)
+                            self.open_flow(flow)    
                             #Debug
                             if constants.DEBUG:
-                                print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flux:", flux.id, [step.get_name() for step in flux.get_steps()])
+                                print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
             self._reroute_all() #rerouting for resend
             #env.put(env.elapsed_time, self._reroute_all)
 
@@ -273,122 +273,122 @@ class Sat:
             '''
             link.unlink(utils.get_coupled_link_direction(dir))
     
-    #Sender of fluxes
-    def send_flux(self, flux: Flux, link: Link, routing_decisions = None):
-        if link.reserve_bandwidth(flux): #if the needed bandwidth is available return TRUE
-            self.store_flux_direction(flux, link) #save direction
+    #Sender of flows
+    def send_flow(self, flow: Flow, link: Link, routing_decisions = None):
+        if link.reserve_bandwidth(flow): #if the needed bandwidth is available return TRUE
+            self.store_flow_direction(flow, link) #save direction
             if isinstance(link, RadioLink):
-                flux.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0]) #if link is a radiolink calculates the distance satellite and GS
+                flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0]) #if link is a radiolink calculates the distance satellite and GS
             else:
-                flux.travelled_distance += utils.get_distance_between_satellites(self, link.target) #otherwise calculates distance between satellites
+                flow.travelled_distance += utils.get_distance_between_satellites(self, link.target) #otherwise calculates distance between satellites
             if routing_decisions != None:
                 #print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-                link.send_flux(flux, routing_decisions) #send centralized
+                link.send_flow(flow, routing_decisions) #send centralized
             else:    
-                link.send_flux(flux) #then send flux
+                link.send_flow(flow) #then send flow
         else:
-            self.drop_flux(flux, FluxState.LINK_CONGESTED) #otherwise drop it
+            self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop it
     
-    #reopen flux
-    def _reopen_flux(self, flux: Flux, routing_decisions = None):
-        #print("  REopening flux", flux, "id", flux.id, "with alias_id", flux.alias_id, " rate:", flux.rate, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
+    #reopen flow
+    def _reopen_flow(self, flow: Flow, routing_decisions = None):
+        #print("  REopening flow", flow, "id", flow.id, "with alias_id", flow.alias_id, " rate:", flow.rate, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
         if self.is_operational() == False:
-            self._close_internal_flux(flux.alias_id) #if Satellite NOT operational, close and drop flux
-            self.drop_flux(flux, FluxState.SATELLITE_NOT_OPERATIONAL)
+            self._close_internal_flow(flow.alias_id) #if Satellite NOT operational, close and drop flow
+            self.drop_flow(flow, FlowState.SATELLITE_NOT_OPERATIONAL)
         else:
             if routing_decisions == None:
-                routing_decisions = self.route(flux) #triple(action, flux, link) could be more then one if there are splitted fluxes #otherwise if satellite is operational, calculates routing for the flux (START THE ROUTE DECISION CORE)
+                routing_decisions = self.route(flow) #triple(action, flow, link) could be more then one if there are splitted flows #otherwise if satellite is operational, calculates routing for the flow (START THE ROUTE DECISION CORE)
                 #print("Dicentralized decisions reopen:", routing_decisions)
-                self._close_internal_flux(flux.alias_id)
+                self._close_internal_flow(flow.alias_id)
                 if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
                     for _, f, _ in routing_decisions[1:]:
-                        #print("ALIAS 2", f.alias_id, "for flux", f)
+                        #print("ALIAS 2", f.alias_id, "for flow", f)
                         #print("f", f)
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.alias_id = self.mapping_table.add(f.alias_id)
                 for action, f, link in routing_decisions:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
-                        self.send_flux(f, link) #send
+                        self.send_flow(f, link) #send
                     elif action == RoutingAction.ERROR:
-                        self.drop_flux(f, link) #drop
+                        self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.drop_steps_from(self)
-                        self.open_flux(f) #reopen
+                        self.open_flow(f) #reopen
             else:
-                self._close_internal_flux(flux.alias_id) 
+                self._close_internal_flow(flow.alias_id) 
                 routing_centralized_decisions = []
-                decision = (routing_decisions[0][0], flux, routing_decisions[0][2]) #take the first routing decision for centralized fluxes
+                decision = (routing_decisions[0][0], flow, routing_decisions[0][2]) #take the first routing decision for centralized flows
                 routing_centralized_decisions.append(decision)
-                #print("Routing decision da usare nel satellite in _reopening_flux ", routing_centralized_decisions)           
+                #print("Routing decision da usare nel satellite in _reopening_flow ", routing_centralized_decisions)           
                 for action, f, link in routing_centralized_decisions:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                         routing_decisions.pop(0)
                         #print("routing decision complete meno la prima per il nuovo satellite", routing_decisions)
-                        self.send_flux(f, link, routing_decisions) #send centralized
+                        self.send_flow(f, link, routing_decisions) #send centralized
                     elif action == RoutingAction.ERROR:
                         routing_decisions.pop(0)
-                        self.drop_flux(f, link) #drop
+                        self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.drop_steps_from(self)
                         routing_decisions.pop(0)
-                        self.open_flux(f, routing_decisions) #reopen centralized
+                        self.open_flow(f, routing_decisions) #reopen centralized
  
 
-    def open_flux(self, flux: Flux, routing_decisions=None): #Manage the open of fluxes 
-        flux.add_step(self) #flux is added to the self satellite #print("  Opening flux2", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Gbps")
-        flux.alias_id = self.mapping_table.add(flux.alias_id)#update of the id, added to the mapping table
-        if flux.ttl == 0:
-            self.drop_flux(flux, FluxState.EXPIRED_TTL)
+    def open_flow(self, flow: Flow, routing_decisions=None): #Manage the open of flows 
+        flow.add_step(self) #flow is added to the self satellite #print("  Opening flow2", flow, "id", flow.id, "with alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps")
+        flow.alias_id = self.mapping_table.add(flow.alias_id)#update of the id, added to the mapping table
+        if flow.ttl == 0:
+            self.drop_flow(flow, FlowState.EXPIRED_TTL)
         else:
             if routing_decisions != None: #if there are some decisions pass them for forwarding
-                self._reopen_flux(flux, routing_decisions)
+                self._reopen_flow(flow, routing_decisions)
             else:
-                self._reopen_flux(flux) #print("  Opening flux4", flux, "id", flux.id, "with alias_id", flux.alias_id, "on Satellite", self.get_name(), "with rate:", flux.rate, "Gbps")
+                self._reopen_flow(flow) #print("  Opening flow4", flow, "id", flow.id, "with alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps")
 
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
-    def route(self, flux: Flux) -> list[(RoutingAction, Flux, Link)]:
-        routing_decisions = self.basic_route(flux)
+    def route(self, flow: Flow) -> list[(RoutingAction, Flow, Link)]:
+        routing_decisions = self.basic_route(flow)
         print("     ###Basic Route results", routing_decisions)
-        routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flux, routing_decisions)
+        routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_decisions)
         print("    #########Adapted Route results", routing_decisions)
         return routing_decisions
 
-    #Simulate routing decisions for bandwidth to execute a split of the flux based on the avalable bandwidth
-    def simulate_adapt_routing_decisions_to_available_link_bandwidth(self, routing_decisions: list[(Flux, list[tuple[RoutingAction, Link]])]) -> dict[int, list[tuple[RoutingAction, Flux, Link]]]:
+    #Simulate routing decisions for bandwidth to execute a split of the flow based on the avalable bandwidth
+    def simulate_adapt_routing_decisions_to_available_link_bandwidth(self, routing_decisions: list[(Flow, list[tuple[RoutingAction, Link]])]) -> dict[int, list[tuple[RoutingAction, Flow, Link]]]:
         link_availability: dict[Link, float] = {} #create dictionary that associates links(laserlinks & radiolinks) to their max capacity 
         for link in self._links.values():
             link_availability[link] = constants.SATELLITE_LINK_CAPACITY
         link_availability[self._gs_link] = constants.GROUND_STATION_LINK_CAPACITY
 
         adapted_routing_decisions: dict[int, list] = {}
-        for flux, routing_decision in routing_decisions:
+        for flow, routing_decision in routing_decisions:
             adapted_routing_decision = []
             for action, link in routing_decision:
-                if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER: #if FORWARD or DELIVER for available bandwidth send flux or split it
+                if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER: #if FORWARD or DELIVER for available bandwidth send flow or split it
                     available_bandwidth = link_availability[link]
                     if available_bandwidth == 0:
                         continue #if 0 skip decision
-                    if available_bandwidth >= flux.rate: #if there is more bandwidth of flux rate
-                        adapted_routing_decision.append((action, flux, link))
+                    if available_bandwidth >= flow.rate: #if there is more bandwidth of flow rate
+                        adapted_routing_decision.append((action, flow, link))
                         break
                     else:
-                        f, flux = flux.split(available_bandwidth)
+                        f, flow = flow.split(available_bandwidth)
                         adapted_routing_decision.append((action, f, link))
                 elif action == RoutingAction.ERROR: #if ERROR
-                    adapted_routing_decision.append((action, flux, link))
+                    adapted_routing_decision.append((action, flow, link))
                     break
             else:
-                adapted_routing_decision.append((RoutingAction.ERROR, flux, FluxState.SATELLITE_CONGESTED)) #if there is not a possible/viable decision, ERROR satellite congested 
+                adapted_routing_decision.append((RoutingAction.ERROR, flow, FlowState.SATELLITE_CONGESTED)) #if there is not a possible/viable decision, ERROR satellite congested 
                 print("flusso congestionato")
-            adapted_routing_decisions[flux.alias_id] = adapted_routing_decision
+            adapted_routing_decisions[flow.alias_id] = adapted_routing_decision
             if adapted_routing_decision[0][0] != RoutingAction.ERROR: #if decision is NOT an ERROR
-                link_availability[adapted_routing_decision[0][2]] -= adapted_routing_decision[0][1].rate #update link availability (minus used one by the flux)
+                link_availability[adapted_routing_decision[0][2]] -= adapted_routing_decision[0][1].rate #update link availability (minus used one by the flow)
         return adapted_routing_decisions #dictionary of decisions
 
     #Routing decisions for bandwidth
-    def adapt_routing_decisions_to_available_link_bandwidth(self, flux: Flux, routing_decisions: list[tuple[RoutingAction, Link]]) -> list[tuple[RoutingAction, Flux, Link]]:
+    def adapt_routing_decisions_to_available_link_bandwidth(self, flow: Flow, routing_decisions: list[tuple[RoutingAction, Link]]) -> list[tuple[RoutingAction, Flow, Link]]:
         adapted_routing_decisions = []
 
         for action, link in routing_decisions:
@@ -396,32 +396,32 @@ class Sat:
                 available_bandwidth = link.get_available_bandwidth()
                 if available_bandwidth == 0:
                     continue
-                if available_bandwidth >= flux.rate:
-                    adapted_routing_decisions.append((action, flux, link))
+                if available_bandwidth >= flow.rate:
+                    adapted_routing_decisions.append((action, flow, link))
                     break
                 else:
-                    f, flux = flux.split(available_bandwidth)
+                    f, flow = flow.split(available_bandwidth)
                     adapted_routing_decisions.append((action, f, link))
-                    #adapted_routing_decisions.append((RoutingAction.REOPEN, flux, None))
+                    #adapted_routing_decisions.append((RoutingAction.REOPEN, flow, None))
                     #break
             elif action == RoutingAction.ERROR:
-                adapted_routing_decisions.append((action, flux, link))
+                adapted_routing_decisions.append((action, flow, link))
                 break
         else:
-            adapted_routing_decisions.append((RoutingAction.ERROR, flux, FluxState.SATELLITE_CONGESTED))
+            adapted_routing_decisions.append((RoutingAction.ERROR, flow, FlowState.SATELLITE_CONGESTED))
             print("flusso congestionato ADAPT")
         return adapted_routing_decisions
 
     #Route method
-    def basic_route(self, flux: Flux, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
+    def basic_route(self, flow: Flow, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
         #definition of function get_nodes_to_be_excluded_from_next_hop_candidates to redefine it for every simulation, not execution of function
         #Excludes node (next hop) from candidates to avoid Loops
-        def get_nodes_to_be_excluded_from_next_hop_candidates(flux) -> list: #get_nodes_to_be_excluded_from_next_hop_candidates PERMETTE DI VALUTARE QUALE SARA' IL PROSSIMO HOP
-            if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flux
+        def get_nodes_to_be_excluded_from_next_hop_candidates(flow) -> list: #get_nodes_to_be_excluded_from_next_hop_candidates PERMETTE DI VALUTARE QUALE SARA' IL PROSSIMO HOP
+            if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flow
                 return []
             else:
-                #take steps of flux if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flux 
-                steps = flux.get_steps() if len(flux.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flux.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:]
+                #take steps of flow if steps < CUTOFF value & if CUTOFF > 0 take only the last N steps (equal to CUTOFF) from the steps list of the current flow 
+                steps = flow.get_steps() if len(flow.get_steps()) < constants.LOOP_AVOIDANCE_CUTOFF else flow.get_steps()[-constants.LOOP_AVOIDANCE_CUTOFF:]
                 if steps[-1] == self:
                     steps = steps[:-1] #cut steps list if the last step was the current satellite
                 indices = [i+1 for i, x in enumerate(steps) if x == self] #indices in steps that corresponds to current node
@@ -430,15 +430,15 @@ class Sat:
                 return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
         
         routing_output = list()
-        #calculates distance from the target, if in the satellite's range, flux is delivered to GS destination
-        distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km
+        #calculates distance from the target, if in the satellite's range, flow is delivered to GS destination
+        distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km
         if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
             routing_output.append((RoutingAction.DELIVER, self._gs_link))
 
         #different strategies
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                           Strategy.POSITION_SHARING_NO_LB]:
-            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
 
             candidates = list()
             for key, link in self._links.items():
@@ -448,15 +448,15 @@ class Sat:
                     if link.target in nodes_to_be_excluded: #if target of the link is in "excluded nodes" set distance of link to infinite
                         dist = float("inf")
                     else:
-                        dist = distance.distance((link.lat, link.lon), flux.destination).km #else calculates the real distance to destination
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km:
+                        dist = distance.distance((link.lat, link.lon), flow.destination).km #else calculates the real distance to destination
+                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
                         #    dist = float('inf')
                     candidates.append({'distance': dist, 'dir': key}) #add candidate with distance and direction
             candidates.sort(key=lambda x: x['distance']) #sort candidates for distance, first = closest
 
             #if there's no candidates(no links are operational) satellite cannot be operative
             if not(candidates):
-                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
+                routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
 
             #first candidate
             candidate = candidates[0]
@@ -469,7 +469,7 @@ class Sat:
         #other strategies for node exclusion 
         elif constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                             Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK]:
-            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
 
             candidates = list()
             for key, link in self._links.items():
@@ -479,14 +479,14 @@ class Sat:
                     if link.target in nodes_to_be_excluded:
                         dist = float("inf")
                     else:
-                        dist = distance.distance((link.lat, link.lon), flux.destination).km
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km:
+                        dist = distance.distance((link.lat, link.lon), flow.destination).km
+                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
                         #    dist = float('inf')
                     candidates.append({'distance': dist, 'dir': key})
             candidates.sort(key=lambda x: x['distance'])
 
             if not(candidates):
-                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
+                routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
 
             for candidate in candidates:
                 for r_o in routing_output:
@@ -498,7 +498,7 @@ class Sat:
         elif constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                             Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                             Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
-            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
 
             candidates = list()
             for key, link in self._links.items():
@@ -508,8 +508,8 @@ class Sat:
                     if link.target in nodes_to_be_excluded:
                         dist = float("inf")
                     else:
-                        dist = distance.distance((link.lat, link.lon), flux.destination).km
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km:
+                        dist = distance.distance((link.lat, link.lon), flow.destination).km
+                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
                         #    dist = float('inf')
 
                     #Calculate Load Balance Score 
@@ -527,7 +527,7 @@ class Sat:
             candidates.sort(key=lambda x: x['total_score'], reverse=True) 
 
             if not(candidates):
-                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
+                routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
 
             for candidate in candidates:
                 for r_o in routing_output:
@@ -536,7 +536,7 @@ class Sat:
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
         elif constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
-            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flux)
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
 
             candidates = list()
             for key, link in self._links.items():
@@ -546,8 +546,8 @@ class Sat:
                     if link.target in nodes_to_be_excluded:
                         dist = float("inf")
                     else:
-                        dist = distance.distance((link.lat, link.lon), flux.destination).km
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flux.destination).km:
+                        dist = distance.distance((link.lat, link.lon), flow.destination).km
+                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
                         #    dist = float('inf')
 
                     # Calcolo del punteggio di bilanciamento del carico
@@ -591,7 +591,7 @@ class Sat:
             candidates.sort(key=lambda x: x['costs_score'], reverse=True)
 
             if not(candidates):
-                routing_output.append((RoutingAction.ERROR, FluxState.SATELLITE_NOT_OPERATIONAL))
+                routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
 
             #print("     Print Candidates:", candidates)
             for candidate in candidates:
@@ -609,86 +609,86 @@ class Sat:
         if self._is_rerouting: #if satellite already rerouting, avoid double rerouting
             return
         self._is_rerouting = True #otherwise set attribute to True
-        if self.fluxes.keys(): #if there are active fluxes
+        if self.flows.keys(): #if there are active flows
             #if constants.DEBUG:
             #print("Rerouting traffic from satellite", self.get_name())
 
-            fluxes_copy = [] #to keep fluxes
+            flows_copy = [] #to keep flows
             pointer = 0
             basic_route_decisions = []
-            for flux, _ in self.fluxes.values():
+            for flow, _ in self.flows.values():
                 ###########print("reroute all distributed")
-                basic_route_decisions.append((flux, [(action, link) for action, link in self.basic_route(flux.clone())])) #add tuples (flux, [action, link]) based on basic_route on a copy of flux
+                basic_route_decisions.append((flow, [(action, link) for action, link in self.basic_route(flow.clone())])) #add tuples (flow, [action, link]) based on basic_route on a copy of flow
                 ###########print("REROUTE ALL - BASIC ROUTE DECISIONS", basic_route_decisions)
-            #print(f"Into VALUES of Flux {flux} BASIC ROUTE DECISIONS {basic_route_decisions}")
+            #print(f"Into VALUES of Flow {flow} BASIC ROUTE DECISIONS {basic_route_decisions}")
             simulation = self.simulate_adapt_routing_decisions_to_available_link_bandwidth(basic_route_decisions) #simulation on available bandwidth
             #print("SIMULATION", simulation)#################
-            while pointer < len(self.fluxes.values()): #until there's a flux that is managed, at least one
-                flux, link = list(self.fluxes.values())[pointer] #extract flux & link, accessing through a pointer as index
-                flux_simulation = simulation.get(flux.alias_id) #get ids from simulation
-                #check if flux_simulation exists & from first flux take third element([0][2]) must be different from current link
-                #and check if flux_simulation[0][2] not instance of FluxState and link exists
-                if flux_simulation and flux_simulation[0][2] != link and not(isinstance(flux_simulation[0][2], FluxState) and link == None): 
+            while pointer < len(self.flows.values()): #until there's a flow that is managed, at least one
+                flow, link = list(self.flows.values())[pointer] #extract flow & link, accessing through a pointer as index
+                flow_simulation = simulation.get(flow.alias_id) #get ids from simulation
+                #check if flow_simulation exists & from first flow take third element([0][2]) must be different from current link
+                #and check if flow_simulation[0][2] not instance of FlowState and link exists
+                if flow_simulation and flow_simulation[0][2] != link and not(isinstance(flow_simulation[0][2], FlowState) and link == None): 
                     #debug
                     if constants.DEBUG:
-                        print("Flux", flux.id, "with alias id", flux.alias_id, "is being rerouted from link", link, "to link", flux_simulation[0][2], "on Satellite", self.get_name(), "at time:", utils.get_current_time().utc_strftime())
-                    fluxes_copy.append(flux.clone()) #add copy of the flux
-                    input_id = self.mapping_table.remove(flux.alias_id) #assign the id value to input_id and remove id of current flux from table
-                    self._close_internal_flux(flux.alias_id) #close internal flux
-                    fluxes_copy[-1].alias_id = input_id #give that id stored to the cloned flux
+                        print("Flow", flow.id, "with alias id", flow.alias_id, "is being rerouted from link", link, "to link", flow_simulation[0][2], "on Satellite", self.get_name(), "at time:", utils.get_current_time().utc_strftime())
+                    flows_copy.append(flow.clone()) #add copy of the flow
+                    input_id = self.mapping_table.remove(flow.alias_id) #assign the id value to input_id and remove id of current flow from table
+                    self._close_internal_flow(flow.alias_id) #close internal flow
+                    flows_copy[-1].alias_id = input_id #give that id stored to the cloned flow
                 else:
                     pointer += 1
-            for flux in fluxes_copy:
-                flux.drop_steps_from(self)
-                self.open_flux(flux)
+            for flow in flows_copy:
+                flow.drop_steps_from(self)
+                self.open_flow(flow)
         self._is_rerouting = False
 
     #check if there is a difference between routing_decisions list and stored decisions
-    def check_for_routing_decisions_differences(self, routing_decisions: list[(RoutingAction, Flux, Link)]) -> bool:
-        for action, flux, link in routing_decisions:
+    def check_for_routing_decisions_differences(self, routing_decisions: list[(RoutingAction, Flow, Link)]) -> bool:
+        for action, flow, link in routing_decisions:
             if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER or action == RoutingAction.ERROR:
-                stored_flux, stored_link = self.get_stored_flux_direction(flux.alias_id)
-                if stored_flux.rate == flux.rate and stored_link == link:
+                stored_flow, stored_link = self.get_stored_flow_direction(flow.alias_id)
+                if stored_flow.rate == flow.rate and stored_link == link:
                     break
                 else:
                     return True
         return False
 
-    #close fluxes
-    def close_flux(self, flux: Flux):
-        local_ids = self.mapping_table.get_local_ids(flux.alias_id) #obtains local ids associated with flux id
+    #close flows
+    def close_flow(self, flow: Flow):
+        local_ids = self.mapping_table.get_local_ids(flow.alias_id) #obtains local ids associated with flow id
         #print(f"local_ids are {local_ids}")
         for local_id in local_ids:
-            self._close_internal_flux(local_id) #close      
+            self._close_internal_flow(local_id) #close      
             if self.mapping_table.contains_local_id(local_id):
                 #############print("INVECE QUI")
                 self.mapping_table.remove(local_id) #remove from mapping table
         #self._reroute_all()
         #env.put(env.elapsed_time, self._reroute_all)
 
-    #close internal fluxes
-    def _close_internal_flux(self, alias_id: int):
-        flux_link_pairs = self.get_stored_flux_direction(alias_id) #obtain association between flux and link
-        if flux_link_pairs:
-            self.fluxes.pop(alias_id) #remove flux from active fluxes using id
-            flux, link = flux_link_pairs
+    #close internal flows
+    def _close_internal_flow(self, alias_id: int):
+        flow_link_pairs = self.get_stored_flow_direction(alias_id) #obtain association between flow and link
+        if flow_link_pairs:
+            self.flows.pop(alias_id) #remove flow from active flows using id
+            flow, link = flow_link_pairs
             #calculate distances
             if isinstance(link, RadioLink):
-                flux.travelled_distance -= utils.get_distance_between_satellite_and_gs(self, link.target[0])
+                flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self, link.target[0])
             elif isinstance(link, LaserLink):
-                flux.travelled_distance -= utils.get_distance_between_satellites(self, link.target)
-            #Link can be None when the flux is dropped on the current satellite.
+                flow.travelled_distance -= utils.get_distance_between_satellites(self, link.target)
+            #Link can be None when the flow is dropped on the current satellite.
             if link != None:
-                link.close_flux(flux) #close
+                link.close_flow(flow) #close
             else:
                 '''
                 #debug
                 if constants.DEBUG:
-                    print("Closed dropped flux", flux.id, "with alias id", flux.alias_id, "with rate", flux.rate, "Gbps on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
+                    print("Closed dropped flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "Gbps on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
                 '''
-                f = [f for f in self.DEBUG_dropped_fluxes if f.alias_id == flux.alias_id][0] #assume at least there is a flux and stores it in f
-                self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flux.destination[0] and gs.lon == flux.destination[1]][0]].DEBUG_close_dropped_flux(f) #check if there is association between destination and GS coordinates then drop the flux f
-                del self.DEBUG_dropped_fluxes[[i for i, fl in enumerate(self.DEBUG_dropped_fluxes) if fl.alias_id == flux.alias_id][0]] #delete debug dropped fluxes if there is the same id
+                f = [f for f in self.DEBUG_dropped_flows if f.alias_id == flow.alias_id][0] #assume at least there is a flow and stores it in f
+                self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flow.destination[0] and gs.lon == flow.destination[1]][0]].DEBUG_close_dropped_flow(f) #check if there is association between destination and GS coordinates then drop the flow f
+                del self.DEBUG_dropped_flows[[i for i, fl in enumerate(self.DEBUG_dropped_flows) if fl.alias_id == flow.alias_id][0]] #delete debug dropped flows if there is the same id
 
     #update the link informations with new params
     def update_link_info(self, lat, lon, state, dir: Direction):

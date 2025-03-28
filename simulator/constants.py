@@ -32,7 +32,7 @@ if args.strategy:
 else:
     ROUTING_STRATEGY = Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK #if there is no strategy it's used Position sharing with Load Balance on saturated links
 
-FLUX_TTL = 31
+FLOW_TTL = 31
 LOOP_AVOIDANCE_CUTOFF = 9 #loop avoidance
 
 SIMULATION_DURATION = args.duration if args.duration else 60 #if there is no durantion it'll be set to 60 secs

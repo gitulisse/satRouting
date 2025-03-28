@@ -6,7 +6,7 @@ extensions = Extension("simulator", [
                                 "constants.py", 
                                 "direction.py", 
                                 "environment.py", 
-                                "flux.py", 
+                                "flow.py", 
                                 "gravity_model.py", 
                                 "ground_station.py", 
                                 "header_builder.py",

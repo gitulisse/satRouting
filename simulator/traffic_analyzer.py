@@ -2,7 +2,7 @@ import constants
 import dijkstra
 from enum import Enum
 import environment as env
-from flux import Flux
+from flow import Flow
 from geopy import distance
 from gravity_model import get_traffic_matrix
 from ground_station import GroundStation
@@ -52,14 +52,14 @@ class TrafficAnalyzer:
                     env.start()
                 for strategy in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING]: #, Strategy.POSITION_GUESSING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, Strategy.POSITION_SHARING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]: #assign these strateies to ROUTIING_STRATEGY
                     constants.ROUTING_STRATEGY = strategy 
-                    fluxes = {} #empty dictionary of fluxes
+                    flows = {} #empty dictionary of flows
                     for i in range(0, simulation_duration_backup): #repeat simulation shifting hour from 0 to simulation_duration_backup with new strategies
                         utils.set_hour_shift(i)
                         env.reset()
                         env.prepare()
-                        env.put(0, self.prepare_strategy_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
-                        env.put(0, self.sample_strategy_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
-                        env.put(0, self.end_strategy_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.put(0, self.prepare_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
+                        env.put(0, self.sample_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
+                        env.put(0, self.end_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.start()
                 utils.set_hour_shift(0)
                 constants.SIMULATION_DURATION = simulation_duration_backup
@@ -79,10 +79,10 @@ class TrafficAnalyzer:
                             env.reset()
                             constants.ROUTING_STRATEGY = strategy
                             env.prepare()
-                            fluxes = {}
-                            env.put(0, self.prepare_link_occupation_analysis, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix) #put event prepare_link_occupation_analysis with 0 delay (executed as first) and pass as params gs, fluxes & traffic matrix
-                            env.put(constants.SIMULATION_DURATION, self.sample_link_occupation_analysis, satellites=self.satellites, ground_stations=self.ground_stations, fluxes=fluxes) #put event that store data for  analysis at the end of simulation (constants.SIMULATION_DURATION) with params
-                            env.put(constants.SIMULATION_DURATION, self.end_link_occupation_analysis, ground_stations=self.ground_stations, fluxes=fluxes) #put event end links occupation analysis with params at the end of simulation
+                            flows = {}
+                            env.put(0, self.prepare_link_occupation_analysis, ground_stations=self.ground_stations, flows=flows, traffic_matrix=traffic_matrix) #put event prepare_link_occupation_analysis with 0 delay (executed as first) and pass as params gs, flows & traffic matrix
+                            env.put(constants.SIMULATION_DURATION, self.sample_link_occupation_analysis, satellites=self.satellites, ground_stations=self.ground_stations, flows=flows) #put event that store data for  analysis at the end of simulation (constants.SIMULATION_DURATION) with params
+                            env.put(constants.SIMULATION_DURATION, self.end_link_occupation_analysis, ground_stations=self.ground_stations, flows=flows) #put event end links occupation analysis with params at the end of simulation
                             env.start() #starts the simulation with the events inserted by env.put command
                 utils.set_hour_shift(0)
                 constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup
@@ -100,10 +100,10 @@ class TrafficAnalyzer:
                         env.reset()
                         constants.ROUTING_STRATEGY = strategy
                         env.prepare()
-                        fluxes = {}
-                        env.put(0, self.prepare_delivered_dropped_ratio, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
-                        env.put(constants.SIMULATION_DURATION, self.sample_delivered_dropped_ratio, ground_stations=self.ground_stations, fluxes=fluxes)
-                        env.put(constants.SIMULATION_DURATION, self.end_delivered_dropped_ratio, ground_stations=self.ground_stations, fluxes=fluxes)
+                        flows = {}
+                        env.put(0, self.prepare_delivered_dropped_ratio, ground_stations=self.ground_stations, flows=flows, traffic_matrix=traffic_matrix)
+                        env.put(constants.SIMULATION_DURATION, self.sample_delivered_dropped_ratio, ground_stations=self.ground_stations, flows=flows)
+                        env.put(constants.SIMULATION_DURATION, self.end_delivered_dropped_ratio, ground_stations=self.ground_stations, flows=flows)
                         env.start()
 
                 constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup #reset total traffic volume as it will not be affected in other subsequent analysis
@@ -129,10 +129,10 @@ class TrafficAnalyzer:
                             utils.set_hour_shift(i)
                             env.reset()
                             env.prepare()
-                            fluxes = {}
-                            env.put(0, self.prepare_control_traffic_comparison, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
-                            env.put(constants.SIMULATION_DURATION, self.sample_control_traffic_comparison, ground_stations=self.ground_stations, fluxes=fluxes, neighbors_update_time=time)
-                            env.put(constants.SIMULATION_DURATION, self.end_control_traffic_comparison, ground_stations=self.ground_stations, fluxes=fluxes)
+                            flows = {}
+                            env.put(0, self.prepare_control_traffic_comparison, ground_stations=self.ground_stations, flows=flows, traffic_matrix=traffic_matrix)
+                            env.put(constants.SIMULATION_DURATION, self.sample_control_traffic_comparison, ground_stations=self.ground_stations, flows=flows, neighbors_update_time=time)
+                            env.put(constants.SIMULATION_DURATION, self.end_control_traffic_comparison, ground_stations=self.ground_stations, flows=flows)
                             env.start()
                 utils.set_hour_shift(0)
                 constants.SATELLITE_NEIGHBORS_UPDATE_TIME = neighbors_update_time_backup
@@ -152,10 +152,10 @@ class TrafficAnalyzer:
                         utils.set_hour_shift(i)
                         env.reset()
                         env.prepare()
-                        fluxes = {}
-                        env.put(0, self.prepare_weight_sensitivity_analysis, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
-                        env.put(constants.SIMULATION_DURATION, self.sample_weight_sensitivity_analysis, satellites=self.satellites, ground_stations=self.ground_stations, fluxes=fluxes)
-                        env.put(constants.SIMULATION_DURATION, self.end_weight_sensitivity_analysis, ground_stations=self.ground_stations, fluxes=fluxes)
+                        flows = {}
+                        env.put(0, self.prepare_weight_sensitivity_analysis, ground_stations=self.ground_stations, flows=flows, traffic_matrix=traffic_matrix)
+                        env.put(constants.SIMULATION_DURATION, self.sample_weight_sensitivity_analysis, satellites=self.satellites, ground_stations=self.ground_stations, flows=flows)
+                        env.put(constants.SIMULATION_DURATION, self.end_weight_sensitivity_analysis, ground_stations=self.ground_stations, flows=flows)
                         env.start()
                 utils.set_hour_shift(0)
                 constants.ROUTING_STRATEGY = strategy_backup
@@ -169,13 +169,13 @@ class TrafficAnalyzer:
                 #could use some different strategies to test them during time
                 for strategy in [Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:
                     constants.ROUTING_STRATEGY = strategy
-                    fluxes = {}
+                    flows = {}
                     env.reset()
                     env.prepare()
-                    env.put(0, self.prepare_time_passing_simulation, ground_stations=self.ground_stations, fluxes=fluxes, traffic_matrix=traffic_matrix)
+                    env.put(0, self.prepare_time_passing_simulation, ground_stations=self.ground_stations, flows=flows, traffic_matrix=traffic_matrix)
                     for i in range(1, constants.SIMULATION_DURATION + 1): #for each second of simulation
-                        env.put(i, self.sample_time_passing_simulation, ground_stations=self.ground_stations, fluxes=fluxes) #obtain sample of gs, fluxes and variables
-                    env.put(constants.SIMULATION_DURATION, self.end_time_passing_simulation, ground_stations=self.ground_stations, fluxes=fluxes)
+                        env.put(i, self.sample_time_passing_simulation, ground_stations=self.ground_stations, flows=flows) #obtain sample of gs, flows and variables
+                    env.put(constants.SIMULATION_DURATION, self.end_time_passing_simulation, ground_stations=self.ground_stations, flows=flows)
                     env.start()
                 constants.ROUTING_STRATEGY = strategy_backup
 
@@ -266,49 +266,49 @@ class TrafficAnalyzer:
     #prepare the comparison among strategies
     def prepare_strategy_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
                 if source == destination: continue
-                flux = utils.create_new_flux((destination.lat, destination.lon), 0) #create a flux with 0 initial traffic rate
-                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux  #store the flux in dictionary fluxes as: fluxes = {"GS1 - GS2": <Flux object>, "GS1 - GS3": <Flux object>,...}
-                source.send_flux(flux) #send flux to destination
+                flow = utils.create_new_flow((destination.lat, destination.lon), 0) #create a flow with 0 initial traffic rate
+                flows[source.get_name() + ' - ' + destination.get_name()] = flow  #store the flow in dictionary flows as: flows = {"GS1 - GS2": <Flow object>, "GS1 - GS3": <Flow object>,...}
+                source.send_flow(flow) #send flow to destination
 
     #store perferomance data for comparison
     def sample_strategy_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
                 if source == destination: continue
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #store the flux obtained by key source-destination in the dictionary fluxes
-                if destination.is_incoming_flux_alive(flux): #if the flux is incoming in destination
-                    destination.get_flux_info(flux, until=utils.get_current_time()) #obtain flux infos until the time of the current simulation
-                    print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flux.paths[-1]])
-                    print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flux.paths[-1]), "hops.")
-                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['successful'].append(len(flux.paths[-1])) #store length (as steps) of successful paths
-                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['distance'].append(flux.travelled_distance) #store the travelled distance 
+                flow = flows[source.get_name() + ' - ' + destination.get_name()] #store the flow obtained by key source-destination in the dictionary flows
+                if destination.is_incoming_flow_alive(flow): #if the flow is incoming in destination
+                    destination.get_flow_info(flow, until=utils.get_current_time()) #obtain flow infos until the time of the current simulation
+                    print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flow.paths[-1]])
+                    print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flow.paths[-1]), "hops.")
+                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['successful'].append(len(flow.paths[-1])) #store length (as steps) of successful paths
+                    self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['distance'].append(flow.travelled_distance) #store the travelled distance 
                 else:
-                    print(f"Failed to route flux to destination from {source.get_name()} to {destination.get_name()}.") #error message
+                    print(f"Failed to route flow to destination from {source.get_name()} to {destination.get_name()}.") #error message
                     self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['failed'] += 1 #increase the counter of failed strategies for the specific source-destination key
 
-    #stop the comparison closing the fluxes
+    #stop the comparison closing the flows
     def end_strategy_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
                 if source == destination: continue
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #store the flux obtained by key source-destination in the dictionary fluxes
-                source.close_outgoing_flux(flux) #close outgoing fluxes from source GS
-        fluxes.clear() #after closing all active fluxes, the dictionary fluxes is cleared for future simulations
+                flow = flows[source.get_name() + ' - ' + destination.get_name()] #store the flow obtained by key source-destination in the dictionary flows
+                source.close_outgoing_flow(flow) #close outgoing flows from source GS
+        flows.clear() #after closing all active flows, the dictionary flows is cleared for future simulations
 
     #obtain list of closer satellites in coverage area
     def _get_candidate_end_satellites_names(self, satellites, position): #position for destination coordinates
         sat_list = utils.get_closer_satellites(satellites, position) #list of closer satellites
         return [sat['name'] for sat in sat_list if sat['distance'] < constants.SATELLITE_COVERAGE_AREA_RADIUS] #list of the only satellites inside the coverage area of self
 
-    #calculate the distance travelled by the flux
+    #calculate the distance travelled by the flow
     def _get_path_distance(self, path: list, source, destination, satellites) -> float:
         distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites) #calculate distance between GS and the first satellite
         distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites) #calculate & add the distance between last satellite and GS
@@ -366,22 +366,22 @@ class TrafficAnalyzer:
     #prepare for the link occupation analysis
     def prepare_link_occupation_analysis(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         traffic_matrix = kwargs['traffic_matrix']
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()] #for every source store in a dictionary the outgoing traffic from each source GS with destination and traffic
             for destination_name in gs_traffic_details: #for each destination
                 destination = ground_stations[destination_name.upper()] #store GS destinations as Upper case
-                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flux
-                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux #flux store in dictionary fluxes
-                source.send_flux(flux) #send flux
+                flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flow
+                flows[source.get_name() + ' - ' + destination.get_name()] = flow #flow store in dictionary flows
+                source.send_flow(flow) #send flow
 
     #analyze and store avarage link occupation
     def sample_link_occupation_analysis(self, kwargs):
         satellites: dict = kwargs['satellites']
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
-        all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(None, satellites) #store satellite and link occupations during the transmission
+        flows: dict = kwargs['flows']
+        all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flow_forwarding(None, satellites) #store satellite and link occupations during the transmission
         average = statistics.mean([link_occupation for _, link_occupation in all_sats_and_link_occupations]) #calculate mean occupation of links
         involved_satellites = len(set([sat_name for sat_name, _ in all_sats_and_link_occupations])) #calculate the number of involved hops
         #store the values
@@ -392,28 +392,28 @@ class TrafficAnalyzer:
         dropped_data = 0
         for source in ground_stations.values(): #for every couple of source and destination
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #retrieve a specific flux from fluxes using source and destination 
-                dropped_data += destination.get_flux_info(flux, until = utils.get_current_time())[2] #calculate dropped data getting flux info as the [2] that corresponds to dropped data variable of the flux
+                flow = flows[source.get_name() + ' - ' + destination.get_name()] #retrieve a specific flow from flows using source and destination 
+                dropped_data += destination.get_flow_info(flow, until = utils.get_current_time())[2] #calculate dropped data getting flow info as the [2] that corresponds to dropped data variable of the flow
         self.results[constants.ROUTING_STRATEGY.name]['cumulative_dropped_data'].append(dropped_data)
         print(f"Average link occupation: {average}. {involved_satellites} satellites involved in routing. Cumulative dropped data: {dropped_data}")
 
     #stops the analysis on link occupation
     def end_link_occupation_analysis(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
-                source.close_outgoing_flux(flux) #close the outgoing fluxes of GS
+                flow = flows[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flow(flow) #close the outgoing flows of GS
 
     #get infos about satellite and link occupation between satellites 
-    def _get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(self, flux_id: int, satellites):
+    def _get_satellites_and_link_occupations_for_links_involved_in_flow_forwarding(self, flow_id: int, satellites):
         all_sats_and_link_occupations = []
         for name, sat in satellites.items(): #for every satellite extract name and item (sat)
-            if sat.fluxes.values(): #if there are fluxes
-                for f, link in sat.fluxes.values(): #for every flux (f) and link in sat.fluxes
+            if sat.flows.values(): #if there are flows
+                for f, link in sat.flows.values(): #for every flow (f) and link in sat.flows
                     if isinstance(link, LaserLink): #if the link it's a laserlink
-                        if flux_id == None or f.id == flux_id: #if Flux_id is None(there is no specified flux) we want infos about all fluxes on satellite OR if equal to flux_id param we want infos about that specific flux
+                        if flow_id == None or f.id == flow_id: #if Flow_id is None(there is no specified flow) we want infos about all flows on satellite OR if equal to flow_id param we want infos about that specific flow
                             all_sats_and_link_occupations.append((name, constants.SATELLITE_LINK_CAPACITY - link.get_available_bandwidth())) #max capacity - the bandwidth still available
         return all_sats_and_link_occupations
 
@@ -430,27 +430,27 @@ class TrafficAnalyzer:
     #prepare to analyze ratio between delivered and dropped data
     def prepare_delivered_dropped_ratio(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         traffic_matrix = kwargs['traffic_matrix']
         for source in ground_stations.values(): #for every source in GS
             gs_traffic_details = traffic_matrix[source.get_name()] #dictionary that store and access to traffic matrix info using source's name as key
             for destination_name in gs_traffic_details: #for every destination
                 destination = ground_stations[destination_name.upper()]
-                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flux
-                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
-                source.send_flux(flux) #send flux
+                flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flow
+                flows[source.get_name() + ' - ' + destination.get_name()] = flow
+                source.send_flow(flow) #send flow
 
     #analyze and store delivered & dropped ratio
     def sample_delivered_dropped_ratio(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         
         delivered_data = 0
         dropped_data = 0
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #obtain the flux with selected source-destination
-                _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time()) #total_data_sent/total_data_delivered/total_data_dropped (the first one isn't used)
+                flow = flows[source.get_name() + ' - ' + destination.get_name()] #obtain the flow with selected source-destination
+                _, delivered, dropped = destination.get_flow_info(flow, until = utils.get_current_time()) #total_data_sent/total_data_delivered/total_data_dropped (the first one isn't used)
                 delivered_data += delivered
                 dropped_data += dropped
         #store the results
@@ -461,11 +461,11 @@ class TrafficAnalyzer:
     #stops the analysis on delivered & dropped ratio
     def end_delivered_dropped_ratio(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
-                source.close_outgoing_flux(flux) #close outgoing fluxes
+                flow = flows[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flow(flow) #close outgoing flows
 
     #prepare the dictionary for control traffic comparison
     def prepare_results_for_control_traffic_comparison(self, update_times):
@@ -485,28 +485,28 @@ class TrafficAnalyzer:
     #prepare to analyze a comparison of traffic
     def prepare_control_traffic_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         traffic_matrix = kwargs['traffic_matrix']
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
                 destination = ground_stations[destination_name.upper()]
-                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flux
-                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
-                source.send_flux(flux) #send flux
+                flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flow
+                flows[source.get_name() + ' - ' + destination.get_name()] = flow
+                source.send_flow(flow) #send flow
 
     #analyze and store traffic comparison
     def sample_control_traffic_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         neighbors_update_time = kwargs['neighbors_update_time']
         
         delivered_data = 0
         dropped_data = 0
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #obtain the flux with selected source-destination
-                _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time()) #total_data_sent/total_data_delivered/total_data_dropped (the first one isn't used)
+                flow = flows[source.get_name() + ' - ' + destination.get_name()] #obtain the flow with selected source-destination
+                _, delivered, dropped = destination.get_flow_info(flow, until = utils.get_current_time()) #total_data_sent/total_data_delivered/total_data_dropped (the first one isn't used)
                 delivered_data += delivered
                 dropped_data += dropped
         #store the results
@@ -517,11 +517,11 @@ class TrafficAnalyzer:
     #stop the analysis of traffic comparison
     def end_control_traffic_comparison(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
-                source.close_outgoing_flux(flux) #close flux
+                flow = flows[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flow(flow) #close flow
 
     #prepare the dictionary to analyze weight sensitivity
     def prepare_results_for_weight_sensitivity_analysis(self, weights: list):
@@ -537,22 +537,22 @@ class TrafficAnalyzer:
     #prepare to analyze the weight sensitivity
     def prepare_weight_sensitivity_analysis(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         traffic_matrix = kwargs['traffic_matrix']
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
                 destination = ground_stations[destination_name.upper()]
-                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flux
-                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
-                source.send_flux(flux) #send flux
+                flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flow
+                flows[source.get_name() + ' - ' + destination.get_name()] = flow
+                source.send_flow(flow) #send flow
 
     #analyze and store weight sensitivity
     def sample_weight_sensitivity_analysis(self, kwargs):
         satellites: dict = kwargs['satellites']
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
-        all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flux_forwarding(None, satellites) #store satellite and link occupation between satellites
+        flows: dict = kwargs['flows']
+        all_sats_and_link_occupations = self._get_satellites_and_link_occupations_for_links_involved_in_flow_forwarding(None, satellites) #store satellite and link occupation between satellites
         average = statistics.mean([link_occupation for _, link_occupation in all_sats_and_link_occupations]) #calculate mean occupation
         involved_satellites = len(set([sat_name for sat_name, _ in all_sats_and_link_occupations])) #calculate amount of involved satellite
         #store the results
@@ -563,19 +563,19 @@ class TrafficAnalyzer:
         dropped_data = 0
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()] #retrieve a specific flux from fluxes using source and destination
-                dropped_data += destination.get_flux_info(flux, until = utils.get_current_time())[2] #calculate dropped data getting flux info as the [2] that corresponds to dropped data variable of the flux
+                flow = flows[source.get_name() + ' - ' + destination.get_name()] #retrieve a specific flow from flows using source and destination
+                dropped_data += destination.get_flow_info(flow, until = utils.get_current_time())[2] #calculate dropped data getting flow info as the [2] that corresponds to dropped data variable of the flow
         self.results[constants.LOAD_BALANCING_WEIGHT_FACTOR]['cumulative_dropped_data'].append(dropped_data) #store data under the key of load balancing weight factor
         print(f"Average link occupation: {average}. {involved_satellites} satellites involved in routing. Cumulative dropped data: {dropped_data}")
 
     #stop analysis of weight sensitivity
     def end_weight_sensitivity_analysis(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
-                source.close_outgoing_flux(flux) #close flux
+                flow = flows[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flow(flow) #close flow
 
     #prepare the dictionary to analyze the simulation during time
     def prepare_results_for_time_passing_simulation(self):
@@ -590,32 +590,32 @@ class TrafficAnalyzer:
     #prepare to analyze simulation on time passing
     def prepare_time_passing_simulation(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         traffic_matrix = kwargs['traffic_matrix']
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
                 destination = ground_stations[destination_name.upper()]
-                flux = utils.create_new_flux((destination.lat, destination.lon), gs_traffic_details[destination_name])
-                fluxes[source.get_name() + ' - ' + destination.get_name()] = flux
-                source.send_flux(flux)
+                flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
+                flows[source.get_name() + ' - ' + destination.get_name()] = flow
+                source.send_flow(flow)
 
     #analyze and store the data from simulation during a period of time
     def sample_time_passing_simulation(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         
         delivered_data = 0
         dropped_data = 0
         distance_data = 0
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
-                _, delivered, dropped = destination.get_flux_info(flux, until = utils.get_current_time())
+                flow = flows[source.get_name() + ' - ' + destination.get_name()]
+                _, delivered, dropped = destination.get_flow_info(flow, until = utils.get_current_time())
                 delivered_data += delivered
                 dropped_data += dropped
-                distance_data += flux.travelled_distance
-        distance_data /= len(fluxes) #calculate the avarage distance travelled, dividing by number of fluxes
+                distance_data += flow.travelled_distance
+        distance_data /= len(flows) #calculate the avarage distance travelled, dividing by number of flows
         #store the results
         self.results[constants.ROUTING_STRATEGY.name]['delivered'].append(delivered_data)
         self.results[constants.ROUTING_STRATEGY.name]['dropped'].append(dropped_data)
@@ -624,9 +624,9 @@ class TrafficAnalyzer:
     #stop the analysis of the dimulation during time
     def end_time_passing_simulation(self, kwargs):
         ground_stations: dict = kwargs['ground_stations']
-        fluxes: dict = kwargs['fluxes']
+        flows: dict = kwargs['flows']
         for source in ground_stations.values():
             for destination in ground_stations.values():
-                flux = fluxes[source.get_name() + ' - ' + destination.get_name()]
-                source.close_outgoing_flux(flux) #close flux
+                flow = flows[source.get_name() + ' - ' + destination.get_name()]
+                source.close_outgoing_flow(flow) #close flow
     

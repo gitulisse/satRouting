@@ -1,4 +1,4 @@
-from flux import Flux, FluxState
+from flow import Flow, FlowState
 from link import Link, LaserLink, RadioLink
 from strategy import Strategy
 import utils
@@ -27,22 +27,22 @@ class HeaderBuilder:
         self.delayed_start = kwargs['delayed_start'] if 'delayed_start' in kwargs else 0 #optional param
         self.duration = duration
         self.gss = gss #gss aka ground stations
-        self.flux = Flux(random.randint(1, 1000000), rate, (self.destination_gs.lat, self.destination_gs.lon)) #generate the flux
+        self.flow = Flow(random.randint(1, 1000000), rate, (self.destination_gs.lat, self.destination_gs.lon)) #generate the flow
         env.put(self.delayed_start, self._begin_centralized_generation) #start generating
         env.put(self.duration, self._end_centralized_generation) #stop generating
 
     def _begin_centralized_generation(self):
-        print("-----> Generating centralized flux", self.flux, "rate", self.flux.rate, "Gbps from <<<", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), ">>> for", self.duration, "seconds.")
-        self.source_gs.start_centralized_routing(self.flux, self.gss) #send the flux to the source GS
+        print("\n-----> Generating centralized flow", self.flow, "rate", self.flow.rate, "Gbps from <<<", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), ">>> for", self.duration, "seconds.")
+        self.source_gs.start_centralized_routing(self.flow, self.gss) #send the flow to the source GS
             
     def _end_centralized_generation(self):
-        self.source_gs.close_outgoing_flux(self.flux) #close the flux outgoing
+        self.source_gs.close_outgoing_flow(self.flow) #close the flow outgoing
         end_time = utils.get_current_time() #set end_time
-        source_gs_flux_info = self.source_gs.get_flux_info(self.flux, end_time, precision=1) #get flux info from source GS
-        destination_gs_flux_info = self.destination_gs.get_flux_info(self.flux, end_time, precision=1) #get flux info from destination GS
-        print("Sent", source_gs_flux_info[0], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Received", destination_gs_flux_info[1], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Lost", destination_gs_flux_info[2], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        source_gs_flow_info = self.source_gs.get_flow_info(self.flow, end_time, precision=1) #get flow info from source GS
+        destination_gs_flow_info = self.destination_gs.get_flow_info(self.flow, end_time, precision=1) #get flow info from destination GS
+        print("Sent", source_gs_flow_info[0], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Received", destination_gs_flow_info[1], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Lost", destination_gs_flow_info[2], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
         print("Finished centralized route.")
 
         '''
@@ -50,16 +50,16 @@ class HeaderBuilder:
             all_ids = []
             all_sats = []
             for name, sat in self.source_gs.satellites.items():
-                if sat.fluxes.values():
+                if sat.flows.values():
                     all_sats.append(name)
-                    fluxes_leftovers_info = []
-                    for f, _ in sat.fluxes.values():
+                    flows_leftovers_info = []
+                    for f, _ in sat.flows.values():
                         all_ids.append(f.id)
-                        if f.id == self.flux.id:
-                            fluxes_leftovers_info.append((f.id, f.rate, f.alias_id, f.state))
-                    if fluxes_leftovers_info:
-                        print("Satellite", name, "has", len(fluxes_leftovers_info), "active fluxes. (flux from", self.source_gs.get_name(), "to", self.destination_gs.get_name(), ")")
+                        if f.id == self.flow.id:
+                            flows_leftovers_info.append((f.id, f.rate, f.alias_id, f.state))
+                    if flows_leftovers_info:
+                        print("Satellite", name, "has", len(flows_leftovers_info), "active flows. (flow from", self.source_gs.get_name(), "to", self.destination_gs.get_name(), ")")
                         print("Satellite", name, "mapping table:", sat.mapping_table.table)
-                        for id, r, alias_id, state in fluxes_leftovers_info:
+                        for id, r, alias_id, state in flows_leftovers_info:
                             print(id, r, alias_id, state)
         '''

@@ -1,7 +1,7 @@
 import constants
 from direction import Direction
 import environment as env
-from flux import Flux
+from flow import Flow
 from geopy import distance
 import math
 import pandas as pd
@@ -80,6 +80,19 @@ def get_closest_satellite_for_graph(satellites, position: tuple[float, float], o
             closest_satellite = (key, sat)
     return [closest_satellite]
 
+#identifies close satellites to build the graph structure (not used in the simulation cause it's used a single connection to GS)
+def get_closer_satellites_for_graph(satellites, position: tuple[float, float], operational_only = True):
+    closer_satellites = []
+    for key, sat in satellites.items():
+        if operational_only and not sat.is_operational():  ##exclude not operational sat
+            continue
+        distance_to_gs = distance.distance((sat.get_latitude(), sat.get_longitude()), position).km
+        if distance_to_gs <= constants.SATELLITE_COVERAGE_AREA_RADIUS:  #only in the radius
+            closer_satellites.append({'name': key, 'satellite': sat, 'distance': distance_to_gs})  #add object sat
+        closer_satellites.sort(key=lambda x: x['distance']) #sort from minimum, made 2 by 2 respecting the tuple
+        chosen_satellites = [(entry['name'], entry['satellite']) for entry in closer_satellites]
+    return chosen_satellites
+
 
 #calculate distance between satellites in km
 def get_distance_between_satellites(sat1, sat2, satellites = None):
@@ -147,9 +160,9 @@ def add_seconds_to_time(time: Time, seconds: int) -> Time:
 def get_sleep_delay(seconds):
     return seconds / constants.TIME_MULTIPLIER
 
-#manage creation of fluxes
-def create_new_flux(destination: tuple[float, float], rate: float):
-    return Flux(randint(1, 1000000), rate, destination)
+#manage creation of flows
+def create_new_flow(destination: tuple[float, float], rate: float):
+    return Flow(randint(1, 1000000), rate, destination)
 
 #generates a randomic word in lowercase
 def randomword(length):
@@ -158,7 +171,7 @@ def randomword(length):
 
 def get_satellites_in_path(routing_decisions):
     satellites_in_path = []
-    for action, flux, link in routing_decisions:
+    for action, flow, link in routing_decisions:
         # Aggiungi il satellite sorgente (parent) se non già nella lista
         if link._parent not in satellites_in_path:
             satellites_in_path.append(link._parent)
