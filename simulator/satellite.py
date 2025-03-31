@@ -70,7 +70,15 @@ class Sat:
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
                 self.open_flow(flow)
         #print("add_link method")
-        self._reroute_all() #rerouting
+        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,    #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+            self._reroute_all() #rerouting
         #env.put(env.elapsed_time, self._reroute_all)
     
     #Remove a link and notify neighbor
@@ -212,7 +220,15 @@ class Sat:
                             #Debug
                             if constants.DEBUG:
                                 print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
-            self._reroute_all() #rerouting for resend
+            if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB, #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                self._reroute_all() #rerouting for resend
             #env.put(env.elapsed_time, self._reroute_all)
 
     #Update satellite position
@@ -350,9 +366,9 @@ class Sat:
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flow: Flow) -> list[(RoutingAction, Flow, Link)]:
         routing_decisions = self.basic_route(flow)
-        print("     ###Basic Route results", routing_decisions)
+        #print("     ###Basic Route results", routing_decisions)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_decisions)
-        print("    #########Adapted Route results", routing_decisions)
+        #print("    #########Adapted Route results", routing_decisions)
         return routing_decisions
 
     #Simulate routing decisions for bandwidth to execute a split of the flow based on the avalable bandwidth
@@ -605,7 +621,7 @@ class Sat:
 
     #Rerouting all
     def _reroute_all(self):
-        #print("__________________reroute_all method")
+        #print("[INFO] Starting reroute from Satellite")
         if self._is_rerouting: #if satellite already rerouting, avoid double rerouting
             return
         self._is_rerouting = True #otherwise set attribute to True

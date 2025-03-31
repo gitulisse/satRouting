@@ -37,7 +37,7 @@ def put(time, function, **kwargs):
 
 #used to configure the environment before the simulation
 def prepare():
-    #print("prepare() called.")
+    print("prepare() called.......")
     if env.ready == True:
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
@@ -45,11 +45,10 @@ def prepare():
     #count=0
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
-        '''
-        if constants.DEBUG:
-            count+=1
-            print(f"Topology builder {count}: lanciato")
-        '''
+
+        #count+=1
+        #print(f"Topology builder {count}: lanciato")
+        
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,

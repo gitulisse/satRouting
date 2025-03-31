@@ -47,19 +47,15 @@ class GroundStation:
             sat._gs_link.reset_bandwidth()
 
     def _reroute_all(self):
-        print("[INFO] Starting centralized reroute from Ground Station")
-
+        print("[INFO] Starting reroute from Ground Station")
         if self._is_rerouting:
             return
-
         self._is_rerouting = True
-
         dropped_flows_copy = self.DEBUG_dropped_flows.copy()
         self.DEBUG_dropped_flows.clear()
 
         for flow in dropped_flows_copy:
             print(f"[REROUTE] Flow ID {flow.id}, Alias ID {flow.alias_id}, Rate {flow.rate} Gbps")
-
             routing_decisions = self.basic_centralized_route(flow.clone())
 
             if not routing_decisions:
