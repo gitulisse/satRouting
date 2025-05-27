@@ -4,6 +4,7 @@ from flow import Flow
 from ground_station import GroundStation
 import utils
 from strategy import Strategy
+import environment as env
 
 class Link:
     def __init__(self, parent_sat, capacity):
@@ -12,6 +13,7 @@ class Link:
         self.flows: dict[int, Flow] = {}
         self.capacity = capacity #Gbps
 
+    #new
     def reset_bandwidth(self):
         self.flows.clear()
         self.available_bandwidth = self.capacity
@@ -23,9 +25,6 @@ class Link:
     #check if Link is active (if it has a target)
     def is_active(self) -> bool:
         return self.target != None
-    
-    def reset_bandwidth(self):
-        self.flows.clear()
 
     #calculate remaining available bandwidth
     def get_available_bandwidth(self) -> float:
@@ -44,6 +43,7 @@ class Link:
 
     #close flows
     def close_flow(self, flow: Flow):
+        #print("[INFO] Link close flow on parent", self._parent.get_name(), "to target", self.target.get_name(), "with bandwidth", self.get_available_bandwidth())
         self.flows.pop(flow.alias_id) #remove flow id
         '''
         if constants.DEBUG:
@@ -62,26 +62,32 @@ class Link:
     
     #manage reservation of bandwidth for a specified Flow
     def reserve_bandwidth(self, flow: Flow) -> bool:
-        #print("Reserve bandwidth....")
+        #print(">>>>>>>>>> Reserving bandwidth....")
         if self.get_available_bandwidth() >= flow.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all flows' rate in self.flows
             self.flows[flow.alias_id] = flow #store flow in flows using alias_id as key
-            target_name = (self.target[0].get_name() 
-                if isinstance(self.target, list) and self.target 
-                else self.target.get_name())
+            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                target_name = (self.target[0].get_name() 
+                    if isinstance(self.target, list) and self.target 
+                    else self.target.get_name())
 
-            #print("Reserving for link", self._parent.get_name(), "-", target_name, "Reserved bandwidth", flow.rate, "Gb, for flow", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime()) #"remaining capacity", self.capacity
+                if isinstance(target_name, str): #uppercase the target name if string
+                    target_name = target_name.upper()
+
+                env.main_graph[self._parent.get_name()][target_name]['available_bandwidth'] = self.get_available_bandwidth()
+                #if constants.DEBUG:
+                print(f"[DEBUG] Updated bandwidth on graph: {self._parent.get_name()} <-> {target_name} now {env.main_graph[self._parent.get_name()][target_name]['available_bandwidth']} Gbps")
             return True
         else:
             #print("Reserving for link", self._parent.get_name(), "-", target_name, "Failed to reserve", flow.rate, "Gb, for flow", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
             return False
-    '''
-    #check bandwidth availability without reserve it
-    def search_available_bandwidth(self) -> float:
-        temp_capacity = self.capacity
-        temp_capacity -= sum([flow.rate for flow in self.flows.values()])
-        print ("Actual Capacity", temp_capacity)
-        return temp_capacity
-    '''
+
 
 #Laserlink between satellites
 class LaserLink(Link):
@@ -113,7 +119,7 @@ class LaserLink(Link):
     
     #put link in idle state
     def idle(self) -> list[Flow]:
-        print(f"Link {self._parent.get_name()} -> {self.target.get_name()} going idle with flows: {self.flows}")##########
+        print(f"[IDLE] Link {self._parent.get_name()} -> {self.target.get_name()} going idle with flows: {self.flows}")##########
         leftovers = []
         while len(self.flows.values()) > 0:
             flow = list(self.flows.values())[0]
@@ -202,6 +208,7 @@ class RadioLink(Link):
 
     #close flow
     def close_flow(self, flow: Flow):
+        #print("[INFO] Closing Radiolink close flow on parent", self._parent.get_name(), "to target GSs ", [gs.get_name() for gs in self.target])
         self.flows.pop(flow.alias_id) #remove flow using id
         for gs in self.target:
             '''

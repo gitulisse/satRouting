@@ -5,8 +5,9 @@ from geopy import distance
 from skyfield.api import Timescale
 from strategy import Strategy
 import utils
+import networkx as nx
 
-
+main_graph = None 
 satellites: dict
 ground_stations: dict
 
@@ -37,7 +38,7 @@ def put(time, function, **kwargs):
 
 #used to configure the environment before the simulation
 def prepare():
-    print("prepare() called.......")
+    #print("prepare() called.......")
     if env.ready == True:
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
@@ -140,7 +141,7 @@ def start():
         time, action, kwargs = env.actions_queue.get()
         if time != env.elapsed_time: 
             env.elapsed_time = time
-            print("|||Simulating", time, "/", constants.SIMULATION_DURATION, "seconds|||")
+            print("\n|||Simulating", time, "/", constants.SIMULATION_DURATION, "seconds|||")
         '''
         if constants.DEBUG:
             print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########
@@ -203,6 +204,7 @@ def update_satellites_position():
 
 #topology builder
 def topology_builder():
+    print("- Topology builder method called.")
     update_satellites_position() #updates positions and link to GS
     #print("update satellites position")
     temp_satellites = {} #create temporary dictionary for satellites
@@ -277,7 +279,85 @@ def topology_builder():
         satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)
         satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
 
+    #DEBUG print topology information about satellites and their links occupation
+    '''
+    for name, sat in env.satellites.items():
+        info = f"{name}: lat={sat.get_latitude():.2f}, lon={sat.get_longitude():.2f}"
+        links_info = []
+        for direction, link in sat._links.items():
+            if link and link.target:
+                capacity = getattr(link, "capacity", "N/A")  # o link.get_capacity() se è un metodo
+                links_info.append(f"{direction.name}→{link.target.get_name()} [{capacity} Gbps]")
+        print(f"{info} | Links: {'; '.join(links_info)}")'''
     
+    ####print("Temp_satellites:", temp_satellites) #debug
+    
+    #for name, sat in env.satellites.items():
+        #print(f"{name}: lat={sat.get_latitude():.2f}, lon={sat.get_longitude():.2f}")
+        #for direction, link in sat._links.items():
+         #   if link and link.target:
+          #      print(f"  -> {direction.name} → {link.target.get_name()}")
+    ####dopo il topology builder potrei creare il grafo. GRAFO per ogni iterazione nuova di simulation sec/ sec
+    ####qua
+    ## NEW SECTION
+    # === NUOVA SEZIONE: Creazione del grafo principale ===
+    #'''
+    env.main_graph = nx.Graph()
+
+    # Aggiungi collegamenti attivi fra satelliti
+    for name, sat in env.satellites.items():
+                for dir, link in sat._links.items():  # Itera sui link del satellite
+                    if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
+                        env.main_graph.add_edge(
+                            name,
+                            link.target.get_name(), 
+                            weight=utils.get_distance_between_satellites(sat, link.target), 
+                            available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
+                            link_obj=link #aggiunto riferimento all'oggetto link nel grafo
+                        )  # Aggiungi l'arco al grafo #print(f"Edge added: {name} -> {link.target.get_name()} with distance {utils.get_distance_between_satellites(sat, link.target)}")
+
+
+    # Collegamenti tra Ground Station e satelliti più vicini
+    for gs_name, gs in env.ground_stations.items():
+        closer_satellites = utils.get_closer_satellites_for_graph(env.satellites, (gs.lat, gs.lon))
+        for sat_name, sat in closer_satellites:
+            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, gs)
+            if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
+                env.main_graph.add_edge(
+                    gs_name, sat_name,
+                    weight=distance_to_sat,
+                    available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY, # Puoi parametrizzare se serve
+                )
+
+    for name, sat in env.satellites.items():
+            for dir, link in sat._links.items():  # Itera sui link del satellite
+                if link.is_active() and link.target:
+                    link.reset_bandwidth()  # Reset della banda disponibile per il link
+                sat._gs_link.reset_bandwidth()
+
+    #for u, v, data in env.main_graph.edges(data=True):
+        #link = data.get('link_obj')
+        #if link:
+         #   current_bw = link.get_available_bandwidth()
+          #  data['available_bandwidth'] = current_bw
+           # print(f" - Link {u} <-> {v}: banda env.main_graph aggiornata a {current_bw} Gbps")
+
+    # Debug del grafo principale appena creato
+    
+    num_nodes = env.main_graph.number_of_nodes()
+    num_edges = env.main_graph.number_of_edges()
+    edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
+
+    #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
+    
+    #for edge_info in edges_list:
+     #   print(" -", edge_info)
+    print("Main graph successfully updated by topology_builder.")
+    #'''
+
+    
+
+
     #debug
     #if constants.DEBUG:
     #print("DISTANZE", distances)

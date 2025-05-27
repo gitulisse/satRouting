@@ -34,12 +34,14 @@ class GroundStation:
         self._graph = None
         self._auxiliary_graph = None
         self.excluded_links = []
+        self.excluded_nodes_on_main_graph = set()
         self.link_utilization = {}  #dictionary that maps link to its utilization
         self.destination = None
         self._is_rerouting = False #if rerouting connections
         self.DEBUG_dropped_flows: list[Flow] = []
 
-    def reset_all_links_capacity(self, satellites):
+    #importante da sistemare
+    def reset_all_links_capacity(self, satellites): #fondamentale nel restaurare la bandwidth per inviare il flow e consegnarlo per trovare gli steps
         from link import LaserLink, RadioLink
         for sat in satellites:
             for link in sat._links.values():
@@ -51,29 +53,38 @@ class GroundStation:
         if self._is_rerouting:
             return
         self._is_rerouting = True
+
+        dropped_flows_copy = []
+        pointer = 0
         dropped_flows_copy = self.DEBUG_dropped_flows.copy()
-        self.DEBUG_dropped_flows.clear()
-
+        #self.DEBUG_dropped_flows.clear()
+        routing_decisions = []
         for flow in dropped_flows_copy:
-            print(f"[REROUTE] Flow ID {flow.id}, Alias ID {flow.alias_id}, Rate {flow.rate} Gbps")
-            routing_decisions = self.basic_centralized_route(flow.clone())
-
-            if not routing_decisions:
+            print(f"\n -----> Generating [REROUTE] Flow ID {flow.id}, Alias ID {flow.alias_id}, Rate {flow.rate} Gbps")
+            adapted_routing_decisions = self.basic_centralized_route(flow.clone()) #changed routing_decisions into adapted_routing_decisions
+            print(f"[REROUTE] Routing decisions for flow {flow.id}: {adapted_routing_decisions}")
+            
+            if not adapted_routing_decisions:
                 print(f"[ERROR] No available paths found for flow {flow.id}.")
                 if flow not in self.DEBUG_dropped_flows:
                     self.DEBUG_dropped_flows.append(flow)
                 continue
+            
+            for action, partial_flow, link in adapted_routing_decisions: #ora che ho tutte le liste di tutti i flussi voglio inviare i singoli flussi con le loro decisioni sulla rete, uno alla volta
+                print(f"  +++++      Sending flow {partial_flow} id {partial_flow.id} rate {partial_flow.rate} to satellite {self.sat.get_name()}")
+                print(f"  +++++      Sending with decisions: {adapted_routing_decisions}")
+                self.send_flow(partial_flow, adapted_routing_decisions) #send the flow to the source GS
+                #adapted_routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flow.clone(), routing_decisions)
 
-            adapted_routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flow.clone(), routing_decisions)
 
-            if adapted_routing_decisions and adapted_routing_decisions[-1][0] != RoutingAction.ERROR:
+            '''if adapted_routing_decisions and adapted_routing_decisions[-1][0] != RoutingAction.ERROR:
                 flow.drop_steps_from(self)
                 self.open_flow(flow)
                 print(f"[SUCCESS REROUTE] Flow {flow.id} with rate {flow.rate} Gbps successfully rerouted and opened.")
             else:
                 print(f"[WARNING] Flow {flow.id} with rate {flow.rate} Gbps cannot be rerouted, marking as undeliverable.")
                 if flow not in self.DEBUG_dropped_flows:
-                    self.DEBUG_dropped_flows.append(flow)
+                    self.DEBUG_dropped_flows.append(flow)'''
 
         self._is_rerouting = False
 
@@ -115,23 +126,25 @@ class GroundStation:
             return 
 
         routing_decisions = self.extract_separated_decision_lists(routing_decisions) #decisioni annidate estratte
-
+        #print("entra qui lo stesso?")
         routing_decisions = [
                 sublist for sublist in routing_decisions
                 if all(action != RoutingAction.ERROR for action, _, _ in sublist)
             ]
+        
         #print(f"> Cleaned Routing decisions for flow at start_centralized_routing {routing_decisions}")
-        self.reset_all_links_capacity(self.satellites.values())
+
+        #self.reset_all_links_capacity(self.satellites.values())
        
         for decision in routing_decisions: #ora che ho tutte le liste di tutti i flussi voglio inviare i singoli flussi con le loro decisioni sulla rete, uno alla volta
             action, partial_flow, link = decision[0]
             print(f"  +++++      Sending flow {partial_flow} id {partial_flow.id} rate {partial_flow.rate} to satellite {self.sat.get_name()}")
-            print("   +++++      Sending with decisions:", decision)
+            print(f"  +++++      Sending with decisions: {decision}")
             self.send_flow(partial_flow, decision) #send the flow to the source GS
 
     def centralized_route(self, flow: Flow): 
         routing_decisions = self.basic_centralized_route(flow)
-        #self.reset_all_bandwidth(self.satellites.values())
+
         return routing_decisions
 
     def basic_centralized_route(self, flow: Flow):
@@ -178,6 +191,8 @@ class GroundStation:
             probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
             selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
             routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
+
+            #print(f"basic centralized method - routing output {routing_output}")
 
             #print("ROUTING 1______", routing_output)
             if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
@@ -248,32 +263,154 @@ class GroundStation:
             if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
         #print("The routing output obtained from basic_centralized_route:", routing_output)
+
+        return routing_output #RoutingAction, Flow, Link
+
+    def basic_centralized_reroute(self, flow: Flow):
+        routing_output = list()
+        self.destination = flow.get_ground_station_by_coordinates(flow.destination[0], flow.destination[1], self.gss.values())
+
+        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
+            #self.prepare_results_for_dijkstra(ground_stations=self.gss)
+            dijkstra_shortest_path = self.calculate_dijkstra({'source': self,'destination': self.destination,'satellites': self.satellites})
+
+            if not dijkstra_shortest_path:
+                #print("No valid path found for Dijkstra, returning empty routing output.")
+                return routing_output
+            
+            for i in range(len(dijkstra_shortest_path) - 1): #iterates on the path to build che routing_output
+                current_node = dijkstra_shortest_path[i]
+                next_node = dijkstra_shortest_path[i + 1]
+                link = self._get_link_between_nodes(current_node, next_node, self.satellites) #retrieve the link between a node and the next node in the path
+                if not link:
+                    print(f"Warning: No link found between {current_node} and {next_node}. Skipping.")
+                    continue
+                action = RoutingAction.FORWARD #determinates the action that must be executed
+                routing_output.append((action, flow, link)) #add the action to the decisions
+            last_node = dijkstra_shortest_path[-1][0] if isinstance(dijkstra_shortest_path[-1], list) else dijkstra_shortest_path[-1]
+            last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
+            action = RoutingAction.DELIVER
+            routing_output.append((action, flow, last_link))
+            routing_output = self.adapt_routing_with_single_split(flow, routing_output) #walkthrough simulation of passage
+
+        elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self,
+                'destination': self.destination,
+                'satellites': self.satellites,
+                'flow': flow
+            })
+            #print("Disjoint paths trovati da CALCULATE K DISJOINT PATHS", disjoint_paths)
+            if not disjoint_paths:
+                #print("No valid Disjoint paths found, returning empty routing output.")
+                return routing_output
+            
+            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
+
+            #print(f"basic centralized method - routing output {routing_output}")
+
+            #print("ROUTING 1______", routing_output)
+            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
+                routing_output = self.adapt_routing_with_single_split(flow, routing_output)
+            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+                routing_output = self.simulate_adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
+            #print("ROUTING ******", routing_output)
+        
+        elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self,
+                'destination': self.destination,
+                'satellites': self.satellites,
+                'flow': flow
+            })
+            #for path_index, path in enumerate(disjoint_paths): #Debug
+            #    print(f"Processing path {path_index + 1}: {path}")
+            if not disjoint_paths:
+                #print("No valid Disjoint paths found, returning empty routing output.")
+                return routing_output
+            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
+            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING:
+                routing_output = self.adapt_routing_with_single_split(flow, routing_output)
+            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
+
+        elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION:
+            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self,
+                'destination': self.destination,
+                'satellites': self.satellites,
+                'flow': flow
+            })
+            #Debug
+            #for path_index, path in enumerate(disjoint_paths):
+            #    print(f"Processing path {path_index + 1}: {path}")
+            if not disjoint_paths:
+                #print("No valid Disjoint paths found, returning empty routing output.")
+                return routing_output
+            alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            for alpha in alpha_values:
+                costs = self.calculate_path_costs(self._graph, disjoint_paths, self.link_utilization, alpha) #calculate the costs of k paths
+                selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
+                routing_output = self.process_routing_output(selected_path, flow) #process the output for routing  
+
+        elif constants.ROUTING_STRATEGY in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self,
+                'destination': self.destination,
+                'satellites': self.satellites,
+                'flow': flow
+            })
+
+            if not disjoint_paths:
+                return routing_output
+            probabilities = self.calculate_path_weights_length_shortest_node_disjoint(self._graph, disjoint_paths) #calculate probabilities based on length of k paths
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
+            if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
+                routing_output = self.adapt_routing_with_single_split(flow, routing_output)
+            if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+        #print("The routing output obtained from basic_centralized_reroute:", routing_output)
+
         return routing_output #
 
-    def extract_separated_decision_lists(self, nested_decisions):
-        separated_lists = []
-        while nested_decisions:
-            current_list = []
-            while nested_decisions and not isinstance(nested_decisions[0], list):
-                current_list.append(nested_decisions.pop(0))
-            if current_list:
-                separated_lists.append(current_list)
-            if nested_decisions and isinstance(nested_decisions[0], list):
-                nested_decisions = nested_decisions.pop(0)
-        return separated_lists
+    def simulate_adapt_routing_decisions_to_available_link_bandwidth(self, flow, routing_decisions):
+        if len(routing_decisions) == 1: # if there is only one decision
+            print("Skipping adaptation.") #no need to check link capacity in this simulation but should be added in real world scenario
+            return routing_decisions 
 
-    #adaptive method used only for LB mstrategies
-    def adapt_routing_decisions_to_available_link_bandwidth(self, flow: Flow, routing_decisions):
         adapted_routing_decisions = [] #nuove decisioni adattate alla rete
         remaining_flow = flow.clone()
         initial_flow_rate = remaining_flow.rate
-        support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
+        #support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
         reached_node = None  # Inizializzazione esplicita
 
+        #print("adapted routing_decisions", routing_decisions)
+        
+        # Estrai i link del percorso
+        path_links = [link for action, _, link in routing_decisions if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]]
+        if path_links:
+            min_available_bw = min(link.get_available_bandwidth() for link in path_links)
+            print(f"[DEBUG] Minimum available bandwidth is {min_available_bw} among Links of Selected Path") #print(f"Links in path: {path_links}")
+
         for i, (action, flow, link) in enumerate(routing_decisions):
+            #print(f"[] [] ciclo for di adapt {i} con action {action} e flow {flow} e link {link._parent.get_name()} - {link.target.get_name()}") #debug
             if not remaining_flow:
+                print("No remaining flow to route.")
                 break  # Flusso completamente instradato
             if not reached_node: #inizializza il primo reached node del percorso
+                #print("Reached node not set yet.")
                 if isinstance(link.target, list): #il primo reached node sarà il secondo nodo, target del primo link
                     if link.target:  
                         reached_node = link.target[0].get_name()
@@ -285,42 +422,49 @@ class GroundStation:
 
             if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = link.get_available_bandwidth()
-                print(f"ADAPT ROUTING: LINK {link} has available BANDWIDTH: {available_bandwidth} for {flow} with flow rate {flow.rate} ")
+                print(f"ADAPT ROUTING: Path has Minimum available BANDWIDTH: {min_available_bw} for {flow} rate {flow.rate}")
 
                 if available_bandwidth > 0:
-                    if available_bandwidth >= remaining_flow.rate:  # Tutto il flusso può passare
-                        print("Enough bandwidth for flow")
-                        adapted_routing_decisions.append((action, remaining_flow, link))
+                    if min_available_bw >= remaining_flow.rate:  # Cambiata la condizione "available_bandwidth >= remaining_flow.rate:"
+                        print(f"Enough bandwidth {min_available_bw} for flow rate {remaining_flow.rate}")
+                        #print("enough routing decisions", routing_decisions)
+                        #DEBUG
+                        link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
+                        print(f"Routing path on enough bandwidth: {link_paths}") #show human-readable path
+                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        #print("used action", action)
+                        adapted_routing_decisions.append((action, flow, link)) #remaining_flow
                         if isinstance(link.target, list):
                             if link.target:
                                 reached_node = link.target[0].get_name()
                         else:
                             reached_node = link.target.get_name()
-                        link.reserve_bandwidth(remaining_flow)   #controllare le reserve bandwidth
+                        #print("reserve 1")
+                        #link.reserve_bandwidth(remaining_flow)   #controllare le reserve bandwidth
                         #print("1")
                         self.check_path_for_splitted_flow( #usato per il remain flow
-                            remaining_flow,
-                            support_routing_decisions[i + 1:],
+                            flow, #remaining_flow
+                            routing_decisions[i + 1:], #support_routing_decisions
                             adapted_routing_decisions
                         )
-                        #print(f"Found decisions for REMAINED SUBFLOW: {adapted_routing_decisions}")
+                        
                         remaining_flow.rate = 0 # Tutto il flusso è stato consumato
                         break
 
                     else:
                         # Solo una parte del flusso passa
-                        splitted_flow, remaining_flow_to_route = remaining_flow.split(available_bandwidth)
+                        splitted_flow, remaining_flow_to_route = remaining_flow.split(min_available_bw) #sfruttando la Min bandwidth di tutto il percorso #splitted flow è il flusso che può passare, remaining flow to route è il flusso che non può passare
                         print("Not enough bandwidth, proceed to splitting...", splitted_flow, "and remaining flow", remaining_flow_to_route)
-                        adapted_routing_decisions.append((action, splitted_flow, link))
                         print(f"SPLITTED FLOW created {splitted_flow} rate {splitted_flow.rate} and REMAINING_FLOW_TO_ROUTE {remaining_flow_to_route} rate {remaining_flow_to_route.rate}")
-                        print(f"Inner-link first split {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        adapted_routing_decisions.append((action, splitted_flow, link))
                         reached_node = link._parent.get_name()
 
-                        link.reserve_bandwidth(splitted_flow) 
+                        #link.reserve_bandwidth(splitted_flow) 
                         #print("2")
                         self.check_path_for_splitted_flow(
                             splitted_flow,
-                            support_routing_decisions[i + 1:],
+                            routing_decisions[i + 1:], #support_routing_decisions
                             adapted_routing_decisions
                         )
                         #print(f"Found decisions for SPLITTED FLOW and subflows: {adapted_routing_decisions}")
@@ -347,6 +491,7 @@ class GroundStation:
             print(f"Reached destination: {reached_node}. Stopping recursion.")
             remaining_flow.rate = initial_flow_rate #reimposta il valore al rate originale
             adapted_routing_decisions.append((action, remaining_flow, link)) #
+            print("reserve 2")
             link.reserve_bandwidth(remaining_flow) #
             #print("Decisions to destination", adapted_routing_decisions)
             return adapted_routing_decisions
@@ -371,6 +516,240 @@ class GroundStation:
        
             # Calcolo dei nuovi percorsi
             #print(f"EXCLUDED LINKS {len(self.excluded_links)} for decisions: {self.excluded_links}")
+            #num_nodes = self._auxiliary_graph.number_of_nodes()
+            #num_edges = self._auxiliary_graph.number_of_edges()
+            #edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+            #print(f"self.AUXILIARY before calculatepathwitheclusions AUXILIARY Graph Simplified List  of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")
+
+            new_routing_decisions_remaining_flow = self.calculate_path_with_exclusions(remaining_flow, reached_node, g_auxiliary=self._auxiliary_graph)
+            #print("NEW routing decisions calculated path with exclusions for flow", remaining_flow ,":", new_routing_decisions_remaining_flow)
+            adapted_decisions_remaining_flow = self.adapt_routing_decisions_to_available_link_bandwidth(remaining_flow, new_routing_decisions_remaining_flow) #RICORSIONE
+            #print("ADAPTED NEW routing decisions", adapted_decisions_remaining_flow)
+            if adapted_decisions_remaining_flow:
+                adapted_routing_decisions.append(adapted_decisions_remaining_flow)
+            else:
+                adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flow, None))
+                remaining_flow = None
+        #print("ADAPTED ROUTING DECISIONS:", adapted_routing_decisions)
+        return adapted_routing_decisions
+        
+        '''from link import Link
+        print("[SIMUALTE_ADAPT GROUND STATION] method")
+        #print(f"[Simulate_adapt] con {len(routing_decisions)} routing decisions: {routing_decisions}")
+        link_availability: dict[Link, float] = {} #create dictionary that associates links(laserlinks & radiolinks) to their max capacity
+        # Raccogli tutti i link dei satelliti
+        #print(" SELF SATELLITE:", self.satellites.values())
+        for sat in self.satellites.values():
+            for link in sat._links.values():
+                link_availability[link] = constants.SATELLITE_LINK_CAPACITY
+                print(f"  [Init] Link {link} capacità iniziale: {link_availability[link]}")
+        # Raccogli i link alle Ground Station
+        for gs in self.gss.values():
+            #for sat in gs.satellites.keys():
+            link = self._get_link_to_ground_station(node=gs.sat.get_name(), destination=gs, satellites=self.satellites, ground_stations=self.gss)
+            #link = gs._get_link_to_ground_station(node=gs.sat, destination=gs, satellites=gs.satellites, ground_stations=gs.gss)
+            link_availability[link] = constants.GROUND_STATION_LINK_CAPACITY
+            print(f"  [Init] Link Ground Station {link} capacità iniziale: {link_availability[link]}")
+
+        adapted_routing_decisions = []
+        routing_decisions = self.convert_routing_output_format(routing_decisions) #convert routing decisions to a format that is easier to process
+        print("- routing_decisions (dopo la conversione):", routing_decisions)
+        for flow, routing_decision in routing_decisions:
+            #print(f"[Flow] Analizzo flusso alias_id={flow.alias_id}, rate={flow.rate} Gbps")
+            adapted_routing_decision = []
+            for action, link in routing_decision:
+                #print(f"  [Decision] Azione: {action}, Link: {link}, Capacità disponibile: {link_availability.get(link, 0)} Gbps")
+                if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER: #if FORWARD or DELIVER for available bandwidth send flow or split it
+                    available_bandwidth = link_availability[link]
+                    if available_bandwidth == 0:
+                        #print("    ↳ [SKIP] Link esaurito. Passo oltre.")
+                        continue #if 0 skip decision
+                    if available_bandwidth >= flow.rate: #if there is more bandwidth of flow rate
+                        #print(f"    ↳ [FORWARD]  {available_bandwidth} > {flow.rate} Flusso intero su link {link}")
+                        adapted_routing_decision.append((action, flow, link))
+                        break
+                    else:
+                        f, flow = flow.split(available_bandwidth)
+                        #print(f"    ↳ [SPLIT] Prima parte {f.rate} Gbps su {link}, resto {flow.rate} Gbps")
+                        adapted_routing_decision.append((action, f, link))
+                elif action == RoutingAction.ERROR: #if ERROR
+                    print(f"    ↳ [ERROR] Aggiunto errore per il flusso.")
+                    adapted_routing_decision.append((action, flow, link))
+                    break
+            else:
+                print("    ↳ [CONGESTED] Nessuna decisione valida. Flusso congestionato.")
+                adapted_routing_decision.append((RoutingAction.ERROR, flow, FlowState.SATELLITE_CONGESTED)) #if there is not a possible/viable decision, ERROR satellite congested 
+                
+            adapted_routing_decisions[flow.alias_id] = adapted_routing_decision
+            if adapted_routing_decision[0][0] != RoutingAction.ERROR: #if decision is NOT an ERROR
+                used_link = adapted_routing_decision[0][2]
+                used_rate = adapted_routing_decision[0][1].rate
+                link_availability[used_link] -= used_rate
+                print(f"  [UPDATE] Ridotta capacità del link {used_link}: ora {link_availability[used_link]} Gbps disponibili") #link_availability[adapted_routing_decision[0][2]] -= adapted_routing_decision[0][1].rate #update link availability (minus used one by the flow)
+        
+        print(f"°°° adapted_routing_decisions = {adapted_routing_decisions}")
+        return adapted_routing_decisions'''
+
+    def convert_routing_output_format(self, routing_decisions):
+        from collections import defaultdict
+
+        grouped = defaultdict(list)
+
+        for action, flow, link in routing_decisions:
+            grouped[flow].append((action, link))
+
+        return list(grouped.items())
+
+
+    def extract_separated_decision_lists(self, nested_decisions):
+        separated_lists = []
+        while nested_decisions:
+            current_list = []
+            while nested_decisions and not isinstance(nested_decisions[0], list):
+                current_list.append(nested_decisions.pop(0))
+            if current_list:
+                separated_lists.append(current_list)
+            if nested_decisions and isinstance(nested_decisions[0], list):
+                nested_decisions = nested_decisions.pop(0)
+        return separated_lists
+
+    #adaptive method used only for LB strategies
+    def adapt_routing_decisions_to_available_link_bandwidth(self, flow: Flow, routing_decisions):
+        if len(routing_decisions) == 1: # if there is only one decision
+            print("Skipping adaptation.") #no need to check link capacity in this simulation but should be added in real world scenario
+            return routing_decisions 
+
+        adapted_routing_decisions = [] #nuove decisioni adattate alla rete
+        remaining_flow = flow.clone()
+        initial_flow_rate = remaining_flow.rate
+        #support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
+        reached_node = None  # Inizializzazione esplicita
+
+        #print("adapted routing_decisions", routing_decisions)
+        
+        # Estrai i link del percorso
+        path_links = [link for action, _, link in routing_decisions if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]]
+        if path_links:
+            min_available_bw = min(link.get_available_bandwidth() for link in path_links)
+            print(f"[DEBUG] Minimum available bandwidth is {min_available_bw} among Links of Selected Path") #print(f"Links in path: {path_links}")
+
+        for i, (action, flow, link) in enumerate(routing_decisions):
+            #print(f"[] [] ciclo for di adapt {i} con action {action} e flow {flow} e link {link._parent.get_name()} - {link.target.get_name()}") #debug
+            if not remaining_flow:
+                print("No remaining flow to route.")
+                break  # Flusso completamente instradato
+            if not reached_node: #inizializza il primo reached node del percorso
+                #print("Reached node not set yet.")
+                if isinstance(link.target, list): #il primo reached node sarà il secondo nodo, target del primo link
+                    if link.target:  
+                        reached_node = link.target[0].get_name()
+                    else:
+                        print(f"Warning: Link {link} target is an empty list.")
+                else:
+                    reached_node = link.target.get_name()
+            
+
+            if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
+                available_bandwidth = link.get_available_bandwidth()
+                print(f"ADAPT ROUTING: Path has Minimum available BANDWIDTH: {min_available_bw} for {flow} rate {flow.rate}")
+
+                if available_bandwidth > 0:
+                    if min_available_bw >= remaining_flow.rate:  # Cambiata la condizione "available_bandwidth >= remaining_flow.rate:"
+                        print(f"Enough bandwidth {min_available_bw} for flow rate {remaining_flow.rate}")
+                        #print("enough routing decisions", routing_decisions)
+                        #DEBUG
+                        link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
+                        print(f"Routing path on enough bandwidth: {link_paths}") #show human-readable path
+                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        #print("used action", action)
+                        adapted_routing_decisions.append((action, flow, link)) #remaining_flow
+                        if isinstance(link.target, list):
+                            if link.target:
+                                reached_node = link.target[0].get_name()
+                        else:
+                            reached_node = link.target.get_name()
+                        #print("reserve 1")
+                        #link.reserve_bandwidth(remaining_flow)   #controllare le reserve bandwidth
+                        #print("1")
+                        self.check_path_for_splitted_flow( #usato per il remain flow
+                            flow, #remaining_flow
+                            routing_decisions[i + 1:], #support_routing_decisions
+                            adapted_routing_decisions
+                        )
+                        
+                        remaining_flow.rate = 0 # Tutto il flusso è stato consumato
+                        break
+
+                    else:
+                        # Solo una parte del flusso passa
+                        splitted_flow, remaining_flow_to_route = remaining_flow.split(min_available_bw) #sfruttando la Min bandwidth di tutto il percorso #splitted flow è il flusso che può passare, remaining flow to route è il flusso che non può passare
+                        print("Not enough bandwidth, proceed to splitting...", splitted_flow, "and remaining flow", remaining_flow_to_route)
+                        print(f"SPLITTED FLOW created {splitted_flow} rate {splitted_flow.rate} and REMAINING_FLOW_TO_ROUTE {remaining_flow_to_route} rate {remaining_flow_to_route.rate}")
+                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        adapted_routing_decisions.append((action, splitted_flow, link))
+                        reached_node = link._parent.get_name()
+
+                        #link.reserve_bandwidth(splitted_flow) 
+                        #print("2")
+                        self.check_path_for_splitted_flow(
+                            splitted_flow,
+                            routing_decisions[i + 1:], #support_routing_decisions
+                            adapted_routing_decisions
+                        )
+                        #print(f"Found decisions for SPLITTED FLOW and subflows: {adapted_routing_decisions}")
+                        remaining_flow = remaining_flow_to_route
+                        excluded_link = (link._parent.get_name(), link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                            self.excluded_links.append(excluded_link)
+                        break
+                else:
+                    print(f"Link {link} is fully saturated. No flow can pass.")
+                    excluded_link = (link._parent.get_name(), link.target.get_name())
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.append(excluded_link)
+                    reached_node = link._parent.get_name()
+
+            else:
+                adapted_routing_decisions.append((action, remaining_flow, link))
+
+        if isinstance(reached_node, str):
+            reached_node = reached_node.upper()
+
+        # Se il nodo raggiunto è la destinazione, interrompi il calcolo
+        if reached_node == self.destination.get_name().upper():
+            print(f"Reached destination: {reached_node}. Stopping recursion.")
+            remaining_flow.rate = initial_flow_rate #reimposta il valore al rate originale
+            adapted_routing_decisions.append((action, remaining_flow, link)) #
+            print("reserve 2")
+            link.reserve_bandwidth(remaining_flow) #
+            #print("Decisions to destination", adapted_routing_decisions)
+            return adapted_routing_decisions
+
+        # Verifica finale di reached_node
+        if remaining_flow and remaining_flow.rate > 0:
+            if not reached_node:
+                print("ATTENTION: reached_node was not set during routing decision adaptation; attempting fallback.")
+                print(f"adapted routing decisions after no reach_node {adapted_routing_decisions}")
+                if adapted_routing_decisions:
+                    last_action, _, last_link = adapted_routing_decisions[-1]
+                    if last_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
+                        if isinstance(last_link.target, list):
+                            if last_link.target:
+                                reached_node = last_link.target[0].get_name()
+                        else:
+                            reached_node = last_link.target.get_name()
+                if not reached_node:
+                    adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flow, None))
+                    remaining_flow = None #remaing flow becomes None cause it's lost and cannot be delivered
+                    return adapted_routing_decisions
+       
+            # Calcolo dei nuovi percorsi
+            #print(f"EXCLUDED LINKS {len(self.excluded_links)} for decisions: {self.excluded_links}")
+            #num_nodes = self._auxiliary_graph.number_of_nodes()
+            #num_edges = self._auxiliary_graph.number_of_edges()
+            #edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+            #print(f"self.AUXILIARY before calculatepathwitheclusions AUXILIARY Graph Simplified List  of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")
+
             new_routing_decisions_remaining_flow = self.calculate_path_with_exclusions(remaining_flow, reached_node, g_auxiliary=self._auxiliary_graph)
             #print("NEW routing decisions calculated path with exclusions for flow", remaining_flow ,":", new_routing_decisions_remaining_flow)
             adapted_decisions_remaining_flow = self.adapt_routing_decisions_to_available_link_bandwidth(remaining_flow, new_routing_decisions_remaining_flow) #RICORSIONE
@@ -383,6 +762,7 @@ class GroundStation:
         #print("ADAPTED ROUTING DECISIONS:", adapted_routing_decisions)
         return adapted_routing_decisions
 
+    #method for NO LB strategies
     def adapt_routing_with_single_split(self, flow: Flow, routing_decisions: list):
         print("....Adapting routing decisions with single split...")
         adapted_routing_decisions = []
@@ -406,6 +786,7 @@ class GroundStation:
                 break
 
             if available_bandwidth >= remaining_flow.rate:
+                #print("reserve 3")
                 if link.reserve_bandwidth(remaining_flow):
                     adapted_routing_decisions.append((action, remaining_flow, link))
                     print(f"Reserved bandwidth {remaining_flow.rate} on {link._parent.get_name()} - {target_name}. Updated bandwidth: {link.get_available_bandwidth()}")
@@ -425,6 +806,7 @@ class GroundStation:
             else:
                 # Splitting del flusso a causa di banda insufficiente
                 splitted_flow, undelivered_flow = flow.split(available_bandwidth)
+                #print("reserve 4")
                 if link.reserve_bandwidth(splitted_flow):
                     adapted_routing_decisions.append((action, splitted_flow, link))
                     print(f"Reserved partial bandwidth {splitted_flow.rate} on {link._parent.get_name()} - {target_name}. Updated bandwidth: {link.get_available_bandwidth()}")
@@ -455,11 +837,11 @@ class GroundStation:
 
         return adapted_routing_decisions
 
-    def check_path_for_splitted_flow_simple(self, splitted_flow: Flow, support_routing_decisions, adapted_routing_decisions):
+    def check_path_for_splitted_flow_simple(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
         for j, (inner_action, inner_flow, inner_link) in enumerate(support_routing_decisions):
-            #print(f">>> Checking path for splitted flow {splitted_flow.id} with rate {splitted_flow.rate} <<<")
+            #print(f">>> Checking path for splitted flow {flow.id} with rate {flow.rate} <<<")
             decisions_copy = support_routing_decisions.copy()
-            decisions_copy[j] = (inner_action, splitted_flow, inner_link)
+            decisions_copy[j] = (inner_action, flow, inner_link)
 
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
@@ -467,65 +849,79 @@ class GroundStation:
                                 if isinstance(inner_link.target, list) and inner_link.target 
                                 else inner_link.target.get_name())
                 
-                if available_bandwidth >= splitted_flow.rate:
-                    inner_link.reserve_bandwidth(splitted_flow)
-                    adapted_routing_decisions.append((inner_action, splitted_flow, inner_link))
+                if available_bandwidth >= flow.rate:
+                    #print("reserve 5")
+                    inner_link.reserve_bandwidth(flow)
+                    adapted_routing_decisions.append((inner_action, flow, inner_link))
 
                     available_bandwidth = inner_link.get_available_bandwidth() #debug
 
-                    #print(f"### Attempting to forward splitted flow {splitted_flow.id} with rate {splitted_flow.rate} ###")
-                    print(f"Inner-link with Updated bandwidth {available_bandwidth} for link {inner_link._parent.get_name()} - {target_name}") #debug if available_bandwidth is zero or less then start is correct
+                    #print(f"### Attempting to forward splitted flow {flow.id} with rate {flow.rate} ###")
+                    #print(f"Inner-link with Updated bandwidth {available_bandwidth} for link {inner_link._parent.get_name()} - {target_name}") #debug if available_bandwidth is zero or less then start is correct
                     if isinstance(inner_link.target, list):
                         target_node = inner_link.target[0].get_name()
                     else:    
                         target_node = inner_link.target.get_name()
 
                     if inner_action == RoutingAction.DELIVER:
-                        print(f"[SUCCESS]: Splitted flow simple {splitted_flow} reached destination {target_node}!")
-        return adapted_routing_decisions  # Termina la ricerca; lo splitted_flow non viene instradato
+                        print(f"[SUCCESS]: Splitted flow simple {flow} reached destination {target_node}!")
+        return adapted_routing_decisions  # Termina la ricerca; il flow non viene instradato
 
-    def check_path_for_splitted_flow(self, splitted_flow: Flow, support_routing_decisions, adapted_routing_decisions):
+    def check_path_for_splitted_flow(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
         #print("////DENTRO CHECK PATH", support_routing_decisions)
         for j, (inner_action, inner_flow, inner_link) in enumerate(support_routing_decisions):
             
             decisions_copy = support_routing_decisions.copy()
-            decisions_copy[j] = (inner_action, splitted_flow, inner_link)
+            decisions_copy[j] = (inner_action, flow, inner_link)
             #print("////DECISION COPY j :", decisions_copy[j])
 
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
                 #DEBUG print
-                target_name = (inner_link.target[0].get_name() 
-                                if isinstance(inner_link.target, list) and inner_link.target 
-                                else inner_link.target.get_name())
-                print(f"Inner-link split {inner_link._parent.get_name()} - {target_name} with available_bandwidth {available_bandwidth}")
-                
-                if available_bandwidth == 0:
-                    print(f"Skipping saturated link {inner_link}.")
-                    excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
-                    if excluded_link not in self.excluded_links:
-                        self.excluded_links.append(excluded_link)
-                    continue
+
+                if isinstance(inner_link.target, list):
+                    expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
+                    ##print(f"Expected Destination -> {expected_destination}")
+                    # Cerca nella lista dei target l'oggetto che corrisponde al nome
+                    confirmed_destination = [destination for destination in inner_link.target if hasattr(destination, 'get_name') and destination.get_name().upper() == expected_destination]
+                    confirmed_destination_node = utils.get_ground_station_name_by_coords(confirmed_destination[0].lat, confirmed_destination[0].lon)
+                    ##print(f"Confirmed Destination -> {confirmed_destination_node}")
+                    target_name = confirmed_destination_node
+                else:
+                    target_name = inner_link.target.get_name()
+
+                print(f"Checking path of splitted flow... link {inner_link._parent.get_name()} - {target_name} with available_bandwidth {available_bandwidth}")
                 
                 #banda superiore o uguale al rate di flusso
-                if available_bandwidth >= splitted_flow.rate:
+                if available_bandwidth >= flow.rate:
                     #print("entrato....")
-                    if available_bandwidth == splitted_flow.rate:
+                    if available_bandwidth == flow.rate:
                         excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
                         if excluded_link not in self.excluded_links:
                             self.excluded_links.append(excluded_link)
-                    inner_link.reserve_bandwidth(splitted_flow)
-                    adapted_routing_decisions.append((inner_action, splitted_flow, inner_link))
+
+                    #adapted_routing_decisions.append((inner_action, flow, inner_link))
 
                     if isinstance(inner_link.target, list):
-                        target_node = inner_link.target[0].get_name()
-                    else:    
+                        adapted_routing_decisions.append((inner_action, flow, inner_link))
+
+                        
+                        target_node = confirmed_destination_node #inner_link.target[0].get_name()
+                    else:  
+                        adapted_routing_decisions.append((inner_action, flow, inner_link))  
                         target_node = inner_link.target.get_name()
 
-                    if inner_action == RoutingAction.DELIVER:
-                        print(f"[SUCCESSFUL]: Splitted flow {splitted_flow} rate {splitted_flow.rate} reached destination {target_node}!")  
+                    if inner_action == RoutingAction.DELIVER:                        
+                        expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1]) #lat #lon
+                        #print("Flow expected destination", expected_destination)
+                        if target_node.upper() == expected_destination:
+                            print(f"[SUCCESSFUL]: Splitted flow {flow} rate {flow.rate} reached destination {target_node.upper()}!")
+                        else:
+                            print(f"[WARNING]: Flow delivered to {target_node.upper()}, but expected {expected_destination}. Not considered successful.")
+                        #print(f"[SUCCESSFUL]: Splitted flow {flow} rate {flow.rate} reached destination {target_node}!") 
+
                 else: #banda inferiore al rate del flusso
-                    new_splitted_flow, remaining_flow = splitted_flow.split(available_bandwidth)
+                    new_splitted_flow, remaining_flow = flow.split(available_bandwidth)
                     print(f"NEW  splitted flow created in check_path_splitted_flow {new_splitted_flow} rate {new_splitted_flow.rate} and remaining flow {remaining_flow} rate {remaining_flow.rate}")
                     
                     if new_splitted_flow.rate > 0:
@@ -543,13 +939,27 @@ class GroundStation:
                             adapted_routing_decisions
                         )
                         break
+                
         return adapted_routing_decisions
 
     def calculate_path_with_exclusions(self, remaining_flow: Flow, reached_node, g_auxiliary):
+        '''num_nodes = self._auxiliary_graph.number_of_nodes()
+        num_edges = self._auxiliary_graph.number_of_edges()
+        edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+        print(f"g_auxiliary FIRST in calculate_path_with_exclusions of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")
+        print(f"g_auxiliary FIRST: {g_auxiliary.nodes}")'''
+
         if reached_node is None:
             raise ValueError("Reached_node was not set before calling calculate_path_with_exclusions")
         disjoint_paths = []
-        g_auxiliary = self._graph.copy() # Grafo ausiliario per calcolo delle esclusioni
+
+        #g_auxiliary = env.main_graph.copy() # Grafo ausiliario per calcolo delle esclusioni
+
+        num_nodes = self._auxiliary_graph.number_of_nodes()
+        num_edges = self._auxiliary_graph.number_of_edges()
+        edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+        #print(f"g_auxiliary AFTER in calculate_path_with_exclusions of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")
+        #print(f"g_auxiliary AFTER: {g_auxiliary.nodes}")
 
         for u, v in self.excluded_links: # Rimuovi i link esclusi
             if g_auxiliary.has_edge(u, v):
@@ -575,8 +985,7 @@ class GroundStation:
             if sat_name not in self.satellites:
                 print(f"Satellite {sat_name} non trovato nel dizionario 'satellites'")
                 continue
-            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, source)  # Calcola la distanza
-            #print("Distanza da GS sorgente a Sat:", distance_to_sat)
+            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, source)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 source_satellites.append(sat_name)
 
@@ -605,7 +1014,7 @@ class GroundStation:
                 except nx.NetworkXNoPath:
                     if remaining_flow not in self.DEBUG_dropped_flows:
                         self.DEBUG_dropped_flows.append(remaining_flow)
-                    print(f"No Node disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} in {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
+                    print(f"No Node disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
 
             # Se non ci sono percorsi, prova un nodo sorgente alternativo
             if not disjoint_paths and len(source_satellites) > 1:
@@ -624,6 +1033,7 @@ class GroundStation:
                         except nx.NetworkXNoPath:
                             print(f"No paths found for alternate source satellite: {alternate_satellite}.")
 
+            #print(f"G_auxiliary nodes after exclusions: {g_auxiliary.nodes}")
             #self.print_paths(disjoint_paths, "Node disjoint paths")
             if disjoint_paths:
                 probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
@@ -676,9 +1086,9 @@ class GroundStation:
 
     def process_routing_output(self, selected_path, flow):
         processed_output = []
-        print(f"    Processing selected path: {selected_path}")  # stampa per debug
+        print(f">>> Processing selected path: {selected_path}")  # stampa per debug
         
-        # Caso in cui il path abbia un solo nodo
+        # Caso in cui il path abbia un solo nodo (es tokyo-tokyo)
         if len(selected_path) == 1:
             single_node = selected_path[0]
             # Verifica se esiste un collegamento diretto al GS
@@ -687,7 +1097,7 @@ class GroundStation:
                 processed_output.append((RoutingAction.DELIVER, flow, last_link))
             else:
                 print(f"[ERROR]: No direct link from {single_node} to destination GS {self.destination.get_name()}.")
-                return 
+                return []
             return processed_output
 
         # Caso generale con più satelliti nel path
@@ -708,9 +1118,17 @@ class GroundStation:
             # Ricalcola un percorso alternativo
             return self.calculate_path_with_exclusions(flow, selected_path[0], self._auxiliary_graph)
 
+        #print("Destination while processing output",  self.destination.get_name())
         # Se tutto va bene, procedi con il link finale
         last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
+        
+        '''if isinstance(last_link, list):
+            print(f"LAST LINK PROCESSING: {last_link}")
+        else:
+            print(f"LAST LINK PROCESSING: {last_link._parent.get_name()} - {last_link.target.get_name()}")'''
+
         if last_link:
+            print("[INFO]: Final link to GS found.")
             processed_output.append((RoutingAction.DELIVER, flow, last_link))
         else:
             print(f"[ERROR]: No final link to GS from satellite {last_node} found. Path discarded.")
@@ -718,17 +1136,17 @@ class GroundStation:
 
         return processed_output
 
-
     def calculate_k_disjoint_paths(self, kwargs):
         source: dict = kwargs['source']
         destination: dict = kwargs['destination']
         satellites: dict = kwargs['satellites']
         flow: Flow = kwargs['flow']  # aggiunto flow
         k = constants.K_SHORTEST_VALUE  # Numero massimo di percorsi disgiunti richiesti
-
+        
+        #print("SATELLITES -->", list(satellites.keys()))
         print(f"<<< Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()} >>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
-        print("K disjoint paths calculated:", k_disjoint_paths)
+        print("> Calculated K PATHS:", k_disjoint_paths)
 
         if not k_disjoint_paths:  # Controllo corretto se nessun percorso è disponibile
             print(f"[WARNING] Nessun percorso disponibile per il flusso {flow.id}")
@@ -739,54 +1157,72 @@ class GroundStation:
         return k_disjoint_paths
  
     def _get_k_disjoint_paths(self, satellites, source, destination):
-        g= nx.Graph()
-        source_satellites = []
-        destination_satellites = [] #print(source.get_name().upper(),"-", destination.get_name().upper())
-        for name, sat in satellites.items():
-            for dir, link in sat._links.items():  # Itera sui link del satellite
-                if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
-                    g.add_edge(name, link.target.get_name(), weight=utils.get_distance_between_satellites(sat, link.target), available_bandwidth=link.get_available_bandwidth())  # Aggiungi l'arco al grafo #print(f"Edge added: {name} -> {link.target.get_name()} with distance {utils.get_distance_between_satellites(sat, link.target)}")
-        #end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) 
+        print("STARTING MAIN GRAPH", env.main_graph)
 
+        num_nodes = env.main_graph.number_of_nodes()
+        num_edges = env.main_graph.number_of_edges()
+        edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
+        #print(f"[DEBUG] _get_k_disjoint Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
+
+        source_satellite = []
+        destination_satellite = []
+
+        num_nodes1 = env.main_graph.number_of_nodes()
+        num_edges1 = env.main_graph.number_of_edges()
+        edges_list1 = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+        ###print(f"MAIN GRAPH _get_k_disjoint_paths Simplified List of {num_edges1} Edges, {num_nodes1} Nodes in g graph: {edges_list1}")
+        #trova satellite più vicino a sorgente
         closer_satellites = utils.get_closest_satellite_for_graph(satellites, (source.lat, source.lon)) #modifica nel trovare il satellite più vicino alla SORGENTE!
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
-                print(f"Satellite {sat_name} non trovato nel dizionario 'satellites'")
+                print(f"Satellite {sat_name} not found in dictionary 'satellites'")
                 continue
             distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, source)  # Calcola la distanza #print("Distanza da GS sorgente a Sat:", distance_to_sat)     
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                source_satellites.append(sat_name)
-                source_name = source.get_name().upper()
-                g.add_edge(source_name, sat_name, weight=distance_to_sat, available_bandwidth=1000)  # Collega la source al satellite
-        ###print("source satellites:", source_satellites)
-
+                source_satellite.append(sat_name)
+        #trova satellite più vicino a destinazione
         closer_satellites = utils.get_closest_satellite_for_graph(satellites, (destination.lat, destination.lon)) #modifica nel trovare il satellite più vicino alla DESTINAZIONE!
         for sat_name, sat in closer_satellites:
             if sat_name not in satellites:
-                print(f"Satellite {sat_name} non trovato nel dizionario 'satellites'")
+                print(f"Satellite {sat_name} not found in dictionary 'satellites'")
                 continue
             distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, destination)  # Calcola la distanza #print("Distanza da Sat a GS destinazione:", distance_to_sat) 
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                destination_satellites.append(sat_name)
-                destination_name = destination.get_name().upper()
-                g.add_edge(sat_name, destination_name, weight=distance_to_sat, available_bandwidth=1000)  # Collega il satellite alla destination
-        ###print("destination satellites", destination_satellites)
+                destination_satellite.append(sat_name)
+        
+        print("> SOURCE satellite", source_satellite)
+        print("> DESTINATION satellite", destination_satellite)
+        #check validation of nodes
+        valid_source_sats = [sat for sat in source_satellite if sat in env.main_graph]
+        valid_destination_sats = [sat for sat in destination_satellite if sat in env.main_graph]
 
         # Rimuovi gli archi con banda disponibile pari a 0
-        edges_to_remove = [(u, v) for u, v, data in g.edges(data=True) if data.get('available_bandwidth', 0) == 0]
+        edges_to_remove = [(u, v) for u, v, data in env.main_graph.edges(data=True) if data.get('available_bandwidth', 0) == 0] #graph.edges...
+        print(f"- Removing {len(edges_to_remove)} edges: {edges_to_remove}")
         for u, v in edges_to_remove:
-            g.remove_edge(u, v)
-        
-        #debug
-        num_nodes = g.number_of_nodes()#print("Nodi del grafo:", g.nodes) #print("Archi del grafo:", g.edges(data=True))#print("Satelliti vicini alla sorgente:", source_satellites)# Debug: Satelliti vicini alla sorgente#print("Satelliti vicini alla destinazione:", destination_satellites)# Debug: Satelliti vicini alla destinazione
-        num_edges = g.number_of_edges()
-        edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in g.edges(data=True)]
-        print(f"Simplified List  of <{num_edges} Edges ({num_nodes} Nodes) in graph: {edges_list}")
+            env.main_graph.remove_edge(u, v)  #graph.remove...
 
-        self._graph = g #store the graph for successive use
-        self._auxiliary_graph = self._graph.copy() #gestione grafi da rivedere
+        self._graph = env.main_graph.copy()
+        self._auxiliary_graph = env.main_graph.copy()
+
+        for gs_name in env.ground_stations.keys():
+            if gs_name in env.main_graph:
+                self._auxiliary_graph.remove_node(gs_name)
+
+        num_nodes = self._auxiliary_graph.number_of_nodes()
+        num_edges = self._auxiliary_graph.number_of_edges()
+        edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+        ##print(f"AUXILIARY _get_k_disjoint AUXILIARY Graph Simplified List  of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")
+
+        #print(f"Auxiliary graph in self._auxiliary_graph {self._auxiliary_graph}")
+        #DEBUG
+        #node_names = list(self._graph.nodes())
+        #print(f"[DEBUG] Nodes in MAIN graph in variable self._graph: {node_names}")
+
+        #self._graph = env.main_graph.copy() #store the graph for successive use
+        #self._auxiliary_graph = self._graph.copy() #gestione grafi da rivedere
         disjoint_paths = [] #list of k paths
-        
+
         if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                           Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
             if source == destination:
@@ -795,10 +1231,16 @@ class GroundStation:
                 disjoint_paths = []
                 disjoint_paths.append([closer_sats[0]['name']])
                 return disjoint_paths
-            for src_sat in source_satellites: #in case there are more than one source and destination satellites (for a more complex algorithm)
-                for dst_sat in destination_satellites:
+            for src_sat in source_satellite: #in case there are more than one source and destination satellites (for a more complex algorithm)
+                for dst_sat in destination_satellite:
+                    if src_sat not in valid_source_sats:
+                        print(f"[ERROR] Source satellites missing from graph!")
+                        return []
+                    if dst_sat not in valid_destination_sats:
+                        print(f"[ERROR] Destination satellites missing from graph!")
+                        return []
                     try:
-                        paths = list(nx.node_disjoint_paths(g, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
+                        paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) #### #calculate disjoint paths in graph excluding already used nodes
                         disjoint_paths.extend(paths)  #add all found paths
                     except nx.NetworkXNoPath:
                         print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
@@ -812,10 +1254,16 @@ class GroundStation:
                 disjoint_paths = []
                 disjoint_paths.append([closer_sats[0]['name']])
                 return disjoint_paths
-            for src_sat in source_satellites:
-                for dst_sat in destination_satellites:
+            for src_sat in source_satellite:
+                for dst_sat in destination_satellite:
+                    if src_sat not in valid_source_sats:
+                        print(f"[ERROR] Source satellites missing from graph!")
+                        return []
+                    if dst_sat not in valid_destination_sats:
+                        print(f"[ERROR] Destination satellites missing from graph!")
+                        return []
                     try:
-                        paths = list(nx.edge_disjoint_paths(g, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
+                        paths = list(nx.edge_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) #### #calculate disjoint paths in graph excluding already used nodes
                         disjoint_paths.extend(paths)  #add all found paths
                     except nx.NetworkXNoPath:
                         print(f"No Edge disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
@@ -828,14 +1276,27 @@ class GroundStation:
                 disjoint_paths = []
                 disjoint_paths.append([closer_sats[0]['name']])
                 return disjoint_paths
-            for src_sat in source_satellites:
-                for dst_sat in destination_satellites:
+            for src_sat in source_satellite:
+                for dst_sat in destination_satellite:
+                    if src_sat not in valid_source_sats:
+                        print(f"[ERROR] Source satellites missing from graph!")
+                        return []
+                    if dst_sat not in valid_destination_sats:
+                        print(f"[ERROR] Destination satellites missing from graph!")
+                        return []
                     try:
-                        paths = list(nx.node_disjoint_paths(g, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
+                        paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
                         disjoint_paths.extend(paths)  #add all found paths
                     except nx.NetworkXNoPath:
-                        print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
+                        print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")       
+
+        '''num_nodes = self._auxiliary_graph.number_of_nodes()
+        num_edges = self._auxiliary_graph.number_of_edges()
+        edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
+        print(f"AUXILIARY Graph Simplified List  of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")'''
         #print("Percorsi generati da _get_k_disjoint_paths:", disjoint_paths)
+        ### dopo le modifiche aggiorniamo il grafo
+        #env.main_graph = g.copy() #store the graph for successive use
         return disjoint_paths
    
 
@@ -873,6 +1334,7 @@ class GroundStation:
         return selected_path
 
     def calculate_path_weights_kshortest_disjoint(self, graph, disjoint_paths):
+        #print(f"°°°°°    DISJOINT PATHS: {disjoint_paths}")
         from link import LaserLink
         path_weights = []
         for path in disjoint_paths:
@@ -977,7 +1439,7 @@ class GroundStation:
         raise ValueError(f"No link exists between '{node1}' and '{node2}'.") #if there is no link throws the error
     
     def _get_link_to_ground_station(self, node, destination, satellites, ground_stations):
-        #print("Destination:", destination)
+        #print("Destination:", destination.get_name())
         #print("Ground Stations:", ground_stations)
         #print("Node:", node)
         #print("Satellites:", satellites)
@@ -991,12 +1453,19 @@ class GroundStation:
             raise ValueError(f"Destination '{destination_name}' not found in ground stations.")
 
         last_satellite = satellites[node]
+        #print(f"last_satellite: {last_satellite.get_name()}")
         destination_gs = ground_stations[destination_name]
+        #print(f"destination_gs: {destination_gs.get_name()}")
         attached_gs_list = last_satellite._gs_link.get_attached_gs()
+        #print("Attached GS list:", [gs.get_name() for gs in attached_gs_list])
         if destination_gs not in attached_gs_list:
             raise ValueError(f"Ground station '{destination_gs}' not attached to satellite '{last_satellite}'.")
+        
+        '''print("...........last_satellite._gs_link:", last_satellite._gs_link.target)
+        target_names = [t.get_name() if hasattr(t, "get_name") else str(t) for t in last_satellite._gs_link.target] #targets of Radiolinks are always lists
+        print(f"last_satellite._gs_link: {last_satellite._gs_link} is {last_satellite._gs_link._parent.get_name()} - {target_names}")'''
 
-        return last_satellite._gs_link
+        return last_satellite._gs_link #è corretto il _gs_link ma ha due target di arrivo #quindi corretto passare questo gs_link ma bisogna scegliere il target corretto
 
     def _get_link_between_nodes_or_ground_station(self, node1, node2, satellites, ground_stations):
         #print("Ground stations keys:", ground_stations.keys())
@@ -1192,18 +1661,20 @@ class GroundStation:
  
     #sender of flows from GS to connected satellite
     def send_flow(self, flow: Flow, routing_decisions=None): #optional parameter routing_decisions
+        #print("send_flow GS metodo")
         self.outgoing_flows.append((flow, utils.get_current_time(), None)) #add an outgoing flow with current time, None is the time of termination of the flow
         #if constants.DEBUG:
-        print("----- OPENING FLOW on GS", flow, "ID", flow.id, "with alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+        print("----- OPENING FLOW on GS", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
         flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
+        #print("self.sat connected to GS", self.sat.get_name())
         if routing_decisions != None:
-            #print("self.satellite della GS", self.sat.get_name())
             self.sat.open_flow(flow.clone(), routing_decisions) #port forwarding to satellite
         else:
             self.sat.open_flow(flow.clone())
 
     #close the outgoing flow
     def close_outgoing_flow(self, flow: Flow):
+        #print("[INFO] Close OUTGOING flow GS method on GS", self.get_name())
         if self.keep_log:
             for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
                 #print("CONTROLLO PARAMETRI flow",flow, "out_flow",outgoing_flow, "flow.alias_id", flow.alias_id, "outgoing_flow.alias_id", outgoing_flow.alias_id, "flow.rate", flow.rate, "outgoing_flow.rate", outgoing_flow.rate, "end_time", end_time)
@@ -1222,23 +1693,29 @@ class GroundStation:
 
     #metodo di arrivo alla destinazione
     def open_flow(self, flow: Flow): #apre il flow se è alla ground station di destinazione allora copia gli step in path e diventano il percorso attuato
+        #print("open_flow GS metodo")
         #print("flow destination", flow.destination)
         #print("self.lat and self.lon", self.lat, self.lon)
         if flow.destination[0] == self.lat and flow.destination[1] == self.lon:
             flow.paths.append(flow.get_steps())
             flow.state = FlowState.DELIVERED
             self.incoming_flows.append((flow, utils.get_current_time(), None))
-            print("----- FLOW", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!", "at time", utils.get_current_time().utc_strftime())
-            print("----- Steps:", [step.get_name() for step in flow.get_steps()])
+            print("----- FLOW delivered", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!", "at time", utils.get_current_time().utc_strftime())
+            print("----- Steps obtained:", [step.get_name() for step in flow.get_steps()])
+
+            #self.update_graph_bandwidth() #nuova funzione aggiornamento grafo
         else:
             self._discard_flow(flow)
-        
+
+
+
     def _discard_flow(self, flow: Flow):
-        #print("discard") #Eliminare 
+        #print("discard") 
         if constants.DEBUG:
             print("Flow with id", flow.id, "has been discarded on gs", self.get_name())
 
     def close_flow(self, flow: Flow):
+        #print("[INFO] Close flow GS method on GS", self.get_name())
         if self.keep_log:
             for i, (incoming_flow, start_time, end_time) in enumerate(self.incoming_flows):
                 if flow == incoming_flow and flow.alias_id == incoming_flow.alias_id and flow.rate == incoming_flow.rate and end_time == None:

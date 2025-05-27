@@ -111,12 +111,12 @@ new_york_gs = GroundStation(40.71277778, -74.00611111, 'New York')
 buenos_aires_gs = GroundStation(-34.608333, -58.371944, 'Buenos Aires')
 oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo')
 
-#Ground Stations selected
+#Ground Stations selected (removed'SAN FRANCISCO' : san_francisco_gs)
 ground_stations = {
     'TOKYO' : tokyo_gs,
     'NEW YORK' : new_york_gs,
     'DAR ES SALAAM' : dar_es_salaam_gs,
-    'SAN FRANCISCO' : san_francisco_gs
+    'BUENOS AIRES' : buenos_aires_gs
 }
 
 #Obtain the Traffic Matrix

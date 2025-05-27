@@ -188,3 +188,18 @@ def flatten(nested_list): #flatten a nested list
         else:
             flat_list.append(item)
     return flat_list
+
+def get_ground_station_name_by_coords(lat, lon):
+    for name, gs in env.ground_stations.items():
+        if gs.lat == lat and gs.lon == lon:
+            return name
+
+def get_protected_satellites_from_graph(graph):
+    protected_satellites = set()
+    ground_stations = {'TOKYO', 'NEW YORK', 'DAR ES SALAAM', 'SAN FRANCISCO'}  # tutto maiuscolo
+    for node in graph.nodes():
+        for neighbor in graph.neighbors(node):
+            if str(neighbor).upper() in ground_stations:  # trasformo il neighbor in MAIUSCOLO
+                protected_satellites.add(node)
+
+    return protected_satellites
