@@ -43,12 +43,8 @@ def prepare():
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
     print("Preparing environment...")
-    #count=0
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
-
-        #count+=1
-        #print(f"Topology builder {count}: lanciato")
         
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
@@ -67,9 +63,9 @@ def prepare():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
         #reroute
-        for gs in env.ground_stations.values():
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, gs._reroute_all)
+        #for gs in env.ground_stations.values():
+         #   for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+          #      env.put(i, gs._reroute_all)
 
     #if it's used a specific strategy, add actions to update values of satellites's dictionary
     if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
@@ -179,7 +175,6 @@ def reset():
         gs.outgoing_flows.clear() #cleare outgoing flows
         gs.incoming_flows.clear() #clear incoming flows
         gs.DEBUG_dropped_incoming_flows.clear() #clear debug dropped flows
-        gs.undeliverable_flows.clear() #clear undeliverable flows ##################################
     env.ready = False #set ready to False
     print("Environment reset.")
 
@@ -190,17 +185,7 @@ def update_satellites_position():
         sat._update_position() #update position
         sat._update_gs_link() #update link to GS 
     for gs in env.ground_stations.values():
-        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, #rivedere sta parte perchè non c'è il riferimento alla GS
-                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-            gs.reattach()
-        else:
-            gs.reattach() #reattach with GS
+        gs.reattach() #reattach with GS
 
 #topology builder
 def topology_builder():

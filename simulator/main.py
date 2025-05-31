@@ -123,7 +123,7 @@ ground_stations = {
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print("Traffic matrix print:", traffic_matrix)
 
-#Preparation of the environment
+'''#Preparation of the environment
 countries_coordinates_df = utils.get_countries_coordinates()
 countries_internet_penetration_df = utils.get_countries_internet_penetration()
 countries_population_df = utils.get_countries_population()
@@ -136,7 +136,7 @@ for index, coordinates in countries_coordinates_df.iterrows():
         distances.append({'distance': dist, 'gs': gs})
     distances.sort(key=lambda x: x['distance'])
     distances[0]['gs'].add_population_to_serve(round(countries_population_df.loc[index]['IT.NET.USER.ZS'] * (countries_internet_penetration_df.loc[index]['SP.POP.TOTL'] / 100)))
-print("Completed.")
+print("Completed.")'''
 
 
 #Retrieve satellites info from NORAD (in realtà sono 80 satelliti)

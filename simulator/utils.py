@@ -169,6 +169,7 @@ def randomword(length):
     letters = string.ascii_lowercase
     return ''.join(random.choice(letters) for i in range(length))
 
+#new
 def get_satellites_in_path(routing_decisions):
     satellites_in_path = []
     for action, flow, link in routing_decisions:
@@ -180,20 +181,11 @@ def get_satellites_in_path(routing_decisions):
             satellites_in_path.append(link.target)
     return satellites_in_path
 
-def flatten(nested_list): #flatten a nested list
-    flat_list = []
-    for item in nested_list:
-        if isinstance(item, list):
-            flat_list.extend(flatten(item))  # Ricorsione per appiattire gli elementi annidati
-        else:
-            flat_list.append(item)
-    return flat_list
-
 def get_ground_station_name_by_coords(lat, lon):
     for name, gs in env.ground_stations.items():
         if gs.lat == lat and gs.lon == lon:
             return name
-
+'''
 def get_protected_satellites_from_graph(graph):
     protected_satellites = set()
     ground_stations = {'TOKYO', 'NEW YORK', 'DAR ES SALAAM', 'SAN FRANCISCO'}  # tutto maiuscolo
@@ -203,3 +195,4 @@ def get_protected_satellites_from_graph(graph):
                 protected_satellites.add(node)
 
     return protected_satellites
+'''

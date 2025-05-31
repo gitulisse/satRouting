@@ -32,7 +32,7 @@ class Flow:
 
     #drop steps from a specific satellite
     def drop_steps_from(self, sat):
-        print("DROPPING STEPS FROM", sat)
+        #print("DROPPING STEPS FROM", sat)
         indices = [i for i, x in enumerate(self.steps) if x == sat] #obtain the list of indeces and satellites equal to sat
         #print("STEPS RIMANENTI", self.steps)
         self.steps = self.steps[:indices[-1]] #the list is cut off till the last index found, every satellite after that point is cut off

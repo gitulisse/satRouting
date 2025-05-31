@@ -51,14 +51,14 @@ class Link:
         '''
         self.target.close_flow(flow.clone()) #cloned flow sent to target will be closed by the target
     
-    #store flows, bandwidth is already reserved
+    '''#store flows, bandwidth is already reserved
     def reserve_centralized_bandwidth(self, flow: Flow) -> bool:
         self.flows[flow.alias_id] = flow #store flow in flows using alias_id as key
         target_name = (self.target[0].get_name() 
                 if isinstance(self.target, list) and self.target 
                 else self.target.get_name())
         print("For link", self._parent.get_name(), "-", target_name, "Already Reserved bandwidth centralized", flow.rate, "Gb, for flow", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
-        return True
+        return True'''
     
     #manage reservation of bandwidth for a specified Flow
     def reserve_bandwidth(self, flow: Flow) -> bool:

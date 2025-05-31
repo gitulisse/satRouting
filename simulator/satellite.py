@@ -13,7 +13,7 @@ from routing_action import RoutingAction
 from skyfield.api import EarthSatellite, wgs84
 from strategy import Strategy
 import utils
-from header_builder import HeaderBuilder as hb
+#from header_builder import HeaderBuilder as hb
 
 class Sat:
     def __init__(self, earth_satellite, ground_stations) -> None:
@@ -70,15 +70,7 @@ class Sat:
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
                 self.open_flow(flow)
         #print("add_link method")
-        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,    #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
-            self._reroute_all() #rerouting
+        self._reroute_all() #rerouting è da togliere
         #env.put(env.elapsed_time, self._reroute_all)
     
     #Remove a link and notify neighbor
@@ -193,14 +185,13 @@ class Sat:
             distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km #calculate distance between 2 points using Geopy
             if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 gs_candidates.append(gs) #if distance from GS's lat & lon is less then satelllite's area radius appends GS to candidates
-        
         if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
             leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
             for gs in gs_candidates: #dopo aver rimosso tutti i gs link, per ogni gs attacco il link alle gs candidate
                 self._gs_link.attach_to_gs(gs) #and reconnect to new candidates
             
             if leftovers:
-                    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                    '''if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                                         Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                                         Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -213,24 +204,24 @@ class Sat:
                         for flow in leftovers:
                             flow.drop_steps_from(self)
                             self.drop_flow(flow, FlowState.LINK_CONGESTED)
-                    else:
+                    else:'''
                         # strategia decentralizzata: routing autonomo
-                        print("ENTRATO 2 ---------------------------")
-                        for flow in leftovers:
-                            #if constants.DEBUG:
-                            print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
-                            flow.drop_steps_from(self)
-                            self.open_flow(flow)
+                    print("ENTRATO 2 ---------------------------")
+                    for flow in leftovers:
+                        flow.drop_steps_from(self)
+                        self.open_flow(flow)
+                        #if constants.DEBUG:
+                        print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                             
-            if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB, #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
+            '''if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB, #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                   Strategy.POSITION_SHARING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
-                self._reroute_all() #rerouting for resend
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:'''
+            self._reroute_all() #rerouting for resend
             #env.put(env.elapsed_time, self._reroute_all)
 
     #Update satellite position
@@ -250,8 +241,7 @@ class Sat:
             east_link = self._links.get(Direction.EAST)
             west_link = self._links.get(Direction.WEST)
             
-            #GUESSING of the position
-            #calculate the guessing longitude delta for translations in degrees
+            #GUESSING of the position #calculate the guessing longitude delta for translations in degrees
             if east_link.is_active() or west_link.is_active():
                 longitude_delta = (40075 / 2 / 6) / (40075 / 360) * math.cos(self._lat)
 
@@ -301,7 +291,7 @@ class Sat:
                 flow.travelled_distance += utils.get_distance_between_satellites(self, link.target) #otherwise calculates distance between satellites
             if routing_decisions != None:
                 link.send_flow(flow, routing_decisions) #send centralized
-            else:    
+            else:
                 link.send_flow(flow) #then send flow
         else:
             self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop it
@@ -321,7 +311,6 @@ class Sat:
                 if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
                     for _, f, _ in routing_decisions[1:]:
                         #print("ALIAS 2", f.alias_id, "for flow", f)
-                        #print("f", f)
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.alias_id = self.mapping_table.add(f.alias_id)
                 for action, f, link in routing_decisions:
@@ -334,6 +323,8 @@ class Sat:
                         f.drop_steps_from(self)
                         self.open_flow(f) #reopen
             else:
+                ####Branch for centralized routing with predetermined routing decisions
+                print("****Branch for centralized routing****")
                 self._close_internal_flow(flow.alias_id) 
                 routing_centralized_decisions = []
                 decision = (routing_decisions[0][0], flow, routing_decisions[0][2]) #take the first routing decision for centralized flows
@@ -377,14 +368,14 @@ class Sat:
 
     #Simulate routing decisions for bandwidth to execute a split of the flow based on the avalable bandwidth
     def simulate_adapt_routing_decisions_to_available_link_bandwidth(self, routing_decisions: list[(Flow, list[tuple[RoutingAction, Link]])]) -> dict[int, list[tuple[RoutingAction, Flow, Link]]]:
-        print("[SIMUALTE_ADAPT SATELLITE] method")
+        #print("[SIMUALTE_ADAPT SATELLITE] method")
         #print(f"[Simulate_adapt] con {len(routing_decisions)} routing decisions: {routing_decisions}")
         link_availability: dict[Link, float] = {} #create dictionary that associates links(laserlinks & radiolinks) to their max capacity
         for link in self._links.values():   #qui reimposta il valore dei LINK alla capacità originale
             link_availability[link] = constants.SATELLITE_LINK_CAPACITY
-            print(f"  [Init] Link {link} capacità iniziale: {link_availability[link]}")
+            #print(f"  [Init] Link {link} capacità iniziale: {link_availability[link]}")
         link_availability[self._gs_link] = constants.GROUND_STATION_LINK_CAPACITY
-        print(f"  [Init] Link Ground Station {self._gs_link} capacità iniziale: {link_availability[self._gs_link]}")
+        #print(f"  [Init] Link Ground Station {self._gs_link} capacità iniziale: {link_availability[self._gs_link]}")
 
         adapted_routing_decisions: dict[int, list] = {}
         for flow, routing_decision in routing_decisions:
@@ -410,22 +401,22 @@ class Sat:
                     adapted_routing_decision.append((action, flow, link))
                     break
             else:
-                print("    ↳ [CONGESTED] Nessuna decisione valida. Flusso congestionato.")
+                #print("    ↳ [CONGESTED] Nessuna decisione valida. Flusso congestionato.")
                 adapted_routing_decision.append((RoutingAction.ERROR, flow, FlowState.SATELLITE_CONGESTED)) #if there is not a possible/viable decision, ERROR satellite congested 
-                
+                #print("flusso congestionato")
             adapted_routing_decisions[flow.alias_id] = adapted_routing_decision
             if adapted_routing_decision[0][0] != RoutingAction.ERROR: #if decision is NOT an ERROR
-                used_link = adapted_routing_decision[0][2]
-                used_rate = adapted_routing_decision[0][1].rate
-                link_availability[used_link] -= used_rate
-                print(f"  [UPDATE] Ridotta capacità del link {used_link}: ora {link_availability[used_link]} Gbps disponibili") #link_availability[adapted_routing_decision[0][2]] -= adapted_routing_decision[0][1].rate #update link availability (minus used one by the flow)
+                link_availability[adapted_routing_decision[0][2]] -= adapted_routing_decision[0][1].rate #update link availability (minus used one by the flow)
+                #used_link = adapted_routing_decision[0][2]
+                #used_rate = adapted_routing_decision[0][1].rate
+                #link_availability[used_link] -= used_rate
+                #print(f"  [UPDATE] Ridotta capacità del link {used_link}: ora {link_availability[used_link]} Gbps disponibili") #link_availability[adapted_routing_decision[0][2]] -= adapted_routing_decision[0][1].rate #update link availability (minus used one by the flow)
         return adapted_routing_decisions #dictionary of decisions
 
     #Routing decisions for bandwidth
     def adapt_routing_decisions_to_available_link_bandwidth(self, flow: Flow, routing_decisions: list[tuple[RoutingAction, Link]]) -> list[tuple[RoutingAction, Flow, Link]]:
         #print("adapt_routing_decisions_to_available_link_bandwidth metodo")
         adapted_routing_decisions = []
-
         for action, link in routing_decisions:
             if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                 available_bandwidth = link.get_available_bandwidth()
@@ -444,13 +435,12 @@ class Sat:
                 break
         else:
             adapted_routing_decisions.append((RoutingAction.ERROR, flow, FlowState.SATELLITE_CONGESTED))
-            print("flusso congestionato ADAPT")
+            #print("flusso congestionato ADAPT")
         return adapted_routing_decisions
 
     #Route method
     def basic_route(self, flow: Flow, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]: ##---- reserve_band? send_flow
-        #definition of function get_nodes_to_be_excluded_from_next_hop_candidates to redefine it for every simulation, not execution of function
-        #Excludes node (next hop) from candidates to avoid Loops 
+        #Excludes node (next hop) from candidates to avoid Loops #definition of function get_nodes_to_be_excluded_from_next_hop_candidates to redefine it for every simulation, not execution of function
         def get_nodes_to_be_excluded_from_next_hop_candidates(flow) -> list: #get_nodes_to_be_excluded_from_next_hop_candidates PERMETTE DI VALUTARE QUALE SARA' IL PROSSIMO HOP
             if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flow
                 return []
@@ -546,7 +536,6 @@ class Sat:
                         dist = distance.distance((link.lat, link.lon), flow.destination).km
                         #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
                         #    dist = float('inf')
-
                     #Calculate Load Balance Score 
                     if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB]:
@@ -614,7 +603,6 @@ class Sat:
                 for candidate in candidates:
                     candidate['normalized_distance'] = 1  # Oppure un altro valore predefinito
 
-
             # Calcolo del punteggio complessivo
             alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
             for i, candidate in enumerate(candidates):
@@ -640,14 +628,14 @@ class Sat:
 
     #Rerouting all
     def _reroute_all(self):
-        print("[INFO] Starting reroute from Satellite", self.get_name())
+        #print("[INFO] Starting reroute from Satellite", self.get_name())
         if self._is_rerouting: #if satellite already rerouting, avoid double rerouting
             #print("[OCCUPIED] Already rerouting in progress on Satellite", self.get_name())
             return
         self._is_rerouting = True #otherwise set attribute to True
         if self.flows.keys(): #if there are active flows
             #if constants.DEBUG:
-            print("[REROUTE] Rerouting traffic from satellite", self.get_name())
+            #print("[REROUTE] Rerouting traffic from satellite", self.get_name())
 
             flows_copy = [] #to keep flows
             pointer = 0
@@ -661,9 +649,9 @@ class Sat:
             #print("SIMULATION", simulation)################# reserve_
             while pointer < len(self.flows.values()): #until there's a flow that is managed, at least one
                 flow, link = list(self.flows.values())[pointer] #extract flow & link, accessing through a pointer as index
-                print("Flow in while loop:", flow, "Link:", link) #debug
+                #print("Flow in while loop:", flow, "Link:", link) #debug
                 flow_simulation = simulation.get(flow.alias_id) #get ids from simulation
-                print("Flow simulation:", flow_simulation) #debug
+                #print("Flow simulation:", flow_simulation) #debug
 
                 #check if flow_simulation exists & from first flow take third element([0][2]) must be different from current link
                 #and check if flow_simulation[0][2] not instance of FlowState and link exists
