@@ -119,7 +119,7 @@ class LaserLink(Link):
     
     #put link in idle state
     def idle(self) -> list[Flow]:
-        print(f"[IDLE] Link {self._parent.get_name()} -> {self.target.get_name()} going idle with flows: {self.flows}")##########
+        #print(f"[IDLE] Link {self._parent.get_name()} -> {self.target.get_name()} going idle with flows: {self.flows}")##########
         leftovers = []
         while len(self.flows.values()) > 0:
             flow = list(self.flows.values())[0]
@@ -183,9 +183,12 @@ class RadioLink(Link):
     #disconnect link from GS
     def detach_from_all(self):
         leftovers = [] #residual flows
+        #salva tutti i flussi nella lista leftovers
         while len(self.flows.values()) > 0: #if there are flows
             flow = list(self.flows.values())[0] #take first value of flows
             leftovers.append(flow.clone()) #add cloned flow to leftovers
+            #rimuove l'alias_id del flusso dalla tabella di mapping del satellite padre e chiude il flusso interno
+            print(f"Removing flow {flow.alias_id} from parent {self._parent.get_name()} mapping table {self._parent.mapping_table.table}")##########
             input_id = self._parent.mapping_table.remove(flow.alias_id) #remove id from parent table and store id value in input_id
             self._parent._close_internal_flow(flow.alias_id) #close internal flow in parent
             leftovers[-1].alias_id = input_id #set the input of the last inserted flow in leftovers

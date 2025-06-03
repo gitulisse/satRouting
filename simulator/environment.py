@@ -158,17 +158,13 @@ def reset():
     env.elapsed_time = 0
     env.control_traffic_data = 0
     update_satellites_position() #update positions of satellites
-
-    #for all satellites remove links and reset state
-    for satellite in env.satellites.values():
+    for satellite in env.satellites.values(): #for all satellites remove links and reset state
         satellite.remove_link(Direction.NORTH)
         satellite.remove_link(Direction.SOUTH)
         satellite.remove_link(Direction.EAST)
         satellite.remove_link(Direction.WEST)
         satellite.state = 0.0
-
-    #for all GS close the outoging flows without end_time
-    for gs in env.ground_stations.values():
+    for gs in env.ground_stations.values(): #for all GS close the outoging flows without end_time
         for flow, _, end_time in gs.outgoing_flows:
             if end_time == None:
                 gs.close_outgoing_flow(flow) #close

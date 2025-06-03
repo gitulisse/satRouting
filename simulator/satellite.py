@@ -81,9 +81,9 @@ class Sat:
             return
         if notify_neighbor:
             self.notify_neighbor_unlink(dir)
-        #if constants.DEBUG:
-        print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
-        print(f"Link {dir} removed for satellite {self.get_name()}")######
+
+        #print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
+        #print(f"Link {dir} removed for satellite {self.get_name()}")######
         leftovers = self._links[dir].idle() #stores remaining flows
         if leftovers and self.is_operational():
             for flow in leftovers:
@@ -186,12 +186,16 @@ class Sat:
             if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 gs_candidates.append(gs) #if distance from GS's lat & lon is less then satelllite's area radius appends GS to candidates
         if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
+            #print(f"[Update GS link] {self._gs_link} from Satellite {self.get_name()} is updated to new GS: {[gs.get_name() for gs in gs_candidates]}") #più link si collegano da vari satelliti a una singola GS con questa implementazione
             leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
+            #print(f"[Leftovers] Leftovers detached from GS: {leftovers}") #print leftovers
             for gs in gs_candidates: #dopo aver rimosso tutti i gs link, per ogni gs attacco il link alle gs candidate
                 self._gs_link.attach_to_gs(gs) #and reconnect to new candidates
             
             if leftovers:
-                    '''if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                for flow in leftovers:
+                    flow.drop_steps_from(self)
+                    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                                         Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                                         Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -200,28 +204,28 @@ class Sat:
                                                         Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
                         # Routing CENTRALIZZATO: drop dei leftovers
-                        print("ENTRATO 1 ---------------------------")
+                        #print("ENTRATO 1 ---------------------------")
                         for flow in leftovers:
                             flow.drop_steps_from(self)
                             self.drop_flow(flow, FlowState.LINK_CONGESTED)
-                    else:'''
+                    else:
                         # strategia decentralizzata: routing autonomo
-                    print("ENTRATO 2 ---------------------------")
-                    for flow in leftovers:
-                        flow.drop_steps_from(self)
-                        self.open_flow(flow)
-                        #if constants.DEBUG:
-                        print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
-                            
-            '''if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB, #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:'''
-            self._reroute_all() #rerouting for resend
+                        #print("ENTRATO 2 ---------------------------")
+                        for flow in leftovers:
+                            flow.drop_steps_from(self)
+                            self.open_flow(flow)
+                            #if constants.DEBUG:
+                            #print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])'''
+            
+            if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB, #esegui il rerouting SOLO SE sta attuando una strategia distribuita, nessun rerouting centralizzato dai satelliti
+                                Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                Strategy.POSITION_SHARING_NO_LB,
+                                Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                self._reroute_all() #rerouting for resend
             #env.put(env.elapsed_time, self._reroute_all)
 
     #Update satellite position
@@ -625,7 +629,7 @@ class Sat:
         #print("  Debugging routing output:", routing_output) # DEBUG
         return routing_output
     
-
+    #'''
     #Rerouting all
     def _reroute_all(self):
         #print("[INFO] Starting reroute from Satellite", self.get_name())
@@ -669,6 +673,7 @@ class Sat:
                 flow.drop_steps_from(self)
                 self.open_flow(flow)
         self._is_rerouting = False
+        #'''
 
     #check if there is a difference between routing_decisions list and stored decisions
     def check_for_routing_decisions_differences(self, routing_decisions: list[(RoutingAction, Flow, Link)]) -> bool:
@@ -698,6 +703,7 @@ class Sat:
     def _close_internal_flow(self, alias_id: int):
         #print("[INFO] Closing INTERNAL flow with alias_id:", alias_id , "on Satellite", self.get_name()) #viene eseguito ogni volta che aggiorno la capacità del link
         flow_link_pairs = self.get_stored_flow_direction(alias_id) #obtain association between flow and link
+        #print(f"flow link pairs: {flow_link_pairs}")
         if flow_link_pairs:
             self.flows.pop(alias_id) #remove flow from active flows using id
             flow, link = flow_link_pairs

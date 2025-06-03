@@ -52,7 +52,7 @@ def show_shortest_paths_table(results: dict):
     distances.insert(0, "Average path length (km)")
     #create values for table
 
-    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories)) if i == 0 or trajectories[i] == "San Francisco - New York" or trajectories[i] == "San Francisco - Dar Es Salaam" or trajectories[i] == "San Francisco - Tokyo"]
+    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories))] #if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
 
     #create table
     table = ax.table(cellText=table_data, loc='center', cellLoc='center')
@@ -61,18 +61,19 @@ def show_shortest_paths_table(results: dict):
     table.auto_set_font_size(False)
     table.set_fontsize(9)
     table.auto_set_column_width(col=list(range(6)))
-    #table.scale(1, 0.7)
+    table.scale(0.9, 0.6) #(larghezza, altezza)
     ax.axis('off')
 
     table_props = table.properties()
-    print(table_props)
+    print(table.get_celld()[(0, 0)]) #mostra la prima cella della tabella e basta per debug
+    #print(table_props) #mostra tutte le celle generate come output
     table_cells = table_props['celld']
     for indices, cell in table_cells.items():
         print(indices)
         if indices[0] == 0:
             cell.set_text_props(weight='black', size='medium')
         elif indices[0] % 3 == 2:
-            cell.get_text().set_color('silver')
+            cell.get_text().set_color('black')
         elif indices[0] % 3 == 0:
             cell.get_text().set_color('black')
 
@@ -81,9 +82,8 @@ def show_shortest_paths_table(results: dict):
 
     refactored_results = {
         'DIJKSTRA' : {},
-        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {}
-        #Strategy.POSITION_GUESSING_NO_LB.name : {},
-        #Strategy.POSITION_SHARING_NO_LB.name : {}
+        Strategy.POSITION_GUESSING_NO_LB.name : {},
+        Strategy.POSITION_SHARING_NO_LB.name : {}
     }
 
     for key in refactored_results.keys():
@@ -126,7 +126,8 @@ def show_shortest_paths_table(results: dict):
     ax.axis('off')
 
     table_props = table.properties()
-    print(table_props)
+    print(table.get_celld()[(0, 0)]) #mostra la prima cella della tabella e basta per debug
+    #print(table_props) #mostra tutte le celle generate come output
     table_cells = table_props['celld']
     for indices, cell in table_cells.items():
         print(indices)
@@ -184,7 +185,7 @@ def show_average_link_occupation_chart(results: dict):
 
 def show_delivered_dropped_ratio_chart(results: dict):
     #colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
-    markers = ['.','v','s','p','H','x','d','|','_','o','*','+','^','<','>','1','2','3','4']
+    markers = ['.','v','s','p','H','x','d','|','_']
 
     ax = plt.subplot()
     box = ax.get_position()

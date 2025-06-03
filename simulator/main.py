@@ -168,9 +168,9 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
+        #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
         for destination in gs_traffic_details:
-            #destination = ground_stations.get(destination_name.upper())
-            #print(f"HeaderBuilder from {gs.get_name()} -> {destination_name} with rate {rate} Gbps")
+            #print(f"Traffic_detail of a single destination {gs_traffic_details[destination]}") #gs_traffic_details[destination] rappresenta il rate di traffico verso la destinazione
             hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
             header_builders.append(hb)
 
@@ -184,7 +184,9 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
-        for destination in gs_traffic_details:
+        #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
+        for destination in gs_traffic_details: #si raccolgono i dati per ogni destinazione presente nel dettaglio di una GS di partenza
+            #print(f"Traffic_detail of a single destination {gs_traffic_details[destination]}") #gs_traffic_details[destination] rappresenta il rate di traffico verso la destinazione
             tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()]) #SIMULATION_DURATION, header_builder=header_builder,
             traffic_generators.append(tg)
     '''
@@ -192,6 +194,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
         print("traffic_generators LIST", traffic_generators)
     '''
 env.start()
+print("env.start() called...")
 # End of block
 
 # Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
@@ -208,8 +211,8 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
 
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
-#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-#charts.show_shortest_paths_table(results)
+results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+charts.show_shortest_paths_table(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
 #charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
