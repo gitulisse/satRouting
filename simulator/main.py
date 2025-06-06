@@ -199,21 +199,21 @@ print("env.start() called...")
 
 # Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
-if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+'''if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                   Strategy.POSITION_SHARING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
-    traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:'''
+traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
 results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
 charts.show_shortest_paths_table(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
+#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
 #charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
 #charts.show_delivered_dropped_ratio_chart(results)

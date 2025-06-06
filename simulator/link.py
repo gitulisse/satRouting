@@ -44,21 +44,17 @@ class Link:
     #close flows
     def close_flow(self, flow: Flow):
         #print("[INFO] Link close flow on parent", self._parent.get_name(), "to target", self.target.get_name(), "with bandwidth", self.get_available_bandwidth())
-        self.flows.pop(flow.alias_id) #remove flow id
+        if flow.alias_id not in self.flows:
+            print(f"[WARN] alias_id {flow.alias_id} non presente in self.flows. Chiavi attuali: {list(self.flows.keys())}")
+        else:
+            #print(f"[INFO] Rimozione flow con alias_id {flow.alias_id}")
+            self.flows.pop(flow.alias_id) #remove flow id
+            self.target.close_flow(flow.clone()) #cloned flow sent to target will be closed by the target
         '''
         if constants.DEBUG:
             print("Closed flow", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flow.rate, "Gbps at time", utils.get_current_time().utc_strftime())
         '''
-        self.target.close_flow(flow.clone()) #cloned flow sent to target will be closed by the target
-    
-    '''#store flows, bandwidth is already reserved
-    def reserve_centralized_bandwidth(self, flow: Flow) -> bool:
-        self.flows[flow.alias_id] = flow #store flow in flows using alias_id as key
-        target_name = (self.target[0].get_name() 
-                if isinstance(self.target, list) and self.target 
-                else self.target.get_name())
-        print("For link", self._parent.get_name(), "-", target_name, "Already Reserved bandwidth centralized", flow.rate, "Gb, for flow", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
-        return True'''
+            
     
     #manage reservation of bandwidth for a specified Flow
     def reserve_bandwidth(self, flow: Flow) -> bool:
@@ -212,7 +208,12 @@ class RadioLink(Link):
     #close flow
     def close_flow(self, flow: Flow):
         #print("[INFO] Closing Radiolink close flow on parent", self._parent.get_name(), "to target GSs ", [gs.get_name() for gs in self.target])
-        self.flows.pop(flow.alias_id) #remove flow using id
+        #print(f"Flows in self.flows: {self.flows}")##########
+        if flow.alias_id in self.flows:
+            self.flows.pop(flow.alias_id) #remove flow using id
+        else:
+            print(f"[WARN] alias_id {flow.alias_id} non trovato in self.flows")
+        #self.flows.pop(flow.alias_id) 
         for gs in self.target:
             '''
             #debug

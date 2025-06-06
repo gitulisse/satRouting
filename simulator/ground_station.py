@@ -1260,7 +1260,7 @@ class GroundStation:
         #print("send_flow GS metodo")
         self.outgoing_flows.append((flow, utils.get_current_time(), None)) #add an outgoing flow with current time, None is the time of termination of the flow
         #if constants.DEBUG:
-        print("----- OPENING FLOW on GS", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+        #print("----- OPENING FLOW on GS", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
         flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
         #print("self.sat connected to GS", self.sat.get_name())
         if routing_decisions != None:
@@ -1296,8 +1296,8 @@ class GroundStation:
             flow.paths.append(flow.get_steps())
             flow.state = FlowState.DELIVERED
             self.incoming_flows.append((flow, utils.get_current_time(), None))
-            print("----- FLOW delivered", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!", "at time", utils.get_current_time().utc_strftime())
-            print("----- Steps obtained:", [step.get_name() for step in flow.get_steps()])
+            #print("----- FLOW delivered", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!", "at time", utils.get_current_time().utc_strftime())
+            #print("----- Steps obtained:", [step.get_name() for step in flow.get_steps()])
         else:
             self._discard_flow(flow)
 
@@ -1353,8 +1353,8 @@ class GroundStation:
                     '''
         if incoming_flows_count > 0:
             flow.travelled_distance = sum_travelled_distance / incoming_flows_count
-            if constants.DEBUG or not(constants.DEBUG):
-                print("Average distance travelled by flow", flow.id, "in kms:", flow.travelled_distance)
+            #if constants.DEBUG or not(constants.DEBUG):
+            #    print("Average distance travelled by flow", flow.id, "in kms:", flow.travelled_distance)
         for outgoing_flow, start_time, end_time in self.outgoing_flows:
             if flow == outgoing_flow:
                 if end_time == None or until - end_time < 0:

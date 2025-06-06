@@ -46,7 +46,7 @@ class TrafficAnalyzer:
                     env.prepare()
                     env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites) #execute the simulation with dijkstra algorithm
                     env.start()
-                for strategy in [Strategy.POSITION_GUESSING_NO_LB, Strategy.POSITION_SHARING_NO_LB]: #, Strategy.POSITION_GUESSING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, Strategy.POSITION_SHARING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]: #assign these strateies to ROUTIING_STRATEGY
+                for strategy in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]: #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB, Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]: #Strategy.POSITION_GUESSING_NO_LB, Strategy.POSITION_SHARING_NO_LB]: #, Strategy.POSITION_GUESSING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, Strategy.POSITION_SHARING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]: #assign these strateies to ROUTIING_STRATEGY
                     constants.ROUTING_STRATEGY = strategy 
                     flows = {} #empty dictionary of flows
                     for i in range(0, simulation_duration_backup): #repeat simulation shifting hour from 0 to simulation_duration_backup with new strategies
@@ -82,11 +82,11 @@ class TrafficAnalyzer:
                 utils.set_hour_shift(0)
                 constants.TOTAL_VOLUME_OF_TRAFFIC = total_traffic_backup
             #case 3
-            case AnalysisMetric.DELIVERED_DROPPED_RATIO: #va a rieseguire per ogni strategia ripartendo da 1 Mb e aggiungendo 1 Mb di traffico per ogni ciclio su tutte le strategie
+            case AnalysisMetric.DELIVERED_DROPPED_RATIO: #poco senso con Centralized Route #va a rieseguire per ogni strategia ripartendo da 1 Mb e aggiungendo 1 Mb di traffico per ogni ciclio su tutte le strategie
                 total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC
                 self.prepare_results_for_delivered_dropped_ratio()
 
-                for volume in range(1, total_traffic_backup + 1, 1): #range(from 1, to total_traffic_backup, with steps of 1)
+                for volume in range(1, total_traffic_backup + 1, 1): #Aumenta sempre più il volume del traffico immesso in rete con range(from 1, to total_traffic_backup, with steps of 1)
                     constants.TOTAL_VOLUME_OF_TRAFFIC = volume
                     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
                     print(traffic_matrix)
@@ -187,8 +187,11 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
                     'DIJKSTRA' : {}, #key that will contain results for dijkstra #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {}, #key that will contain results for k shortest edge disjoint source routing
-                    Strategy.POSITION_GUESSING_NO_LB.name : {}, #key that will contain results for position guessing no lb
-                    Strategy.POSITION_SHARING_NO_LB.name : {} # RICORDARSI VIRGOLA key that will contain results for  position sharing no lb
+                    Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {}, #key that will contain results for length shortest node disjoint source routing with load balancing
+                    #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {}, #key that will contain results for k shortest node disjoint source routing with load balancing
+                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {} #key that will contain results for k shortest edge disjoint source routing with load balancing
+                    #Strategy.POSITION_GUESSING_NO_LB.name : {}, #key that will contain results for position guessing no lb
+                    #Strategy.POSITION_SHARING_NO_LB.name : {} # RICORDARSI VIRGOLA key that will contain results for  position sharing no lb
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy (even dijkstra) 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
@@ -215,7 +218,24 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 flow = utils.create_new_flow((destination.lat, destination.lon), 0) #create a flow with 0 initial traffic rate
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow  #store the flow in dictionary flows as: flows = {"GS1 - GS2": <Flow object>, "GS1 - GS3": <Flow object>,...}
-                source.send_flow(flow) #send flow to destination
+                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                    source.send_flow(flow) #send flow to destination for distributed strategies
+                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                    source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
     def sample_strategy_comparison(self, kwargs): #store perferomance data for comparison
         ground_stations: dict = kwargs['ground_stations']
@@ -226,8 +246,8 @@ class TrafficAnalyzer:
                 flow = flows[source.get_name() + ' - ' + destination.get_name()] #store the flow obtained by key source-destination in the dictionary flows
                 if destination.is_incoming_flow_alive(flow): #if the flow is incoming in destination
                     destination.get_flow_info(flow, until=utils.get_current_time()) #obtain flow infos until the time of the current simulation
-                    print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flow.paths[-1]])
-                    print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flow.paths[-1]), "hops.")
+                    #print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flow.paths[-1]])
+                    #print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flow.paths[-1]), "hops.")
                     self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['successful'].append(len(flow.paths[-1])) #store length (as steps) of successful paths
                     self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['distance'].append(flow.travelled_distance) #store the travelled distance 
                 else:
@@ -295,7 +315,25 @@ class TrafficAnalyzer:
                 destination = ground_stations[destination_name.upper()] #store GS destinations as Upper case
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flow
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow #flow store in dictionary flows
-                source.send_flow(flow) #send flow
+                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                    source.send_flow(flow) #send flow to destination for distributed strategies
+                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                    source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
+                #source.send_flow(flow) #send flow
 
     def sample_link_occupation_analysis(self, kwargs): #analyze and store avarage link occupation
         satellites: dict = kwargs['satellites']

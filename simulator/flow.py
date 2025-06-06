@@ -30,13 +30,23 @@ class Flow:
         self.steps.append(sat)
         #print("selfsteps added", self.steps) #self.steps costituiti dai satelliti che attraversa il flusso
 
-    #drop steps from a specific satellite
     def drop_steps_from(self, sat):
         #print("DROPPING STEPS FROM", sat)
-        indices = [i for i, x in enumerate(self.steps) if x == sat] #obtain the list of indeces and satellites equal to sat
         #print("STEPS RIMANENTI", self.steps)
+        indices = [i for i, x in enumerate(self.steps) if x == sat]
+        if not indices:
+            print(f"[WARNING] Satellite {sat} not found in steps. Skipping drop.")
+            return  # Evita il crash se il satellite non è nella lista
+        self.steps = self.steps[:indices[-1]]  # taglia la lista fino all'ultimo indice trovato
+        self.ttl = constants.FLOW_TTL - len(self.steps)  # aggiorna il TTL
+
+    '''#drop steps from a specific satellite
+    def drop_steps_from(self, sat):
+        print("DROPPING STEPS FROM", sat)
+        indices = [i for i, x in enumerate(self.steps) if x == sat] #obtain the list of indeces and satellites equal to sat
+        print("STEPS RIMANENTI", self.steps)
         self.steps = self.steps[:indices[-1]] #the list is cut off till the last index found, every satellite after that point is cut off
-        self.ttl = constants.FLOW_TTL - len(self.steps) #recalculate the TTL subtracting the new length of steps
+        self.ttl = constants.FLOW_TTL - len(self.steps)''' #recalculate the TTL subtracting the new length of steps
 
     #split the flow based on rate
     def split(self, rate):

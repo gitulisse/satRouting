@@ -82,9 +82,9 @@ def prepare():
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
                 env.put(i, sat.update_neighbors)
         #reroute
-        for sat in env.satellites.values():
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, sat._reroute_all)
+        #for sat in env.satellites.values():
+         #   for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+          #      env.put(i, sat._reroute_all)#'''
 
     env.ready = True #set ready to True
     print("Simulation ready to run.")
