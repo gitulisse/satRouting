@@ -10,11 +10,8 @@ class MappingTable:
     def add(self, input_id: int) -> int:
         out_id = self._create_new_out_id() #output_id
         self.table.append((input_id, out_id)) 
-        '''
-        #debug
-        if constants.DEBUG:      
-            print(f"Added pair ({input_id}, {out_id}) to mapping table")
-        '''
+        #if constants.DEBUG:      
+         #   print(f"Added pair ({input_id}, {out_id}) to mapping table")
         #print(f"Added mapping: {input_id} -> {out_id}")
         return out_id
 

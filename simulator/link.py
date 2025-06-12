@@ -36,7 +36,7 @@ class Link:
         #print("sendflow link base class")
         if flow.alias_id not in self.flows.keys(): #if alias_id isn't in flows keys raise error
             raise RuntimeError("Resources needs to be reserved before sending flow " + str(flow.id) + " with alias id " + str(flow.alias_id))
-        if routing_decisions is None or isinstance(self.target, GroundStation): #if routing_decisions is None or target is a GroundStation
+        if routing_decisions == None or isinstance(self.target, GroundStation): #if routing_decisions is None or target is a GroundStation
             self.target.open_flow(flow.clone()) #cloned flow sent to target
         else:
             self.target.open_flow(flow.clone(), routing_decisions) #cloned flow sent to target
@@ -44,23 +44,25 @@ class Link:
     #close flows
     def close_flow(self, flow: Flow):
         #print("[INFO] Link close flow on parent", self._parent.get_name(), "to target", self.target.get_name(), "with bandwidth", self.get_available_bandwidth())
+        print(f"Flows in self.flows General Link: {self.flows}")
         if flow.alias_id not in self.flows:
-            print(f"[WARN] alias_id {flow.alias_id} non presente in self.flows. Chiavi attuali: {list(self.flows.keys())}")
+            print(f"[WARN GENERAL LINK] alias_id {flow.alias_id} non presente in self.flows di {self._parent.get_name()}. Chiavi attuali: {list(self.flows.keys())}")
         else:
             #print(f"[INFO] Rimozione flow con alias_id {flow.alias_id}")
             self.flows.pop(flow.alias_id) #remove flow id
-            self.target.close_flow(flow.clone()) #cloned flow sent to target will be closed by the target
-        '''
-        if constants.DEBUG:
-            print("Closed flow", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flow.rate, "Gbps at time", utils.get_current_time().utc_strftime())
-        '''
-            
+            if constants.DEBUG:
+                print("Closed flow on general link", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flow.rate) # "Gbps at time", utils.get_current_time().utc_strftime())
+            self.target.close_flow(flow.clone()) #cloned flow sent to target will be closed by the target          
     
     #manage reservation of bandwidth for a specified Flow
     def reserve_bandwidth(self, flow: Flow) -> bool:
         #print(">>>>>>>>>> Reserving bandwidth....")
         if self.get_available_bandwidth() >= flow.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all flows' rate in self.flows
             self.flows[flow.alias_id] = flow #store flow in flows using alias_id as key
+            #print(f"[RESERVE BANDWIDTH] self.flows adding {self.flows}")
+            #print(f"[INFO] Available bandwidth on link is {self.get_available_bandwidth()} Gbps now")
+            #if constants.DEBUG:
+             #   print("Reserved on link", flow.rate, "Mb for flux", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
             if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
@@ -81,6 +83,8 @@ class Link:
                 print(f"[DEBUG] Updated bandwidth on graph: {self._parent.get_name()} <-> {target_name} now {env.main_graph[self._parent.get_name()][target_name]['available_bandwidth']} Gbps")
             return True
         else:
+            if constants.DEBUG:
+                print("Failed to reserve", flow.rate, "Mb for flux", flow.id, "with alias id", flow.alias_id)
             #print("Reserving for link", self._parent.get_name(), "-", target_name, "Failed to reserve", flow.rate, "Gb, for flow", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
             return False
 
@@ -208,17 +212,14 @@ class RadioLink(Link):
     #close flow
     def close_flow(self, flow: Flow):
         #print("[INFO] Closing Radiolink close flow on parent", self._parent.get_name(), "to target GSs ", [gs.get_name() for gs in self.target])
-        #print(f"Flows in self.flows: {self.flows}")##########
+        print(f"Flows in self.flows Radiolink: {self.flows}")##########
         if flow.alias_id in self.flows:
             self.flows.pop(flow.alias_id) #remove flow using id
         else:
-            print(f"[WARN] alias_id {flow.alias_id} non trovato in self.flows")
+            print(f"[WARN RADIOLINK] alias_id {flow.alias_id} non trovato in self.flows di {self._parent.get_name()}. Chiavi attuali: {list(self.flows.keys())}")
         #self.flows.pop(flow.alias_id) 
         for gs in self.target:
-            '''
-            #debug
             if constants.DEBUG:
-                print("Closed flow", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", gs.get_name(), "with rate", flow.rate, "Gbps at time", utils.get_current_time().utc_strftime())
-            '''
+                print("Closed flow on radiolink", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", gs.get_name(), "with rate", flow.rate) # "Gbps at time", utils.get_current_time().utc_strftime())
             gs.close_flow(flow.clone()) #every GS in self.target close the flow
             

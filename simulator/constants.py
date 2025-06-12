@@ -4,7 +4,7 @@ from strategy import Strategy
 
 #Contant values to run the application
 
-DEBUG = False
+DEBUG = True
 
 LATITUDE_CUTOFF = 70
 
@@ -20,7 +20,8 @@ GROUND_STATION_LINK_CAPACITY = 1000 #Gbps
 
 TIME_MULTIPLIER = 1
 
-K_SHORTEST_VALUE = 5 #constant that decides how many disjoint paths should be found by k shortest algorithm
+K_SHORTEST_VALUE = 1 #constant k value for shortest path algorithm without load balancing
+K_SHORTEST_VALUE_LB = 4 #constant that decides how many disjoint paths should be found by k shortest algorithm with load balancing
 
 parser = argparse.ArgumentParser(prefix_chars='-')
 parser.add_argument("-s", "--strategy", type=int)

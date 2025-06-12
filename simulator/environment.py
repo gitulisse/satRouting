@@ -138,12 +138,12 @@ def start():
         if time != env.elapsed_time: 
             env.elapsed_time = time
             print("\n|||Simulating", time, "/", constants.SIMULATION_DURATION, "seconds|||")
+            print("ACTIONS", action)
         '''
         if constants.DEBUG:
             print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########
         '''
         #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
-        #print("AZIONI", action)
         if kwargs:
             action(kwargs)
         else:
@@ -239,11 +239,10 @@ def topology_builder():
         elif (sat[1] > sat_link[1] or sat[1] < -150 and sat_link[1] > 150 and sat[1] < sat_link[1]) and sat[5] == None and sat_link[4] == None: #West branch
                 sat[5] = sat_key
                 sat_link[4] = key
-    '''
     #debug            
     if constants.DEBUG:
         print("Linking phase completed. Applying...")
-    '''
+    
 
     #for every satellite update their infos and add links
     for key, sat in temp_satellites.items():
@@ -260,6 +259,7 @@ def topology_builder():
         satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)
         satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
 
+
     ## NEW SECTION
     # === NUOVA SEZIONE: Creazione del grafo principale === Si genera ERRORE di rimozione flow dai link
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
@@ -274,15 +274,15 @@ def topology_builder():
 
         # Aggiungi collegamenti attivi fra satelliti
         for name, sat in env.satellites.items():
-                    for dir, link in sat._links.items():  # Itera sui link del satellite
-                        if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
-                            env.main_graph.add_edge(
-                                name,
-                                link.target.get_name(), 
-                                weight=utils.get_distance_between_satellites(sat, link.target), 
-                                available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
-                                link_obj=link #aggiunto riferimento all'oggetto link nel grafo
-                            )
+            for dir, link in sat._links.items():  # Itera sui link del satellite
+                if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
+                    env.main_graph.add_edge(
+                        name,
+                        link.target.get_name(), 
+                        weight=utils.get_distance_between_satellites(sat, link.target), 
+                        available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
+                        link_obj=link #aggiunto riferimento all'oggetto link nel grafo
+                    )
 
         # Collegamenti tra Ground Station e satelliti più vicini
         for gs_name, gs in env.ground_stations.items():
@@ -296,12 +296,11 @@ def topology_builder():
                         available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY, # Puoi parametrizzare se serve
                     )
 
-        for name, sat in env.satellites.items():
-                for dir, link in sat._links.items():  # Itera sui link del satellite
-                    if link.is_active() and link.target:
-                        link.reset_bandwidth()  # Reset della banda disponibile per il link
-                    sat._gs_link.reset_bandwidth()
-
+        '''for name, sat in env.satellites.items():
+            for dir, link in sat._links.items():  # Itera sui link del satellite
+                if link.is_active() and link.target:
+                    link.reset_bandwidth()  # Reset della banda disponibile per il link
+                sat._gs_link.reset_bandwidth()'''
         
         num_nodes = env.main_graph.number_of_nodes()
         num_edges = env.main_graph.number_of_edges()
@@ -309,9 +308,7 @@ def topology_builder():
 
         #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
         
-        #for edge_info in edges_list:
-        #   print(" -", edge_info)
-        print("Main graph successfully updated by topology_builder.")
+        print("Applied. Main graph successfully updated by topology_builder.")
    
 #calculate the value of control_traffic_data used during the simulation
 def log_control_traffic_message(bytes: int):

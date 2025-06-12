@@ -40,12 +40,12 @@ class HeaderBuilder:
         end_time = utils.get_current_time() #set end_time
         source_gs_flow_info = self.source_gs.get_flow_info(self.flow, end_time, precision=1) #get flow info from source GS
         destination_gs_flow_info = self.destination_gs.get_flow_info(self.flow, end_time, precision=1) #get flow info from destination GS
-        print("Sent", source_gs_flow_info[0], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Received", destination_gs_flow_info[1], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Lost", destination_gs_flow_info[2], "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Sent", source_gs_flow_info[0] / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Received", destination_gs_flow_info[1] / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("Lost", destination_gs_flow_info[2]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
         print("Finished centralized route.")
 
-        '''
+        
         if constants.DEBUG:
             all_ids = []
             all_sats = []
@@ -57,9 +57,13 @@ class HeaderBuilder:
                         all_ids.append(f.id)
                         if f.id == self.flow.id:
                             flows_leftovers_info.append((f.id, f.rate, f.alias_id, f.state))
+                    #print("LEFTOVERRRRS", flows_leftovers_info)
                     if flows_leftovers_info:
                         print("Satellite", name, "has", len(flows_leftovers_info), "active flows. (flow from", self.source_gs.get_name(), "to", self.destination_gs.get_name(), ")")
                         print("Satellite", name, "mapping table:", sat.mapping_table.table)
                         for id, r, alias_id, state in flows_leftovers_info:
                             print(id, r, alias_id, state)
-        '''
+        
+            print("Totale satelliti con strutture flows occupate:", len(all_sats))
+            print("Totale flussi in giro:", len(set(all_ids)))
+

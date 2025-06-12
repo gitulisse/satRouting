@@ -58,7 +58,7 @@ class GroundStation:
     def add_population_to_serve(self, amount: int):
         self.serving_population += amount
 
-    #new
+    #starting point of centralized routing
     def start_centralized_routing(self, flow: Flow, ground_stations):
         self.gss = ground_stations
         flow.source = self
@@ -85,7 +85,7 @@ class GroundStation:
        
         for decision in routing_decisions: #ora che ho tutte le liste di tutti i flussi voglio inviare i singoli flussi con le loro decisioni sulla rete, uno alla volta
             action, partial_flow, link = decision[0]
-            print(f"  +++++      Sending flow {partial_flow} id {partial_flow.id} rate {partial_flow.rate} to satellite {self.sat.get_name()}")
+            print(f"  +++++      Sending flow {partial_flow} id {partial_flow.id} alias_id {partial_flow.alias_id} rate {partial_flow.rate} to satellite {self.sat.get_name()}")
             print(f"  +++++      Sending with decisions: {decision}")
             self.send_flow(partial_flow, decision) #send the flow to the source GS
 
@@ -747,10 +747,19 @@ class GroundStation:
         destination: dict = kwargs['destination']
         satellites: dict = kwargs['satellites']
         flow: Flow = kwargs['flow']  # aggiunto flow
-        k = constants.K_SHORTEST_VALUE  # Numero massimo di percorsi disgiunti richiesti
+
+        if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                        Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING]:
+            k = constants.K_SHORTEST_VALUE # Numero massimo di percorsi disgiunti consentiti
+
+        if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+            k = constants.K_SHORTEST_VALUE_LB  # Numero massimo di percorsi disgiunti richiesti
         
-        #print("SATELLITES -->", list(satellites.keys()))
-        print(f"<<< Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()} >>>")
+        #print(f"<<< Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()} >>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
         print("> Calculated K PATHS:", k_disjoint_paths)
 
@@ -1229,10 +1238,9 @@ class GroundStation:
                 self.sat.serving_gs = None #change attribute serving_gs of current satellite to None
             self.sat = sat #change of satellite that is serving the GS
             self.sat.serving_gs = self #connect to GS
-            # Itera su ogni flusso nella lista `backup_flows`
-            #print("Backup_flows attach to sat", backup_flows)
-            for flow in backup_flows:
-                print(f"Flowes to send {flow} ID: {flow.id}, Alias ID: {flow.alias_id} with rate {flow.rate} Gbps. Destination {flow.destination}")
+            
+            #for flow in backup_flows:
+             #   print(f"Flowes to send {flow} ID: {flow.id}, Alias ID: {flow.alias_id} with rate {flow.rate} Gbps. Destination {flow.destination}")
             for backup_flow in backup_flows: 
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
@@ -1259,8 +1267,9 @@ class GroundStation:
     def send_flow(self, flow: Flow, routing_decisions=None): #optional parameter routing_decisions
         #print("send_flow GS metodo")
         self.outgoing_flows.append((flow, utils.get_current_time(), None)) #add an outgoing flow with current time, None is the time of termination of the flow
-        #if constants.DEBUG:
-        #print("----- OPENING FLOW on GS", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+        print(f"    OUTGOING_FLOWS inviati da GS {self.get_name()}: {self.outgoing_flows}")
+        if constants.DEBUG:
+            print("----- OPENING FLOW on [GS]", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate)# "at time", utils.get_current_time().utc_strftime())
         flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
         #print("self.sat connected to GS", self.sat.get_name())
         if routing_decisions != None:
@@ -1270,11 +1279,16 @@ class GroundStation:
 
     #close the outgoing flow
     def close_outgoing_flow(self, flow: Flow):
-        #print("[INFO] Close OUTGOING flow GS method on GS", self.get_name())
+        print("SELF.keep_log", self.keep_log)
         if self.keep_log:
+            print(">-< SELF.outgoing_flows", self.outgoing_flows)
             for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
-                #print("CONTROLLO PARAMETRI flow",flow, "out_flow",outgoing_flow, "flow.alias_id", flow.alias_id, "outgoing_flow.alias_id", outgoing_flow.alias_id, "flow.rate", flow.rate, "outgoing_flow.rate", outgoing_flow.rate, "end_time", end_time)
                 if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
+                    
+                    if constants.DEBUG:
+                        for listed_flow in self.outgoing_flows:
+                            print("SELF.outgoing_flows id", listed_flow[0].id,"and alias_id", listed_flow[0].alias_id)
+
                     self.outgoing_flows[i] = (outgoing_flow, start_time, utils.get_current_time())
                     #print("outgoing_flows at i index", self.outgoing_flows[i])
                     #outgoing_flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
@@ -1289,15 +1303,12 @@ class GroundStation:
 
     #metodo di arrivo alla destinazione
     def open_flow(self, flow: Flow): #apre il flow se è alla ground station di destinazione allora copia gli step in path e diventano il percorso attuato
-        #print("open_flow GS metodo")
-        #print("flow destination", flow.destination)
-        #print("self.lat and self.lon", self.lat, self.lon)
         if flow.destination[0] == self.lat and flow.destination[1] == self.lon:
             flow.paths.append(flow.get_steps())
             flow.state = FlowState.DELIVERED
             self.incoming_flows.append((flow, utils.get_current_time(), None))
-            #print("----- FLOW delivered", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!", "at time", utils.get_current_time().utc_strftime())
-            #print("----- Steps obtained:", [step.get_name() for step in flow.get_steps()])
+            print("----- FLOW delivered", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!")# "at time", utils.get_current_time().utc_strftime())
+            print("#     Steps obtained:", [step.get_name() for step in flow.get_steps()])
         else:
             self._discard_flow(flow)
 
@@ -1312,10 +1323,10 @@ class GroundStation:
             for i, (incoming_flow, start_time, end_time) in enumerate(self.incoming_flows):
                 if flow == incoming_flow and flow.alias_id == incoming_flow.alias_id and flow.rate == incoming_flow.rate and end_time == None:
                     self.incoming_flows[i] = (incoming_flow, start_time, utils.get_current_time())
-                    '''
+                    
                     if constants.DEBUG:
                         print("Closed incoming flow", flow.id, "with alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
-                    '''
+                    
                     break
         else:
             while self.incoming_flows.__contains__(flow):
@@ -1345,12 +1356,12 @@ class GroundStation:
                     flow.paths.append(incoming_flow.get_steps())
                     sum_travelled_distance += incoming_flow.travelled_distance
                     incoming_flows_count += 1 
-                    '''
+                    
                     #debug 
-                    if constants.DEBUG:
-                        print(total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flow.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flow.rate, "with alias id", incoming_flow.alias_id)
-                        print([sat.get_name() for sat in incoming_flow.get_steps()])
-                    '''
+                    #if constants.DEBUG:
+                     #   print("!total received", total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flow.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flow.rate, "with alias id", incoming_flow.alias_id)
+                      #  print("incoming_flow steps...sat", [sat.get_name() for sat in incoming_flow.get_steps()])
+                    
         if incoming_flows_count > 0:
             flow.travelled_distance = sum_travelled_distance / incoming_flows_count
             #if constants.DEBUG or not(constants.DEBUG):
@@ -1385,12 +1396,18 @@ class GroundStation:
     def DEBUG_get_dropped_flow(self, flow: Flow):
         flow.paths.append(flow.get_steps())
         self.DEBUG_dropped_incoming_flows.append((flow, utils.get_current_time(), None))
+        if constants.DEBUG:
+            print("Logged opening of dropped flux", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+            print("Steps:", [step.get_name() for step in flow.get_steps()])
   
     def DEBUG_close_dropped_flow(self, flow: Flow):
         if self.keep_log:
             for i, (dropped_flow, start_time, end_time) in enumerate(self.DEBUG_dropped_incoming_flows):
                 if flow == dropped_flow and flow.alias_id == dropped_flow.alias_id and flow.rate == dropped_flow.rate and end_time == None:
                     self.DEBUG_dropped_incoming_flows[i] = (dropped_flow, start_time, utils.get_current_time())
+                    if constants.DEBUG:
+                        print("Logged closing of dropped flux", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+                        print("Steps in DEBUG_close_dropped_flow:", [step.get_name() for step in flow.get_steps()])
                     break
         else:
             while self.DEBUG_dropped_incoming_flows.__contains__(flow):

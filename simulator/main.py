@@ -114,9 +114,9 @@ oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo')
 #Ground Stations selected (removed'SAN FRANCISCO' : san_francisco_gs)
 ground_stations = {
     'TOKYO' : tokyo_gs,
-    'NEW YORK' : new_york_gs,
-    'DAR ES SALAAM' : dar_es_salaam_gs,
-    'BUENOS AIRES' : buenos_aires_gs
+    'NEW YORK' : new_york_gs
+    #'DAR ES SALAAM' : dar_es_salaam_gs,
+    #'BUENOS AIRES' : buenos_aires_gs
 }
 
 #Obtain the Traffic Matrix
@@ -211,8 +211,8 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
-results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-charts.show_shortest_paths_table(results)
+#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+#charts.show_shortest_paths_table(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
 #charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
