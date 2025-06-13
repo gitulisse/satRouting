@@ -122,7 +122,7 @@ class GroundStation:
 
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
+
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -149,7 +149,7 @@ class GroundStation:
         
         elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
+
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -170,7 +170,7 @@ class GroundStation:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
 
         elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION:
-            #self.prepare_results_for_disjointpaths(ground_stations=self.gss)
+
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
@@ -621,10 +621,11 @@ class GroundStation:
                     disjoint_paths.extend(paths)
                 except nx.NetworkXNoPath:
                     if remaining_flow not in self.DEBUG_dropped_flows:
-                        self.DEBUG_dropped_flows.append(remaining_flow)
+                        self.drop_flow(remaining_flow, FlowState.SATELLITE_CONGESTED)  # Store the flow that cannot be routed
+                        #self.DEBUG_dropped_flows.append(remaining_flow)
                     print(f"No Node disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
 
-            # Se non ci sono percorsi, prova un nodo sorgente alternativo
+            '''# alternative Source satellite choice if using multiple GS to Sat connections
             if not disjoint_paths and len(source_satellites) > 1:
                 print("Attempting to switch to an alternative source satellite...")
                 for alternate_satellite in source_satellites:
@@ -640,7 +641,7 @@ class GroundStation:
                                 break
                         except nx.NetworkXNoPath:
                             print(f"No paths found for alternate source satellite: {alternate_satellite}.")
-
+            '''
             #print(f"G_auxiliary nodes after exclusions: {g_auxiliary.nodes}")
             #self.print_paths(disjoint_paths, "Node disjoint paths")
             if disjoint_paths:
@@ -654,7 +655,7 @@ class GroundStation:
                     disjoint_paths.extend(paths)
                 except nx.NetworkXNoPath:
                     print(f"No Edge disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
-            self.print_paths(disjoint_paths, "Edge disjoint paths")
+            #self.print_paths(disjoint_paths, "Edge disjoint paths")
             if disjoint_paths:
                 probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
@@ -666,16 +667,19 @@ class GroundStation:
                     disjoint_paths.extend(paths)
                 except nx.NetworkXNoPath:
                     print(f"No Node disjoint path for {constants.ROUTING_STRATEGY} between {source_satellite} and {dst_sat}.")
-            self.print_paths(disjoint_paths, "Length shortest node disjoint paths")
+            #self.print_paths(disjoint_paths, "Length shortest node disjoint paths")
             if disjoint_paths:
                 probabilities = self.calculate_path_weights_length_shortest_node_disjoint(g_auxiliary, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
         if selected_path is None:  # Se nessun percorso è stato trovato
             print(f"DROPPED FLOW STORED while calculate path exclusions, No valid path for {remaining_flow} rate {remaining_flow.rate} from {self.get_name()} to {self.destination.get_name()}.")
-            if remaining_flow not in self.DEBUG_dropped_flows:
-                self.DEBUG_dropped_flows.append(remaining_flow) #aggiungo il flusso non instradato alla lista
-            print(f"DEBUG DROPPED FLOWS: {self.DEBUG_dropped_flows}")
+            #if remaining_flow not in self.DEBUG_dropped_flows:
+             #   self.DEBUG_dropped_flows.append(remaining_flow) #aggiungo il flusso non instradato alla lista
+            #print(f"DEBUG DROPPED FLOWS: {self.DEBUG_dropped_flows}")
+            self.outgoing_flows.append((remaining_flow, utils.get_current_time(), None))
+            remaining_flow.travelled_distance = 0
+
             reached_node = None
             return []
 
@@ -1262,12 +1266,12 @@ class GroundStation:
     #get name
     def get_name(self) -> str:
         return self.name
- 
+
     #sender of flows from GS to connected satellite
     def send_flow(self, flow: Flow, routing_decisions=None): #optional parameter routing_decisions
         #print("send_flow GS metodo")
         self.outgoing_flows.append((flow, utils.get_current_time(), None)) #add an outgoing flow with current time, None is the time of termination of the flow
-        print(f"    OUTGOING_FLOWS inviati da GS {self.get_name()}: {self.outgoing_flows}")
+        #print(f"    OUTGOING_FLOWS inviati da GS {self.get_name()}: {self.outgoing_flows}")
         if constants.DEBUG:
             print("----- OPENING FLOW on [GS]", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate)# "at time", utils.get_current_time().utc_strftime())
         flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
@@ -1279,22 +1283,22 @@ class GroundStation:
 
     #close the outgoing flow
     def close_outgoing_flow(self, flow: Flow):
-        print("SELF.keep_log", self.keep_log)
+        #print("SELF.keep_log", self.keep_log)
         if self.keep_log:
-            print(">-< SELF.outgoing_flows", self.outgoing_flows)
+            #print(">-< SELF.outgoing_flows", self.outgoing_flows)
             for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
                 if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
                     
-                    if constants.DEBUG:
-                        for listed_flow in self.outgoing_flows:
-                            print("SELF.outgoing_flows id", listed_flow[0].id,"and alias_id", listed_flow[0].alias_id)
+                    #if constants.DEBUG:
+                     #   for listed_flow in self.outgoing_flows:
+                      #      print("SELF.outgoing_flows id", listed_flow[0].id,"and alias_id", listed_flow[0].alias_id)
 
                     self.outgoing_flows[i] = (outgoing_flow, start_time, utils.get_current_time())
                     #print("outgoing_flows at i index", self.outgoing_flows[i])
                     #outgoing_flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
                     outgoing_flow.travelled_distance = 0                    
-                    if constants.DEBUG:
-                        print("Closed outgoing flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+                    #if constants.DEBUG:
+                     #   print("Closed outgoing flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
                     break
         else:
             while self.outgoing_flows.__contains__(flow):
@@ -1324,8 +1328,8 @@ class GroundStation:
                 if flow == incoming_flow and flow.alias_id == incoming_flow.alias_id and flow.rate == incoming_flow.rate and end_time == None:
                     self.incoming_flows[i] = (incoming_flow, start_time, utils.get_current_time())
                     
-                    if constants.DEBUG:
-                        print("Closed incoming flow", flow.id, "with alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+                    #if constants.DEBUG:
+                     #   print("Closed incoming flow", flow.id, "with alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
                     
                     break
         else:
@@ -1434,5 +1438,25 @@ class GroundStation:
 
             if nested_decisions and isinstance(nested_decisions[0], list):
                 nested_decisions = nested_decisions.pop(0)
-
         return separated_lists
+
+    def drop_flow(self, flow: Flow, reason: FlowState):
+        if constants.DEBUG: #debugging messages
+            msg = "Flow " + str(flow.id) + " with alias id " + str(flow.alias_id) + " with rate " + str(flow.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
+            if reason == FlowState.SATELLITE_CONGESTED:
+                msg += "Satellite is congested."
+            elif reason == FlowState.LINK_CONGESTED:
+                msg += "Link is congested."
+            elif reason == FlowState.EXPIRED_TTL:
+                msg += "TTL is 0."
+            elif reason == FlowState.SATELLITE_NOT_OPERATIONAL:
+                msg += "Satellite is not operational."
+            else:
+                raise ValueError("The reason is not expected.", reason)
+            print(msg)
+        
+        flow.state = reason #update flow's state with reason for the drop
+        #self.store_flow_direction(flow, None) #flow dropped and no more connected to active link
+        self.DEBUG_dropped_flows.append(flow) 
+        self.gss[[key for key, gs in self.gss.items() if gs.lat == flow.destination[0] and gs.lon == flow.destination[1]][0]].DEBUG_get_dropped_flow(flow)
+        #self.gss in sostituzione di self.ground_stations

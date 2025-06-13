@@ -43,9 +43,8 @@ class HeaderBuilder:
         print("Sent", source_gs_flow_info[0] / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
         print("Received", destination_gs_flow_info[1] / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
         print("Lost", destination_gs_flow_info[2]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Finished centralized route.")
-
         
+        '''
         if constants.DEBUG:
             all_ids = []
             all_sats = []
@@ -65,5 +64,5 @@ class HeaderBuilder:
                             print(id, r, alias_id, state)
         
             print("Totale satelliti con strutture flows occupate:", len(all_sats))
-            print("Totale flussi in giro:", len(set(all_ids)))
+            print("Totale flussi in giro:", len(set(all_ids)))'''
 

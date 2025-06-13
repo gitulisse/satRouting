@@ -38,7 +38,7 @@ def put(time, function, **kwargs):
 
 #used to configure the environment before the simulation
 def prepare():
-    print("prepare() called.......")
+    #print("prepare() method....")
     if env.ready == True:
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().") #if environment is ready and receive another prepare() throws error
     
@@ -138,10 +138,10 @@ def start():
         if time != env.elapsed_time: 
             env.elapsed_time = time
             print("\n|||Simulating", time, "/", constants.SIMULATION_DURATION, "seconds|||")
-            print("ACTIONS", action)
+            
         '''
         if constants.DEBUG:
-            print("TIME: ", time ,"ACTIONS QUEUE: ", action) ###########
+            print("Action to execute:", action)
         '''
         #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
         if kwargs:
@@ -242,7 +242,6 @@ def topology_builder():
     #debug            
     if constants.DEBUG:
         print("Linking phase completed. Applying...")
-    
 
     #for every satellite update their infos and add links
     for key, sat in temp_satellites.items():
@@ -259,9 +258,7 @@ def topology_builder():
         satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)
         satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
 
-
-    ## NEW SECTION
-    # === NUOVA SEZIONE: Creazione del grafo principale === Si genera ERRORE di rimozione flow dai link
+    # update the graph to new constellation topology
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
@@ -272,19 +269,19 @@ def topology_builder():
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
         env.main_graph = nx.Graph()
 
-        # Aggiungi collegamenti attivi fra satelliti
+        # Add active links to active satellites
         for name, sat in env.satellites.items():
-            for dir, link in sat._links.items():  # Itera sui link del satellite
-                if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
+            for dir, link in sat._links.items(): 
+                if link.is_active() and link.target:
                     env.main_graph.add_edge(
                         name,
                         link.target.get_name(), 
                         weight=utils.get_distance_between_satellites(sat, link.target), 
                         available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
-                        link_obj=link #aggiunto riferimento all'oggetto link nel grafo
+                        link_obj=link #reference to link object in graph
                     )
 
-        # Collegamenti tra Ground Station e satelliti più vicini
+        # Link to GS and closer satellites
         for gs_name, gs in env.ground_stations.items():
             closer_satellites = utils.get_closer_satellites_for_graph(env.satellites, (gs.lat, gs.lon))
             for sat_name, sat in closer_satellites:
@@ -293,19 +290,13 @@ def topology_builder():
                     env.main_graph.add_edge(
                         gs_name, sat_name,
                         weight=distance_to_sat,
-                        available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY, # Puoi parametrizzare se serve
+                        available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY
                     )
 
-        '''for name, sat in env.satellites.items():
-            for dir, link in sat._links.items():  # Itera sui link del satellite
-                if link.is_active() and link.target:
-                    link.reset_bandwidth()  # Reset della banda disponibile per il link
-                sat._gs_link.reset_bandwidth()'''
         
         num_nodes = env.main_graph.number_of_nodes()
         num_edges = env.main_graph.number_of_edges()
         edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
-
         #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
         
         print("Applied. Main graph successfully updated by topology_builder.")

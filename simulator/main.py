@@ -48,6 +48,9 @@ def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
     plt.figure(figsize=(8, 6))
     ax = plt.axes(projection=ccrs.PlateCarree())
 
+    ax.set_global()  ###
+    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree()) ###
+
     # Draw the map with features
     draw_map(ax)
 
@@ -114,9 +117,11 @@ oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo')
 #Ground Stations selected (removed'SAN FRANCISCO' : san_francisco_gs)
 ground_stations = {
     'TOKYO' : tokyo_gs,
-    'NEW YORK' : new_york_gs
-    #'DAR ES SALAAM' : dar_es_salaam_gs,
-    #'BUENOS AIRES' : buenos_aires_gs
+    'NEW YORK' : new_york_gs,
+    'DAR ES SALAAM' : dar_es_salaam_gs,
+    'BUENOS AIRES' : buenos_aires_gs
+    #'PRETORIA' : pretoria_gs,
+    #'CAPE TOWN' : cape_town_gs
 }
 
 #Obtain the Traffic Matrix
@@ -151,7 +156,6 @@ for gs in ground_stations.values():
 env.satellites = satellites
 env.ground_stations = ground_stations
 env.prepare() #prepare the environment with all necessary components
-#launch 2 topology builder (for 2 runs of simulation on 20 secs duration) until "simulation ready to run"
 
 
 # Start of the code block that launches the "standard" simulation not aimed at developing graphs or analyzing specific metrics

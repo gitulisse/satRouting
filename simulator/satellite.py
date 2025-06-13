@@ -114,11 +114,11 @@ class Sat:
         #print("self.fluxes check", self.flows)
         if flow.alias_id not in self.flows.keys():
             self.flows[flow.alias_id] = (flow, link)
-            #print(" <======= stored new into self.fluxes", self.flows)
+            #print(" <======= stored new into self.flows", self.flows)
         else:
             raise RuntimeError("Alias id already present in flows structure.", flow.alias_id)
-        if constants.DEBUG:
-            print("Stored new flow", flow.id,"with alias id", flow.alias_id, "with rate", flow.rate, "on Satellite", self.get_name()) # "at time", utils.get_current_time().utc_strftime())
+        #if constants.DEBUG:
+         #   print("Stored new flow", flow.id,"with alias id", flow.alias_id, "with rate", flow.rate, "on Satellite", self.get_name()) # "at time", utils.get_current_time().utc_strftime())
 
             
     #Return tuple (flow, link) if the flow id is stored
@@ -143,13 +143,12 @@ class Sat:
             else:
                 raise ValueError("The reason is not expected.", reason)
             print(msg)
-        #print(f"SONO PRESENTI self.flows in satellite {self.get_name()}: {self.flows}")
+        
         flow.state = reason #update flow's state with reason for the drop
         self.store_flow_direction(flow, None) #flow dropped and no more connected to active link
         self.DEBUG_dropped_flows.append(flow) 
-        ############print(f"DEBUG_dropped_flows in satellite: {self.DEBUG_dropped_flows}")
         self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flow.destination[0] and gs.lon == flow.destination[1]][0]].DEBUG_get_dropped_flow(flow)
- 
+
     #Update infos on neighbors
     def update_neighbors(self):
         #self._update_position() #update satellite position ###
@@ -193,7 +192,7 @@ class Sat:
         for gs in self._ground_stations.values():
             distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km #calculate distance between 2 points using Geopy
             if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                gs_candidates.append(gs) #if distance from GS's lat & lon is less then satelllite's area radius appends GS to candidates
+                gs_candidates.append(gs) #if distance from GS's lat & lon is less then satellite's area radius appends GS to candidates
         if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
             #print(f"[Update GS link] {self._gs_link} from Satellite {self.get_name()} is updated to new GS: {[gs.get_name() for gs in gs_candidates]}") #più link si collegano da vari satelliti a una singola GS con questa implementazione
             leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
@@ -213,15 +212,13 @@ class Sat:
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
                         # Routing CENTRALIZZATO: drop dei leftovers
                         #print("ENTRATO 1 ----")
-                        for flow in leftovers:
-                            flow.drop_steps_from(self)
-                            self.drop_flow(flow, FlowState.LINK_CONGESTED)
+                        #flow.drop_steps_from(self)
+                        self.drop_flow(flow, FlowState.LINK_CONGESTED)
                     else:
                         # strategia decentralizzata: routing autonomo
                         #print("ENTRATO 2 ----")
-                        for flow in leftovers:
-                            flow.drop_steps_from(self)
-                            self.open_flow(flow)
+                        #flow.drop_steps_from(self)
+                        self.open_flow(flow)
                             #if constants.DEBUG:
                             #print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])'''
 
@@ -277,11 +274,12 @@ class Sat:
     #Sender of flows
     def send_flow(self, flow: Flow, link: Link, routing_decisions = None):
         if link.reserve_bandwidth(flow): #if the needed bandwidth is available return TRUE
-            if constants.DEBUG:
+            '''if constants.DEBUG:
                 if isinstance(link, RadioLink):
-                    print("[send_flow] Opened flow", flow.id, "to Radiolink on Satellite", self.get_name(), "with rate", flow.rate, "Gbps on link headed to", [gs.get_name() for gs in link.target]) #"at time", utils.get_current_time().utc_strftime())
+                    print("Opened flow", flow.id, "to Radiolink on Satellite", self.get_name(), "with rate", flow.rate, "Gbps on link headed to", [gs.get_name() for gs in link.target]) #"at time", utils.get_current_time().utc_strftime())
                 else:
-                    print("[send_flow] Opened flow", flow.id, "to Laserlink on Satellite", self.get_name(), "with rate", flow.rate, "Gbps on link headed to", link.target.get_name()) # "at time", utils.get_current_time().utc_strftime())
+                    print("Opened flow", flow.id, "to Laserlink on Satellite", self.get_name(), "with rate", flow.rate, "Gbps on link headed to", link.target.get_name()) # "at time", utils.get_current_time().utc_strftime())
+            '''
             self.store_flow_direction(flow, link) #save direction
             if isinstance(link, RadioLink):
                 flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0]) #if link is a radiolink calculates the distance satellite and GS
@@ -309,7 +307,7 @@ class Sat:
                         #print("ALIAS 2", f.alias_id, "for flow", f)
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.alias_id = self.mapping_table.add(f.alias_id)
-                print("     °[MAPPING]° Self mapping table _reopen_flow on", self.get_name(), "SAT :", self.mapping_table.table) #print mapping table for debug
+                #print("     [MAPPING] Self mapping table DISTR _reopen_flow on", self.get_name(), "SAT :", self.mapping_table.table) #print mapping table for debug
                 for action, f, link in routing_decisions:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                         self.send_flow(f, link) #send
@@ -328,7 +326,7 @@ class Sat:
                 #print("Routing decision da usare nel satellite in _reopening_flow ", routing_centralized_decisions)
                 #print("Routing decisions [_reopen_flow] centr", flow.id, "on Satellite", self.get_name(), ", Routing Decision:", routing_centralized_decisions) #print routing decisions
                 
-                print("     °[MAPPING]° Self mapping table CENTR _reopen_flow on", self.get_name(), "SAT :", self.mapping_table.table) #print mapping table for debug
+                #print("     [MAPPING] Self mapping table CENTR _reopen_flow on", self.get_name(), "SAT :", self.mapping_table.table) #print mapping table for debug
                 for action, f, link in routing_centralized_decisions:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                         routing_decisions.pop(0)
@@ -345,8 +343,8 @@ class Sat:
 
 
     def open_flow(self, flow: Flow, routing_decisions=None): #Manage the open of flows 
-        if constants.DEBUG:
-            print("--- Opening flow on [sat]", flow.id, "alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps") #"at time", utils.get_current_time().utc_strftime())
+        #if constants.DEBUG:
+         #   print("--- Opening flow on [sat]", flow.id, "alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps") #"at time", utils.get_current_time().utc_strftime())
         flow.add_step(self) #flow is added to the self satellite #print("  Opening flow2", flow, "id", flow.id, "with alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps")
         flow.alias_id = self.mapping_table.add(flow.alias_id)#update of the id, added to the mapping table
         #print(" <[MAPPING]> Self mapping table open_flow on", self.get_name(), "SAT :", self.mapping_table.table) #print mapping table for debug
@@ -600,7 +598,7 @@ class Sat:
                 flow.travelled_distance -= utils.get_distance_between_satellites(self, link.target)
             #Link can be None when the flow is dropped on the current satellite.
             if link != None:
-                print(f"    [INFO] [SAT] Close_internal_flow id {flow.id} with alias id {flow.alias_id} on Satellite {self.get_name()}")
+                #print(f"    [INFO] [SAT] Close_internal_flow id {flow.id} with alias id {flow.alias_id} on Satellite {self.get_name()}")
                 link.close_flow(flow) #close
             else:
                 if constants.DEBUG:
