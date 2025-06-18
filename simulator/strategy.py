@@ -12,7 +12,7 @@ class Strategy(Enum):
     POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7
     
  
-    BASELINE_DIJKSTRA = 8 #get_dijkstra shortest paths
+    #BASELINE_DIJKSTRA = 8 #get_dijkstra shortest paths
     KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING = 9 #based on occupation
     KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB = 10
     KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING = 11

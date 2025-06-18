@@ -46,7 +46,7 @@ def prepare():
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
         
-    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+    if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -102,7 +102,7 @@ def start():
     print("- Topology update scheduled each", constants.TOPOLOGY_UPDATE_TIME, "seconds")
 
     #if the strategy requires LB print the current UPDATE_TIME
-    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+    if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -120,7 +120,7 @@ def start():
     if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
         print("- Adaptive load balancing weight factor:", constants.LOAD_BALANCING_WEIGHT_FACTOR)
     
-    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+    if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -259,7 +259,7 @@ def topology_builder():
         satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
 
     # update the graph to new constellation topology
-    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+    if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,

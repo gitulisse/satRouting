@@ -46,7 +46,22 @@ class TrafficAnalyzer:
                     env.prepare()
                     env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites) #execute the simulation with dijkstra algorithm
                     env.start()
-                for strategy in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]: #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB, Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]: #Strategy.POSITION_GUESSING_NO_LB, Strategy.POSITION_SHARING_NO_LB]: #, Strategy.POSITION_GUESSING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, Strategy.POSITION_SHARING_PROGRESSIVE_LB, Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]: #assign these strateies to ROUTIING_STRATEGY
+                for strategy in [#Strategy.POSITION_GUESSING_NO_LB,
+                                  #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  #Strategy.POSITION_SHARING_NO_LB,
+                                  #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION,
+                                  #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION
+                                  ]:
                     constants.ROUTING_STRATEGY = strategy 
                     flows = {} #empty dictionary of flows
                     for i in range(0, simulation_duration_backup): #repeat simulation shifting hour from 0 to simulation_duration_backup with new strategies
@@ -187,11 +202,22 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
                     'DIJKSTRA' : {}, #key that will contain results for dijkstra #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {}, #key that will contain results for k shortest edge disjoint source routing
-                    Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {}, #key that will contain results for length shortest node disjoint source routing with load balancing
-                    #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {}, #key that will contain results for k shortest node disjoint source routing with load balancing
-                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {} #key that will contain results for k shortest edge disjoint source routing with load balancing
-                    #Strategy.POSITION_GUESSING_NO_LB.name : {}, #key that will contain results for position guessing no lb
-                    #Strategy.POSITION_SHARING_NO_LB.name : {} # RICORDARSI VIRGOLA key that will contain results for  position sharing no lb
+                    #Strategy.POSITION_GUESSING_NO_LB.name : {},
+                    #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
+                    #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
+                    #Strategy.POSITION_SHARING_NO_LB.name : {},
+                    #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
+                    #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
+                    #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+                    #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION.name : {},
+                    #Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
+                    #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING.name : {},
+                    Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
+                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {},
+                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
+                    #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING.name : {},
+                    #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
+                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION.name : {},
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy (even dijkstra) 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
@@ -216,7 +242,7 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             for destination in ground_stations.values():
                 if source == destination: continue
-                flow = utils.create_new_flow((destination.lat, destination.lon), 0) #create a flow with 0 initial traffic rate
+                flow = utils.create_new_flow((destination.lat, destination.lon), 0.5) #0.5 best choice, create a flow with 0.5 initial traffic rate
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow  #store the flow in dictionary flows as: flows = {"GS1 - GS2": <Flow object>, "GS1 - GS3": <Flow object>,...}
                 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
@@ -227,7 +253,7 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
-                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -235,6 +261,7 @@ class TrafficAnalyzer:
                                   Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                    print("PARTITO CENTRALIZED ROUTING")
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
     def sample_strategy_comparison(self, kwargs): #store perferomance data for comparison
@@ -324,7 +351,7 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
-                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                if constants.ROUTING_STRATEGY in [  #Strategy.BASELINE_DIJKSTRA, SISTEMARE
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,

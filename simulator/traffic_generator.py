@@ -43,9 +43,9 @@ class TrafficGenerator:
         end_time = utils.get_current_time() #set end_time
         source_gs_flow_info = self.source_gs.get_flow_info(self.flow, end_time, precision=1) #get flow info from source GS
         destination_gs_flow_info = self.destination_gs.get_flow_info(self.flow, end_time, precision=1) #get flow info from destination GS
-        print("Sent", source_gs_flow_info[0]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Received", destination_gs_flow_info[1]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
-        print("Lost", destination_gs_flow_info[2]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print(">> Sent", source_gs_flow_info[0]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("     Received", destination_gs_flow_info[1]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
+        print("         Lost", destination_gs_flow_info[2]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
 
         if constants.DEBUG:
             all_ids = []
@@ -65,7 +65,7 @@ class TrafficGenerator:
                         for id, r, alias_id, state in flows_leftovers_info:
                             print(id, r, alias_id, state)
             
-            print("Totale satelliti con strutture flows occupate:", len(all_sats))
-            print("Totale flussi in giro:", len(set(all_ids)))
+            print("         Totale satelliti con strutture flows occupate:", len(all_sats))
+            print("         Totale flussi in giro:", len(set(all_ids)))
             
         #self.draw_flow_paths(flow) #draw the flow paths made by satellite sequela 

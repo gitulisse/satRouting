@@ -68,7 +68,18 @@ class Sat:
                 if constants.DEBUG:
                     print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
-                self.open_flow(flow)
+                if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                    #continue
+                    self.drop_flow(flow, FlowState.LINK_CONGESTED) #
+                else:
+                    self.open_flow(flow)
         #print("add_link method")
         #self._reroute_all() #COMMENTATA (non va usato il reroute)
         #env.put(env.elapsed_time, self._reroute_all)
@@ -90,11 +101,20 @@ class Sat:
                 #if constants.DEBUG:
                 #print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                 flow.drop_steps_from(self)
-                self.open_flow(flow)
+
+                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                    self.open_flow(flow)
         if not(self.is_operational()):
             if self.serving_gs:
                 #if constants.DEBUG:
-                #print("Satellite", self.get_name(), "is serving Ground Station", self.serving_gs.get_name(), "but is no longer operational. Requesting reattachment...")
+                    #print("Satellite", self.get_name(), "is serving Ground Station", self.serving_gs.get_name(), "but is no longer operational. Requesting reattachment...")
                 self.serving_gs.reattach() #reconnection to Ground Station
     
     #Return name of Satellite as the last 3 digit of satellite's name ("satellite156") as 156
@@ -182,8 +202,8 @@ class Sat:
             if self.state > 1:
                 print(self.state, self.get_name())
                 raise ValueError("STATE MAGGIORE DI 1")
-            if self.state > 0.1:
-                print("Satellite State:", self.state, "sat:", self.get_name())
+            #if self.state > 0.1:
+            #    print("Satellite State:", self.state, "sat:", self.get_name())
         
     #Update link with Ground Station
     def _update_gs_link(self):
@@ -202,7 +222,7 @@ class Sat:
             if leftovers:
                 for flow in leftovers:
                     flow.drop_steps_from(self)
-                    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                    if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
                                                         Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                                         Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -211,15 +231,11 @@ class Sat:
                                                         Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                                         Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
                         # Routing CENTRALIZZATO: drop dei leftovers
-                        #print("ENTRATO 1 ----")
-                        #flow.drop_steps_from(self)
+                        #continue
                         self.drop_flow(flow, FlowState.LINK_CONGESTED)
                     else:
-                        # strategia decentralizzata: routing autonomo
-                        #print("ENTRATO 2 ----")
-                        #flow.drop_steps_from(self)
                         self.open_flow(flow)
-                            #if constants.DEBUG:
+                        #if constants.DEBUG:
                             #print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])'''
 
     #Update satellite position
@@ -267,8 +283,8 @@ class Sat:
     def notify_neighbor_unlink(self, dir: Direction):
         link = self._links.get(dir)
         if link.is_active():
-            if constants.DEBUG:
-                print("^[UNLINK] Dropping link between", self.get_name(), "and", link.target.get_name())
+            #if constants.DEBUG:
+             #   print("^[UNLINK] Dropping link between", self.get_name(), "and", link.target.get_name())
             link.unlink(utils.get_coupled_link_direction(dir))
     
     #Sender of flows
@@ -295,6 +311,7 @@ class Sat:
     #reopen flow
     def _reopen_flow(self, flow: Flow, routing_decisions = None):#print(f"Self sat {self.get_name()} is operational?___{self.is_operational()}")
         if self.is_operational() == False:
+            print("Satellite", self.get_name(), "is not operational")
             self._close_internal_flow(flow.alias_id) #if Satellite NOT operational, close and drop flow
             self.drop_flow(flow, FlowState.SATELLITE_NOT_OPERATIONAL)
         else:
@@ -581,7 +598,6 @@ class Sat:
         for local_id in local_ids:
             self._close_internal_flow(local_id) #close      
             if self.mapping_table.contains_local_id(local_id):
-                #############print("INVECE QUI")
                 self.mapping_table.remove(local_id) #remove from mapping table
 
     #close internal flows
@@ -601,8 +617,8 @@ class Sat:
                 #print(f"    [INFO] [SAT] Close_internal_flow id {flow.id} with alias id {flow.alias_id} on Satellite {self.get_name()}")
                 link.close_flow(flow) #close
             else:
-                if constants.DEBUG:
-                    print("Closed dropped flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "Gbps on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
+                #if constants.DEBUG:
+                 #   print("Closed dropped flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "Gbps on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime())
 
                 f = [f for f in self.DEBUG_dropped_flows if f.alias_id == flow.alias_id][0] #assume at least there is a flow and stores it in f
                 self._ground_stations[[key for key, gs in self._ground_stations.items() if gs.lat == flow.destination[0] and gs.lon == flow.destination[1]][0]].DEBUG_close_dropped_flow(f) #check if there is association between destination and GS coordinates then drop the flow f

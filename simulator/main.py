@@ -162,7 +162,7 @@ env.prepare() #prepare the environment with all necessary components
 traffic_generators = []
 header_builders = []
 
-if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -198,7 +198,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
         print("traffic_generators LIST", traffic_generators)
     '''
 env.start()
-print("env.start() called...")
+#print("env.start() called...")
 # End of block
 
 # Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere

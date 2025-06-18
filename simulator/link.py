@@ -63,7 +63,7 @@ class Link:
             #print(f"[INFO] Available bandwidth on link is {self.get_available_bandwidth()} Gbps now")
             #if constants.DEBUG:
              #   print("Reserved on link", flow.rate, "Mb for flux", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
-            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+            if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -102,13 +102,13 @@ class LaserLink(Link):
         leftovers = [] #residual flows
         #print(f"Flowes: {self.flows}")
         while len(self.flows.values()) > 0: #if there are flows
-            print("Flowes in point_to_sat", self.flows)##########
+            #print("Flowes in point_to_sat", self.flows)##########
             flow = list(self.flows.values())[0] #take first value of flows
-            print(f"first flow is.. {flow} id {flow.id} alias_id {flow.alias_id}")##########
+            #print(f"first flow is.. {flow} id {flow.id} alias_id {flow.alias_id}")##########
             leftovers.append(flow.clone()) #add this flow to leftovers
-            print(f"leftovers list: {leftovers}")
+            #print(f"leftovers list: {leftovers}")
             input_id = self._parent.mapping_table.remove(flow.alias_id) #remove flow id from parent mapping table & save it as input_id
-            print(f"input:id: {input_id}")
+            #print(f"input:id: {input_id}")
             self._parent._close_internal_flow(flow.alias_id) #close the flow internal to parent satellite
             leftovers[-1].alias_id = input_id #set the input of the last inserted flow in leftovers
         self.lat = sat.get_latitude() #lat
@@ -123,7 +123,7 @@ class LaserLink(Link):
         leftovers = []
         while len(self.flows.values()) > 0:
             flow = list(self.flows.values())[0]
-            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+            if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
                                     Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                     Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                     Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
