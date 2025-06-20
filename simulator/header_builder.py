@@ -32,7 +32,7 @@ class HeaderBuilder:
         env.put(self.duration, self._end_centralized_generation) #stop generating
 
     def _begin_centralized_generation(self):
-        print("\n-----> Generating centralized flow", self.flow, "rate", self.flow.rate, "Gbps from <<<", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), ">>> for", self.duration, "seconds.")
+        print("\n-----> Generating from <<<", self.source_gs.get_name().upper(), "to", self.destination_gs.get_name().upper(), ">>> flow", self.flow, "with rate", self.flow.rate, "Gbps")
         self.source_gs.start_centralized_routing(self.flow, self.gss) #send the flow to the source GS
             
     def _end_centralized_generation(self):
@@ -62,6 +62,6 @@ class HeaderBuilder:
                         for id, r, alias_id, state in flows_leftovers_info:
                             print(id, r, alias_id, state)
         
-            print("         Totale satelliti con strutture flows occupate:", len(all_sats))
-            print("         Totale flussi in giro:", len(set(all_ids)))
+            print("             Totale satelliti con strutture flows occupate:", len(all_sats))
+            print("             Totale flussi in giro:", len(set(all_ids)))
 

@@ -13,11 +13,6 @@ class Link:
         self.flows: dict[int, Flow] = {}
         self.capacity = capacity #Gbps
 
-    #new
-    def reset_bandwidth(self):
-        self.flows.clear()
-        self.available_bandwidth = self.capacity
-
     #set attribute target
     def _set_target(self, target):
         self.target = target

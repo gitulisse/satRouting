@@ -58,6 +58,188 @@ class GroundStation:
     def add_population_to_serve(self, amount: int):
         self.serving_population += amount
 
+    #connect GS to satellite
+    def attach_to_sat(self, sat):
+        if sat != self.sat: #check if connected satellite is different from the current satellite (connected to GS) as param
+            backup_flows = [] #copy of flows
+            for outgoing_flow, _, end_time in self.outgoing_flows: #for the outgoing flows check that end_time is None to copy them
+                if end_time == None:
+                    backup_flows.append(outgoing_flow)
+                    self.close_outgoing_flow(outgoing_flow) #close
+            if self.sat != None: 
+                self.sat.serving_gs = None #change attribute serving_gs of current satellite to None
+            self.sat = sat #change of satellite that is serving the GS
+            self.sat.serving_gs = self #connect to GS
+            #for flow in backup_flows:
+             #   print(f"Flowes to send {flow} ID: {flow.id}, Alias ID: {flow.alias_id} with rate {flow.rate} Gbps. Destination {flow.destination}")
+            '''for backup_flow in backup_flows: 
+                if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                    print(f"-> Backup flow Centr print {backup_flow} id {backup_flow.id} alias {backup_flow.alias_id} rate {backup_flow.rate} destination {backup_flow.destination}")
+                    self.drop_flow(backup_flow, FlowState.SATELLITE_CONGESTED) #send the flow to the source GS Routing
+                    #self.start_centralized_routing(backup_flow, self.gss) #send the flow to the source GS Routing 
+                else:
+                    print(f"-> Backup flow Distrib print {backup_flow} id {backup_flow.id} alias {backup_flow.alias_id} rate {backup_flow.rate} destination {backup_flow.destination}")
+                    self.send_flow(backup_flow) #send copied flows '''
+
+    #get name
+    def get_name(self) -> str:
+        return self.name
+
+    #sender of flows from GS to connected satellite
+    def send_flow(self, flow: Flow, routing_decisions=None): #optional parameter routing_decisions
+        self.outgoing_flows.append((flow, utils.get_current_time(), None)) #add an outgoing flow with current time, None is the time of termination of the flow
+        if constants.DEBUG:
+            print("----- [OPENING FLOW] on GS", flow, "with ID", flow.id, "alias_ID", flow.alias_id, "from", self.get_name().upper(), "with Rate", flow.rate)# "at time", utils.get_current_time().utc_strftime())
+        flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
+        if routing_decisions != None:
+            self.sat.open_flow(flow.clone(), routing_decisions) #Port Forwarding branch
+        else:
+            self.sat.open_flow(flow.clone())
+
+    def close_outgoing_flow(self, flow: Flow):#close the outgoing flow
+        if self.keep_log:
+            #print(">-< SELF.outgoing_flows", self.outgoing_flows)
+            for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
+                if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
+                    
+                    #if constants.DEBUG:
+                     #   for listed_flow in self.outgoing_flows:
+                      #      print("SELF.outgoing_flows id", listed_flow[0].id,"and alias_id", listed_flow[0].alias_id)
+
+                    self.outgoing_flows[i] = (outgoing_flow, start_time, utils.get_current_time())
+                    #print("outgoing_flows at i index", self.outgoing_flows[i])
+                    #outgoing_flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
+                    outgoing_flow.travelled_distance = 0                    
+                    #if constants.DEBUG:
+                     #   print("Closed outgoing flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+                    break
+        else:
+            while self.outgoing_flows.__contains__(flow):
+                self.outgoing_flows.remove(flow)
+        self.sat.close_flow(flow.clone())
+
+    #metodo di arrivo alla destinazione
+    def open_flow(self, flow: Flow): #apre il flow se è alla ground station di destinazione allora copia gli step in path e diventano il percorso attuato
+        if flow.destination[0] == self.lat and flow.destination[1] == self.lon:
+            flow.paths.append(flow.get_steps())
+            flow.state = FlowState.DELIVERED
+            self.incoming_flows.append((flow, utils.get_current_time(), None))
+            print("----- [DELIVERED FLOW]", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!")# "at time", utils.get_current_time().utc_strftime())
+            print("#     Steps obtained:", [step.get_name() for step in flow.get_steps()])
+        else:
+            self._discard_flow(flow)
+
+    def _discard_flow(self, flow: Flow):
+        if constants.DEBUG:
+            print("Flow with id", flow.id, "has been discarded on gs", self.get_name())
+
+    def close_flow(self, flow: Flow):
+        if self.keep_log:
+            for i, (incoming_flow, start_time, end_time) in enumerate(self.incoming_flows):
+                if flow == incoming_flow and flow.alias_id == incoming_flow.alias_id and flow.rate == incoming_flow.rate and end_time == None:
+                    self.incoming_flows[i] = (incoming_flow, start_time, utils.get_current_time())
+                    #if constants.DEBUG:
+                     #   print("Closed incoming flow", flow.id, "with alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
+                    break
+        else:
+            while self.incoming_flows.__contains__(flow):
+                self.incoming_flows.remove(flow)
+
+    def is_incoming_flow_alive(self, flow: Flow):
+        for incoming_flow, _, end_time in self.incoming_flows:
+            if flow == incoming_flow:
+                if end_time == None:
+                    return True
+        return False
+
+    def get_flow_info(self, flow: Flow, until: Time, precision: int = 0) -> tuple[float, float, float]:
+        total_data_received = 0
+        total_data_sent = 0
+        total_data_dropped = 0
+        flow.paths = []
+        sum_travelled_distance = 0 #km
+        incoming_flows_count = 0
+        for incoming_flow, start_time, end_time in self.incoming_flows:
+            if flow == incoming_flow:
+                if end_time == None or until - end_time < 0:
+                    end_time = until
+                active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
+                if active_time_in_seconds >= precision:
+                    total_data_received += active_time_in_seconds * incoming_flow.rate
+                    flow.paths.append(incoming_flow.get_steps())
+                    sum_travelled_distance += incoming_flow.travelled_distance
+                    incoming_flows_count += 1 
+                    #debug 
+                    #if constants.DEBUG:
+                     #   print("!total received", total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flow.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flow.rate, "with alias id", incoming_flow.alias_id)
+                      #  print("incoming_flow steps...sat", [sat.get_name() for sat in incoming_flow.get_steps()])
+        if incoming_flows_count > 0:
+            flow.travelled_distance = sum_travelled_distance / incoming_flows_count
+            #if constants.DEBUG or not(constants.DEBUG):
+            #    print("Average distance travelled by flow", flow.id, "in kms:", flow.travelled_distance)
+        for outgoing_flow, start_time, end_time in self.outgoing_flows:
+            if flow == outgoing_flow:
+                if end_time == None or until - end_time < 0:
+                    end_time = until
+                active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
+                if active_time_in_seconds >= precision:
+                    total_data_sent += active_time_in_seconds * outgoing_flow.rate
+        for dropped_flow, start_time, end_time in self.DEBUG_dropped_incoming_flows:
+            if flow == dropped_flow:
+                if end_time == None or until - end_time < 0:
+                    end_time = until
+                active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
+                if active_time_in_seconds >= precision:
+                    total_data_dropped += active_time_in_seconds * dropped_flow.rate
+                    #Escluso in modo tale da memorizzare solo i path a buon fine nel flow
+                    #flow.paths.append(dropped_flow.get_steps())
+                    '''
+                    if constants.DEBUG:
+                        print(total_data_dropped, utils.get_seconds_between(start_time, end_time) * dropped_flow.rate, "dropped for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", dropped_flow.rate, "with alias id", dropped_flow.alias_id, "reason", dropped_flow.state)
+                        print([sat.get_name() for sat in dropped_flow.get_steps()])
+                    '''
+        # Stampa tutti i percorsi del flusso
+        #print("\nPercorsi per il flusso", flow.id, ":")
+        #for idx, path in enumerate(flow.paths):
+         #   print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
+        return (total_data_sent, total_data_received, total_data_dropped)
+        
+    def DEBUG_get_dropped_flow(self, flow: Flow):
+        flow.paths.append(flow.get_steps())
+        self.DEBUG_dropped_incoming_flows.append((flow, utils.get_current_time(), None))
+        #if constants.DEBUG:
+         #   print("Logged opening of dropped flow", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+          #  print("Steps:", [step.get_name() for step in flow.get_steps()])
+  
+    def DEBUG_close_dropped_flow(self, flow: Flow):
+        if self.keep_log:
+            for i, (dropped_flow, start_time, end_time) in enumerate(self.DEBUG_dropped_incoming_flows):
+                if flow == dropped_flow and flow.alias_id == dropped_flow.alias_id and flow.rate == dropped_flow.rate and end_time == None:
+                    self.DEBUG_dropped_incoming_flows[i] = (dropped_flow, start_time, utils.get_current_time())
+                    #if constants.DEBUG:
+                     #   print("Logged closing of dropped flux", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
+                      #  print("Steps in DEBUG_close_dropped_flow:", [step.get_name() for step in flow.get_steps()])
+                    break
+        else:
+            while self.DEBUG_dropped_incoming_flows.__contains__(flow):
+                self.DEBUG_dropped_incoming_flows.remove(flow)
+
+    def reattach(self):
+        distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False)
+        new_sat = self.satellites.get(distances[0]['name'])
+        #if constants.DEBUG:
+         #   if new_sat != self.sat:
+        #print("Attaching Ground Station", self.get_name(), "to Satellite", new_sat.get_name(), "at time", utils.get_current_time().utc_strftime())
+        self.attach_to_sat(new_sat)
+
+
     #starting point of centralized routing
     def start_centralized_routing(self, flow: Flow, ground_stations):
         self.gss = ground_stations
@@ -65,12 +247,6 @@ class GroundStation:
         routing_decisions = self.centralized_route(flow)
         
         if not routing_decisions:
-            if flow not in self.DEBUG_dropped_flows:
-                print(f"[ERROR]: No routing decisions found for flow {flow.id}. Adding to dropped flows.")
-                self.DEBUG_dropped_flows.append(flow)
-            else:
-                print(f"[INFO]: Flow {flow} id {flow.id} is already listed as dropped flow.")
-                print(f"DEBUG dropped check", self.DEBUG_dropped_flows)
             return 
 
         routing_decisions = self.extract_separated_decision_lists(routing_decisions) #decisioni annidate estratte
@@ -232,23 +408,17 @@ class GroundStation:
         adapted_routing_decisions = [] #nuove decisioni adattate alla rete
         remaining_flow = flow.clone()
         initial_flow_rate = remaining_flow.rate
-        #support_routing_decisions = routing_decisions.copy() #same as routing_decisions, perfect copy
         reached_node = None  # Inizializzazione esplicita
-
-        #print("adapted routing_decisions", routing_decisions)
         
         # Estrai i link del percorso
         path_links = [link for action, _, link in routing_decisions if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]]
         if path_links:
             min_available_bw = min(link.get_available_bandwidth() for link in path_links)
-            print(f"[ADAPT DEBUG] Minimum available bandwidth is {min_available_bw} among Links of Selected Path") #print(f"Links in path: {path_links}")
+            print(f"[INFO] Minimum available bandwidth is {min_available_bw} among Links of Selected Path")
 
         for i, (action, flow, link) in enumerate(routing_decisions):
-            if not remaining_flow:
-                print("No remaining flow to route.")
-                break  # Flusso completamente instradato
             if not reached_node: #inizializza il primo reached node del percorso
-                #print("Reached node not set yet.")
+                print(" !!! Reached node not set yet.")
                 if isinstance(link.target, list): #il primo reached node sarà il secondo nodo, target del primo link
                     if link.target:  
                         reached_node = link.target[0].get_name()
@@ -259,16 +429,15 @@ class GroundStation:
             
             if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = link.get_available_bandwidth()
-                print(f"[DEBUG] ADAPT ROUTING: Path has Minimum available BANDWIDTH: {min_available_bw} for {flow} rate {flow.rate}")
 
                 if available_bandwidth > 0:
                     if min_available_bw >= remaining_flow.rate:  # Cambiata la condizione "available_bandwidth >= remaining_flow.rate:"
-                        print(f"Enough bandwidth {min_available_bw} for flow rate {remaining_flow.rate}")
+                        print(f"[DEBUG] Enough bandwidth equal to {min_available_bw} for flow rate {remaining_flow.rate}")
                     
                         #DEBUG
                         link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
-                        print(f"Routing path on enough bandwidth: {link_paths}") #show human-readable path
-                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        #print(f"[DEBUG] Routing path on enough bandwidth: {link_paths}") #shows human-readable path
+                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link)) #remaining_flow
                         if isinstance(link.target, list):
                             if link.target:
@@ -286,10 +455,11 @@ class GroundStation:
                         break
 
                     else:
-                        # Solo una parte del flusso passa
+                        # Flow splitting logic, solo una parte del flusso passa
                         splitted_flow, remaining_flow_to_route = remaining_flow.split(min_available_bw) #sfruttando la Min bandwidth di tutto il percorso #splitted flow è il flusso che può passare, remaining flow to route è il flusso che non può passare
-                        print("Not enough bandwidth, proceed to splitting...", splitted_flow, "and remaining flow", remaining_flow_to_route)
-                        print(f"SPLITTED FLOW created {splitted_flow} rate {splitted_flow.rate} and REMAINING_FLOW_TO_ROUTE {remaining_flow_to_route} rate {remaining_flow_to_route.rate}")
+                        print("[DEBUG] Not enough bandwidth, proceed to splitting...")
+                        print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Remaining_flow_to_route with rate {remaining_flow_to_route.rate}")
+                        #print(f"Splitted_flow {splitted_flow} Rate {splitted_flow.rate} and Remaining_flow_to_route {remaining_flow_to_route} Rate {remaining_flow_to_route.rate}")
                         print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, splitted_flow, link))
                         reached_node = link._parent.get_name()
@@ -310,7 +480,6 @@ class GroundStation:
                     if excluded_link not in self.excluded_links:
                         self.excluded_links.append(excluded_link)
                     reached_node = link._parent.get_name()
-
             else:
                 adapted_routing_decisions.append((action, remaining_flow, link))
 
@@ -366,132 +535,107 @@ class GroundStation:
 
     #method for NO LB strategies
     def adapt_routing_with_single_split(self, flow: Flow, routing_decisions: list):
-        print("....Adapting routing decisions with single split...")
         if len(routing_decisions) == 1: # if there is only one decision
-            print("Skipping adaptation.") #no need to check link capacity in this simulation but should be added in real world scenario
+            #print("Skipping adaptation.") #no need to check link capacity in this simulation but should be added in real world scenario
             return routing_decisions 
         
         adapted_routing_decisions = []
         remaining_flow = flow.clone()
+        initial_flow_rate = remaining_flow.rate
+        reached_node = None  # Inizializzazione esplicita
 
         # Estrai i link del percorso
         path_links = [link for action, _, link in routing_decisions if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]]
         if path_links:
             min_available_bw = min(link.get_available_bandwidth() for link in path_links)
-            print(f"[DEBUG] Minimum available bandwidth is {min_available_bw} among Links of Selected Single Path") #print(f"Links in path: {path_links}")
+            print(f"[INFO] Minimum available bandwidth is {min_available_bw} among Links of Single Selected Single Path") #print(f"Links in path: {path_links}")
 
-        for i, (action, flow, link) in enumerate(routing_decisions):
-            '''if action not in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
-                adapted_routing_decisions.append((action, flow, link))
-                continue'''
-                
-            available_bandwidth = link.get_available_bandwidth()
-            target_name = (link.target[0].get_name() 
-                            if isinstance(link.target, list) and link.target 
-                            else link.target.get_name())
-
-            print(f"ADAPT ROUTING single split: Link {link._parent.get_name()} - {target_name} has available BANDWIDTH: {available_bandwidth} for {flow} with rate {remaining_flow.rate}")
-
-            if available_bandwidth <= 0:
-                print(f"Link {link._parent.get_name()} - {target_name} is fully saturated. Flow {remaining_flow.id} cannot pass.")
-                if remaining_flow not in self.DEBUG_dropped_flows:
-                    self.DEBUG_dropped_flows.append(remaining_flow)
-                adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flow, link))
-                break
-
-            if available_bandwidth >= remaining_flow.rate:
-                #print("reserve 3")
-                if link.reserve_bandwidth(remaining_flow):
-                    adapted_routing_decisions.append((action, remaining_flow, link))
-                    print(f"Reserved bandwidth {remaining_flow.rate} on {link._parent.get_name()} - {target_name}. Updated bandwidth: {link.get_available_bandwidth()}")
+        for i, (action, flow, link) in enumerate(routing_decisions): 
+            if not remaining_flow:
+                print("No remaining flow to route.")
+                break  # Flusso completamente instradato
+            if not reached_node: #inizializza il primo reached node del percorso
+                #print("Reached node not set yet.")
+                if isinstance(link.target, list): #il primo reached node sarà il secondo nodo, target del primo link
+                    if link.target:  
+                        reached_node = link.target[0].get_name()
+                    else:
+                        print(f"Warning: Link {link} target is an empty list.")
                 else:
-                    print(f"Error: Could not reserve bandwidth for flow {remaining_flow} on link {link}.")
-                    adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flow, link))
-                    if remaining_flow not in self.DEBUG_dropped_flows:
-                        self.DEBUG_dropped_flows.append(remaining_flow)
-                    break
+                    reached_node = link.target.get_name()
 
-                self.check_path_for_splitted_flow_simple(
-                    remaining_flow,
-                    routing_decisions[i + 1:],
-                    adapted_routing_decisions
-                )
-                break  # Flusso interamente instradato, possiamo interrompere qui
+            if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
+                available_bandwidth = link.get_available_bandwidth()
+                
+                if available_bandwidth > 0:
+                    if min_available_bw >= remaining_flow.rate:  # Cambiata la condizione "available_bandwidth >= remaining_flow.rate:"
+                        print(f"[DEBUG] Enough bandwidth equal to {min_available_bw} for flow rate {remaining_flow.rate}")
+                    
+                        #DEBUG
+                        link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
+                        #print(f"[DEBUG] Routing path on enough bandwidth: {link_paths}") #shows human-readable path
+                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available bandwidth {link.get_available_bandwidth()}")
+                        adapted_routing_decisions.append((action, flow, link)) #remaining_flow
+                        if isinstance(link.target, list):
+                            if link.target:
+                                reached_node = link.target[0].get_name()
+                        else:
+                            reached_node = link.target.get_name()
+
+                        self.check_path_for_splitted_flow_simple(
+                            flow,
+                            routing_decisions[i + 1:],
+                            adapted_routing_decisions
+                        )
+
+                        remaining_flow.rate = 0 # Tutto il flusso è stato consumato
+                        break  # Flusso interamente instradato, possiamo interrompere qui
+                    
+                    else:
+                        # Flow splitting logic for single routing
+                        splitted_flow, undeliverable_flow = remaining_flow.split(min_available_bw)
+                        print("[DEBUG] Not enough bandwidth, proceed to splitting...")
+                        print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Remaining_flow_to_route with rate {undeliverable_flow.rate}")
+                        #print(f"Splitted_flow {splitted_flow} Rate {splitted_flow.rate} and Remaining_flow_to_route {remaining_flow_to_route} Rate {remaining_flow_to_route.rate}")
+                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        adapted_routing_decisions.append((action, splitted_flow, link))
+                        reached_node = link._parent.get_name()
+
+                        self.check_path_for_splitted_flow_simple(
+                            splitted_flow,
+                            routing_decisions[i + 1:],
+                            adapted_routing_decisions
+                        )
+                        remaining_flow = undeliverable_flow
+                        excluded_link = (link._parent.get_name(), link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                            self.excluded_links.append(excluded_link)
+                        break
+                else:
+                    print(f"Link {link} is fully saturated. No flow can pass.")
+                    excluded_link = (link._parent.get_name(), link.target.get_name())
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.append(excluded_link)
+                    reached_node = link._parent.get_name()
             else:
-                # Splitting del flusso a causa di banda insufficiente
-                splitted_flow, undelivered_flow = flow.split(available_bandwidth)
-                #print("reserve 4")
-                if link.reserve_bandwidth(splitted_flow):
-                    adapted_routing_decisions.append((action, splitted_flow, link))
-                    print(f"Reserved partial bandwidth {splitted_flow.rate} on {link._parent.get_name()} - {target_name}. Updated bandwidth: {link.get_available_bandwidth()}")
-                else:
-                    print(f"Error: Could not reserve partial bandwidth for flow {splitted_flow} on link {link}.")
-                    adapted_routing_decisions.append((RoutingAction.ERROR, splitted_flow, link))
-                    if splitted_flow not in self.DEBUG_dropped_flows:
-                        self.DEBUG_dropped_flows.append(splitted_flow)
-                    break
+                adapted_routing_decisions.append((action, remaining_flow, link))
 
-                self.check_path_for_splitted_flow_simple(
-                    splitted_flow,
-                    routing_decisions[i + 1:],
-                    adapted_routing_decisions
-                )
-                
-                # Il resto del flusso che non può passare viene marcato come non instradabile
-                print(f"Flow {undelivered_flow.id} with rate {undelivered_flow.rate} is undeliverable due to insufficient bandwidth.")
-                if undelivered_flow not in self.DEBUG_dropped_flows:
-                    self.DEBUG_dropped_flows.append(undelivered_flow)
-                break
-
-        # Controllo finale flussi non instradabili
-        if self.DEBUG_dropped_flows:
-            print("Check undeliverable flows and their rates:")
-            for flow in self.DEBUG_dropped_flows:
-                print(f"Flow ID: {flow.id}, Rate: {flow.rate}")
+        '''if remaining_flow and remaining_flow.rate > 0:
+            #print("[DEBUG] Undeliverable flow with rate", remaining_flow.rate, "after single split adaptation." )
+            flow.add_step(self) #open_flow-like behaviour without actually opening the flux
+            #flow.alias_id = self.mapping_table.add(flow.alias_id)
+            flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
+            self.drop_flow(flow, FlowState.LINK_CONGESTED) '''
 
         return adapted_routing_decisions
 
     def check_path_for_splitted_flow_simple(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
         for j, (inner_action, inner_flow, inner_link) in enumerate(support_routing_decisions):
-            #print(f">>> Checking path for splitted flow {flow.id} with rate {flow.rate} <<<")
             decisions_copy = support_routing_decisions.copy()
             decisions_copy[j] = (inner_action, flow, inner_link)
 
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
-                target_name = (inner_link.target[0].get_name() 
-                                if isinstance(inner_link.target, list) and inner_link.target 
-                                else inner_link.target.get_name())
-                
-                if available_bandwidth >= flow.rate:
-                    #print("reserve 5")
-                    inner_link.reserve_bandwidth(flow)
-                    adapted_routing_decisions.append((inner_action, flow, inner_link))
-
-                    available_bandwidth = inner_link.get_available_bandwidth() #debug
-
-                    #print(f"### Attempting to forward splitted flow {flow.id} with rate {flow.rate} ###")
-                    #print(f"Inner-link with Updated bandwidth {available_bandwidth} for link {inner_link._parent.get_name()} - {target_name}") #debug if available_bandwidth is zero or less then start is correct
-                    if isinstance(inner_link.target, list):
-                        target_node = inner_link.target[0].get_name()
-                    else:    
-                        target_node = inner_link.target.get_name()
-
-                    if inner_action == RoutingAction.DELIVER:
-                        print(f"[SUCCESS]: Splitted flow simple {flow} reached destination {target_node}!")
-        return adapted_routing_decisions  # Termina la ricerca; il flow non viene instradato
-
-    def check_path_for_splitted_flow(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
-        #print("////DENTRO CHECK PATH", support_routing_decisions)
-        for j, (inner_action, inner_flow, inner_link) in enumerate(support_routing_decisions):
-            
-            decisions_copy = support_routing_decisions.copy()
-            decisions_copy[j] = (inner_action, flow, inner_link)
-            #print("////DECISION COPY j :", decisions_copy[j])
-
-            if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
-                available_bandwidth = inner_link.get_available_bandwidth()
-                #DEBUG print
 
                 if isinstance(inner_link.target, list):
                     expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
@@ -522,26 +666,88 @@ class GroundStation:
 
                     if inner_action == RoutingAction.DELIVER:                        
                         expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1]) #lat #lon
-                        #print("Flow expected destination", expected_destination)
+                        
                         '''if target_node.upper() == expected_destination:
                             print(f"[SUCCESSFUL]: Splitted flow {flow} rate {flow.rate} reached destination {target_node.upper()}!")
                         else:
                             print(f"[WARNING]: Flow delivered to {target_node.upper()}, but expected {expected_destination}. Not considered successful.")
                             '''
-                        #print(f"[SUCCESSFUL]: Splitted flow {flow} rate {flow.rate} reached destination {target_node}!") 
+                else: #banda inferiore al rate del flusso
+                    new_splitted_flow, remaining_flow = flow.split(available_bandwidth)
+                    print(f"NEW  splitted flow created in check_path_for_splitted_flow_simple {new_splitted_flow} rate {new_splitted_flow.rate} and remaining flow {remaining_flow} rate {remaining_flow.rate}")
+                    
+                    if new_splitted_flow.rate > 0:
+                        inner_link.reserve_bandwidth(new_splitted_flow)
+                        adapted_routing_decisions.append((inner_action, new_splitted_flow, inner_link))
+
+                    if remaining_flow.rate > 0:
+                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                           self.excluded_links.append(excluded_link)
+                        #print("[DEBUG] Undeliverable flow with rate", remaining_flow.rate, "after single split adaptation." )
+                        flow.add_step(self) #open_flow-like behaviour without actually opening the flux
+                        #flow.alias_id = self.mapping_table.add(flow.alias_id)
+                        flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
+                        self.drop_flow(flow, FlowState.LINK_CONGESTED) 
+        
+        return adapted_routing_decisions  # Termina la ricerca; il flow non viene instradato
+
+    def check_path_for_splitted_flow(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
+        for j, (inner_action, inner_flow, inner_link) in enumerate(support_routing_decisions):
+            decisions_copy = support_routing_decisions.copy()
+            decisions_copy[j] = (inner_action, flow, inner_link)
+
+            if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
+                available_bandwidth = inner_link.get_available_bandwidth()
+
+                if isinstance(inner_link.target, list):
+                    expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
+                    ##print(f"Expected Destination -> {expected_destination}")
+                    # Cerca nella lista dei target l'oggetto che corrisponde al nome
+                    confirmed_destination = [destination for destination in inner_link.target if hasattr(destination, 'get_name') and destination.get_name().upper() == expected_destination]
+                    confirmed_destination_node = utils.get_ground_station_name_by_coords(confirmed_destination[0].lat, confirmed_destination[0].lon)
+                    ##print(f"Confirmed Destination -> {confirmed_destination_node}")
+                    target_name = confirmed_destination_node
+                else:
+                    target_name = inner_link.target.get_name()
+
+                print(f"Checking path of splitted flow... link {inner_link._parent.get_name()} - {target_name} with available_bandwidth {available_bandwidth}")
+                
+                #banda superiore o uguale al rate di flusso
+                if available_bandwidth >= flow.rate:
+                    if available_bandwidth == flow.rate:
+                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                        if excluded_link not in self.excluded_links:
+                            self.excluded_links.append(excluded_link)
+
+                    if isinstance(inner_link.target, list):
+                        adapted_routing_decisions.append((inner_action, flow, inner_link))
+                        target_node = confirmed_destination_node #inner_link.target[0].get_name()
+                    else:  
+                        adapted_routing_decisions.append((inner_action, flow, inner_link))  
+                        target_node = inner_link.target.get_name()
+
+                    if inner_action == RoutingAction.DELIVER:                        
+                        expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1]) #lat #lon
+                        
+                        '''if target_node.upper() == expected_destination:
+                            print(f"[SUCCESSFUL]: Splitted flow {flow} rate {flow.rate} reached destination {target_node.upper()}!")
+                        else:
+                            print(f"[WARNING]: Flow delivered to {target_node.upper()}, but expected {expected_destination}. Not considered successful.")
+                            '''
 
                 else: #banda inferiore al rate del flusso
                     new_splitted_flow, remaining_flow = flow.split(available_bandwidth)
-                    print(f"NEW  splitted flow created in check_path_splitted_flow {new_splitted_flow} rate {new_splitted_flow.rate} and remaining flow {remaining_flow} rate {remaining_flow.rate}")
+                    print(f"NEW  splitted flow created in check_path_for_splitted_flow {new_splitted_flow} rate {new_splitted_flow.rate} and remaining flow {remaining_flow} rate {remaining_flow.rate}")
                     
                     if new_splitted_flow.rate > 0:
                         inner_link.reserve_bandwidth(new_splitted_flow)
                         adapted_routing_decisions.append((inner_action, new_splitted_flow, inner_link))
                     
-                    if remaining_flow.rate > 0:
+                    if remaining_flow.rate > 0: #controllare questa parte logica
                         excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
                         if excluded_link not in self.excluded_links:
-                            self.excluded_links.append(excluded_link)
+                           self.excluded_links.append(excluded_link)
 
                         self.check_path_for_splitted_flow(
                             remaining_flow,
@@ -683,7 +889,7 @@ class GroundStation:
 
     def process_routing_output(self, selected_path, flow):
         processed_output = []
-        print(f">>> Processing selected path: {selected_path}")  # stampa per debug
+        print(f">>> Processing Selected Path: {selected_path}")  # stampa per debug
         
         # Caso in cui il path abbia un solo nodo (es tokyo-tokyo)
         if len(selected_path) == 1:
@@ -743,12 +949,11 @@ class GroundStation:
                                   Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
             k = constants.K_SHORTEST_VALUE_LB  # Numero massimo di percorsi disgiunti richiesti
         
-        print(f"<<< Routing calculation from {source.get_name().upper()} - {destination.get_name().upper()} >>>")
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
         
-        print("> Calculated K PATHS:", k_disjoint_paths)
+        print("> Calculated K Paths:", k_disjoint_paths)
         if not k_disjoint_paths:  # Controllo corretto se nessun percorso è disponibile
-            print(f"[WARNING] Nessun percorso disponibile per il flusso {flow.id} con un RATE {flow.rate} GBPS")
+            print(f"[WARNING] No available path for flow {flow.id} with rate {flow.rate} Gbps")
             self.outgoing_flows.append((flow, utils.get_current_time(), None))
             self.drop_flow(flow, FlowState.SATELLITE_CONGESTED)
             return []  # Restituisci immediatamente una lista vuota
@@ -756,7 +961,7 @@ class GroundStation:
         return k_disjoint_paths
  
     def _get_k_disjoint_paths(self, satellites, source, destination):
-        print("STARTING MAIN GRAPH", env.main_graph)
+        print("Starting Main Graph", env.main_graph)
         num_nodes = env.main_graph.number_of_nodes()
         num_edges = env.main_graph.number_of_edges()
         edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
@@ -784,13 +989,13 @@ class GroundStation:
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 destination_satellite.append(sat_name)
         
-        print("> SOURCE satellite", source_satellite)
-        print("> DESTINATION satellite", destination_satellite)
+        print("> Source satellite", source_satellite)
+        print("> Destination satellite", destination_satellite)
         valid_source_sats = [sat for sat in source_satellite if sat in env.main_graph]#check validation of nodes
         valid_destination_sats = [sat for sat in destination_satellite if sat in env.main_graph]
         # Rimuovi gli archi con banda disponibile pari a 0
         edges_to_remove = [(u, v) for u, v, data in env.main_graph.edges(data=True) if data.get('available_bandwidth', 0) == 0] #graph.edges...
-        print(f"- Removing {len(edges_to_remove)} edges: {edges_to_remove}")
+        print(f"[DEBUG] Removing {len(edges_to_remove)} edges: {edges_to_remove}")
         for u, v in edges_to_remove:
             env.main_graph.remove_edge(u, v)
         self._graph = env.main_graph.copy()
@@ -959,14 +1164,25 @@ class GroundStation:
 
         return probabilities
 
-
     def calculate_path_weights_length_shortest_node_disjoint(self, graph, paths):
-        sum_weights = sum([path_weight(graph, p, weight="weight") for p in paths])
-        if sum_weights == 0:
-            return 0 
-        total_path_weights = sum([1 - (path_weight(graph, path, weight="weight") / sum([path_weight(graph, p, weight="weight") for p in paths])) for path in paths]) #total weights as length of paths
-        weights = [(1 - (path_weight(graph, path, weight="weight") / sum([path_weight(graph, p, weight="weight") for p in paths]))) / total_path_weights for path in paths] #normalized weights
-        return weights
+        # Calcola i pesi dei path
+        path_costs = [path_weight(graph, p, weight="weight") for p in paths]
+        sum_weights = sum(path_costs)
+
+        # Caso degenerato: tutti i pesi 0 o lista vuota
+        if sum_weights == 0 or len(paths) == 0:
+            return [1.0 / len(paths)] * len(paths) if paths else []
+
+        # Calcola i pesi inversi (1 - costo_relativo)
+        inverse_weights = [1 - (c / sum_weights) for c in path_costs]
+        total_inverse_weight = sum(inverse_weights)
+
+        # Caso degenerato anche qui
+        if total_inverse_weight == 0:
+            return [1.0 / len(paths)] * len(paths)
+
+        # Normalizza i pesi
+        return [w / total_inverse_weight for w in inverse_weights]
 
     def select_path_with_probabilities(self, paths, probabilities): 
         if not paths:
@@ -1064,65 +1280,6 @@ class GroundStation:
         #print(f"Recupero link tra satellite '{node1}' e satellite '{node2}'.")
         return self._get_link_between_nodes(node1, node2, satellites) #two satellites case
 
-    def prepare_results_for_dijkstra(self, ground_stations):
-        self.results = {}
-        for source in ground_stations.values():
-            for destination in ground_stations.values():
-                if source == destination: 
-                    continue
-                self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
-                    'DIJKSTRA' : {} #for Dijkstra
-                }
-                for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy
-                    self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
-                        'successful' : [], #store succesful routing
-                        'failed' : 0, #count all failed routings that are 0 for Dijkstra
-                        'distance' : [] #store the travelled distance
-                    }
-    
-    def prepare_results_for_disjointpaths(self, ground_stations):
-        if isinstance(ground_stations, list):
-            ground_stations = {gs.name: gs for gs in ground_stations}
-        self.results = {}
-        for source in ground_stations.values():
-            for destination in ground_stations.values():
-                if source == destination: 
-                    continue
-                if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
-                        'K-SHORTEST-NODE-DISJOINT-PATHS' : {} #for K-shortest disjoint paths
-                    }
-                elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                        'K-SHORTEST-NODE-DISJOINT-PATHS-WITH-LOAD-BALANCING' : {}
-                    }
-                elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                        'K-SHORTEST-EDGE-DISJOINT-PATHS' : {}
-                    }
-                elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                        'K-SHORTEST-EDGE-DISJOINT-PATHS-WITH-LOAD-BALANCING' : {}
-                    }
-                elif constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                        'LENGTH-SHORTEST-NODE-DISJOINT-PATHS' : {}
-                    }
-                elif constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                        'LENGTH-SHORTEST-NODE-DISJOINT-PATHS-WITH-LOAD-BALANCING' : {}
-                    }
-                elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION:
-                    self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                        'CALCULATION-WITH-COSTS-SELECTION' : {} #cambiare il nome della strategia
-                    }
-
-                for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy
-                    self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
-                        'successful' : [], #store succesful routings
-                        'failed' : [], #stores failed routings
-                        'distance' : [] #store the travelled distances
-                    }
 
     def calculate_dijkstra(self, kwargs):
         source: dict = kwargs['source']
@@ -1148,7 +1305,6 @@ class GroundStation:
         end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) #otherwise check for the closet satellites in the area of destination GS
 
         d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #calculate Dijkstra's shortest path, initialize dijkstra algorithm on the graph starting from source
-
         if source == destination:
             #print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
             closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
@@ -1188,205 +1344,6 @@ class GroundStation:
         #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(shortest_path))
         #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min_distance)
         return shortest_path #only the path with minimum distance on minimum number of hops
-
-    #connect GS to satellite
-    def attach_to_sat(self, sat):
-        #print("attach_to_sat", sat.get_name()) #print("OUTGOING FLOWS ----", self.outgoing_flows)
-        if sat != self.sat: #check if connected satellite is different from the current satellite (connected to GS) as param
-            backup_flows = [] #copy of flows
-            #DEBUG
-            #print("outgoing_flows in attach_to_sat", self.outgoing_flows)
-            for outgoing_flow, _, end_time in self.outgoing_flows: #for the outgoing flows check that end_time is None to copy them
-                if end_time == None:
-                    backup_flows.append(outgoing_flow)
-                    self.close_outgoing_flow(outgoing_flow) #close
-            if self.sat != None: 
-                self.sat.serving_gs = None #change attribute serving_gs of current satellite to None
-            self.sat = sat #change of satellite that is serving the GS
-            self.sat.serving_gs = self #connect to GS
-            
-            #for flow in backup_flows:
-             #   print(f"Flowes to send {flow} ID: {flow.id}, Alias ID: {flow.alias_id} with rate {flow.rate} Gbps. Destination {flow.destination}")
-            '''for backup_flow in backup_flows: 
-                if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                    print(f"-> Backup flow Centr print {backup_flow} id {backup_flow.id} alias {backup_flow.alias_id} rate {backup_flow.rate} destination {backup_flow.destination}")
-                    #print("stampa le self.GSS Stations", self.gss)
-                    #self.destination = backup_flow.get_ground_station_by_coordinates(backup_flow.destination[0], backup_flow.destination[1], self.gss.values())
-                    #print("destination of backup flow", self.destination.get_name().upper())
-                    self.drop_flow(backup_flow, FlowState.SATELLITE_CONGESTED) #send the flow to the source GS Routing
-                    #self.start_centralized_routing(backup_flow, self.gss) #send the flow to the source GS Routing 
-                else:
-                    print(f"-> Backup flow Distrib print {backup_flow} id {backup_flow.id} alias {backup_flow.alias_id} rate {backup_flow.rate} destination {backup_flow.destination}")
-                    self.send_flow(backup_flow) #send copied flows '''
-
-    #get name
-    def get_name(self) -> str:
-        return self.name
-
-    #sender of flows from GS to connected satellite
-    def send_flow(self, flow: Flow, routing_decisions=None): #optional parameter routing_decisions
-        #print("send_flow GS metodo")
-        self.outgoing_flows.append((flow, utils.get_current_time(), None)) #add an outgoing flow with current time, None is the time of termination of the flow
-        #print(f"    OUTGOING_FLOWS inviati da GS {self.get_name()}: {self.outgoing_flows}")
-        if constants.DEBUG:
-            print("----- OPENING FLOW on [GS]", flow, "ID", flow.id, "alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate)# "at time", utils.get_current_time().utc_strftime())
-        flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self.sat, self)
-        #print("self.sat connected to GS", self.sat.get_name())
-        if routing_decisions != None:
-            self.sat.open_flow(flow.clone(), routing_decisions) #port forwarding to satellite
-        else:
-            self.sat.open_flow(flow.clone())
-
-    #close the outgoing flow
-    def close_outgoing_flow(self, flow: Flow):
-        #print("SELF.keep_log", self.keep_log)
-        if self.keep_log:
-            #print(">-< SELF.outgoing_flows", self.outgoing_flows)
-            for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
-                if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
-                    
-                    #if constants.DEBUG:
-                     #   for listed_flow in self.outgoing_flows:
-                      #      print("SELF.outgoing_flows id", listed_flow[0].id,"and alias_id", listed_flow[0].alias_id)
-
-                    self.outgoing_flows[i] = (outgoing_flow, start_time, utils.get_current_time())
-                    #print("outgoing_flows at i index", self.outgoing_flows[i])
-                    #outgoing_flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
-                    outgoing_flow.travelled_distance = 0                    
-                    #if constants.DEBUG:
-                     #   print("Closed outgoing flow", flow.id, "with alias id", flow.alias_id, "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
-                    break
-        else:
-            while self.outgoing_flows.__contains__(flow):
-                self.outgoing_flows.remove(flow)
-        self.sat.close_flow(flow.clone())
-
-    #metodo di arrivo alla destinazione
-    def open_flow(self, flow: Flow): #apre il flow se è alla ground station di destinazione allora copia gli step in path e diventano il percorso attuato
-        if flow.destination[0] == self.lat and flow.destination[1] == self.lon:
-            flow.paths.append(flow.get_steps())
-            flow.state = FlowState.DELIVERED
-            self.incoming_flows.append((flow, utils.get_current_time(), None))
-            print("----- FLOW delivered", flow, "ID", flow.id, "with rate", flow.rate, "Gbps has reached its destination!")# "at time", utils.get_current_time().utc_strftime())
-            print("#     Steps obtained:", [step.get_name() for step in flow.get_steps()])
-        else:
-            self._discard_flow(flow)
-
-    def _discard_flow(self, flow: Flow):
-        #print("discard") 
-        if constants.DEBUG:
-            print("Flow with id", flow.id, "has been discarded on gs", self.get_name())
-
-    def close_flow(self, flow: Flow):
-        #print("[INFO] Close flow GS method on GS", self.get_name())
-        if self.keep_log:
-            for i, (incoming_flow, start_time, end_time) in enumerate(self.incoming_flows):
-                if flow == incoming_flow and flow.alias_id == incoming_flow.alias_id and flow.rate == incoming_flow.rate and end_time == None:
-                    self.incoming_flows[i] = (incoming_flow, start_time, utils.get_current_time())
-                    
-                    #if constants.DEBUG:
-                     #   print("Closed incoming flow", flow.id, "with alias id", flow.alias_id, "from", self.get_name(), "with rate", flow.rate, "at time", utils.get_current_time().utc_strftime())
-                    
-                    break
-        else:
-            while self.incoming_flows.__contains__(flow):
-                self.incoming_flows.remove(flow)
-
-    def is_incoming_flow_alive(self, flow: Flow):
-        for incoming_flow, _, end_time in self.incoming_flows:
-            if flow == incoming_flow:
-                if end_time == None:
-                    return True
-        return False
-
-    def get_flow_info(self, flow: Flow, until: Time, precision: int = 0) -> tuple[float, float, float]:
-        total_data_received = 0
-        total_data_sent = 0
-        total_data_dropped = 0
-        flow.paths = []
-        sum_travelled_distance = 0 #km
-        incoming_flows_count = 0
-        for incoming_flow, start_time, end_time in self.incoming_flows:
-            if flow == incoming_flow:
-                if end_time == None or until - end_time < 0:
-                    end_time = until
-                active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
-                if active_time_in_seconds >= precision:
-                    total_data_received += active_time_in_seconds * incoming_flow.rate
-                    flow.paths.append(incoming_flow.get_steps())
-                    sum_travelled_distance += incoming_flow.travelled_distance
-                    incoming_flows_count += 1 
-                    
-                    #debug 
-                    #if constants.DEBUG:
-                     #   print("!total received", total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flow.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flow.rate, "with alias id", incoming_flow.alias_id)
-                      #  print("incoming_flow steps...sat", [sat.get_name() for sat in incoming_flow.get_steps()])
-                    
-        if incoming_flows_count > 0:
-            flow.travelled_distance = sum_travelled_distance / incoming_flows_count
-            #if constants.DEBUG or not(constants.DEBUG):
-            #    print("Average distance travelled by flow", flow.id, "in kms:", flow.travelled_distance)
-        for outgoing_flow, start_time, end_time in self.outgoing_flows:
-            if flow == outgoing_flow:
-                if end_time == None or until - end_time < 0:
-                    end_time = until
-                active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
-                if active_time_in_seconds >= precision:
-                    total_data_sent += active_time_in_seconds * outgoing_flow.rate
-        for dropped_flow, start_time, end_time in self.DEBUG_dropped_incoming_flows:
-            if flow == dropped_flow:
-                if end_time == None or until - end_time < 0:
-                    end_time = until
-                active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
-                if active_time_in_seconds >= precision:
-                    total_data_dropped += active_time_in_seconds * dropped_flow.rate
-                    #Escluso in modo tale da memorizzare solo i path a buon fine nel flow
-                    #flow.paths.append(dropped_flow.get_steps())
-                    '''
-                    if constants.DEBUG:
-                        print(total_data_dropped, utils.get_seconds_between(start_time, end_time) * dropped_flow.rate, "dropped for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", dropped_flow.rate, "with alias id", dropped_flow.alias_id, "reason", dropped_flow.state)
-                        print([sat.get_name() for sat in dropped_flow.get_steps()])
-                    '''
-        # Stampa tutti i percorsi del flusso
-        #print("\nPercorsi per il flusso", flow.id, ":")
-        #for idx, path in enumerate(flow.paths):
-         #   print(f"Path {idx + 1}: {[sat.get_name() for sat in path]}")
-        return (total_data_sent, total_data_received, total_data_dropped)
-        
-    def DEBUG_get_dropped_flow(self, flow: Flow):
-        flow.paths.append(flow.get_steps())
-        self.DEBUG_dropped_incoming_flows.append((flow, utils.get_current_time(), None))
-        #if constants.DEBUG:
-         #   print("Logged opening of dropped flow", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
-          #  print("Steps:", [step.get_name() for step in flow.get_steps()])
-  
-    def DEBUG_close_dropped_flow(self, flow: Flow):
-        if self.keep_log:
-            for i, (dropped_flow, start_time, end_time) in enumerate(self.DEBUG_dropped_incoming_flows):
-                if flow == dropped_flow and flow.alias_id == dropped_flow.alias_id and flow.rate == dropped_flow.rate and end_time == None:
-                    self.DEBUG_dropped_incoming_flows[i] = (dropped_flow, start_time, utils.get_current_time())
-                    #if constants.DEBUG:
-                     #   print("Logged closing of dropped flux", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
-                      #  print("Steps in DEBUG_close_dropped_flow:", [step.get_name() for step in flow.get_steps()])
-                    break
-        else:
-            while self.DEBUG_dropped_incoming_flows.__contains__(flow):
-                self.DEBUG_dropped_incoming_flows.remove(flow)
-
-    def reattach(self):
-        distances = utils.get_closer_satellites(self.satellites, (self.lat, self.lon), False)
-        new_sat = self.satellites.get(distances[0]['name'])
-        #if constants.DEBUG:
-         #   if new_sat != self.sat:
-        #print("Attaching Ground Station", self.get_name(), "to Satellite", new_sat.get_name(), "at time", utils.get_current_time().utc_strftime())
-        self.attach_to_sat(new_sat)
 
     def extract_separated_decision_lists(self, nested_decisions):
         separated_lists = []

@@ -139,10 +139,10 @@ def start():
             env.elapsed_time = time
             print("\n|||Simulating", time, "/", constants.SIMULATION_DURATION, "seconds|||")
             
-        '''
-        if constants.DEBUG:
-            print("Action to execute:", action)
-        '''
+        
+        #if constants.DEBUG:
+         #   print("Action to execute:", action)
+        
         #print("TIME: ", time ,"ACTIONS QUEUE: ", action, "KWARGS: ", kwargs) ###########
         if kwargs:
             action(kwargs)

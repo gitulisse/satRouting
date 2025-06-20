@@ -46,16 +46,16 @@ class TrafficAnalyzer:
                     env.prepare()
                     env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites) #execute the simulation with dijkstra algorithm
                     env.start()
-                for strategy in [#Strategy.POSITION_GUESSING_NO_LB,
+                for strategy in [Strategy.POSITION_GUESSING_NO_LB,
                                   #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  #Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
                                   #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION,
                                   #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
+                                  #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
                                   #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                   #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
@@ -202,17 +202,17 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
                     'DIJKSTRA' : {}, #key that will contain results for dijkstra #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {}, #key that will contain results for k shortest edge disjoint source routing
-                    #Strategy.POSITION_GUESSING_NO_LB.name : {},
+                    Strategy.POSITION_GUESSING_NO_LB.name : {},
                     #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
                     #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
-                    #Strategy.POSITION_SHARING_NO_LB.name : {},
+                    Strategy.POSITION_SHARING_NO_LB.name : {},
                     #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
                     #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
                     #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION.name : {},
                     #Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
                     #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING.name : {},
-                    Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
+                    #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
                     #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {},
                     #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
                     #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING.name : {},

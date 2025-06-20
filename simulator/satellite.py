@@ -13,7 +13,6 @@ from routing_action import RoutingAction
 from skyfield.api import EarthSatellite, wgs84
 from strategy import Strategy
 import utils
-#from header_builder import HeaderBuilder as hb
 
 class Sat:
     def __init__(self, earth_satellite, ground_stations) -> None:
@@ -66,23 +65,13 @@ class Sat:
         if leftovers:
             for flow in leftovers:   
                 if constants.DEBUG:
-                    print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                    print("[add_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                flow.add_step(self) #open_flow-like behaviour without actually opening the flux
+                flow.alias_id = self.mapping_table.add(flow.alias_id)
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
-                if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                    #continue
-                    self.drop_flow(flow, FlowState.LINK_CONGESTED) #
-                else:
-                    self.open_flow(flow)
-        #print("add_link method")
-        #self._reroute_all() #COMMENTATA (non va usato il reroute)
-        #env.put(env.elapsed_time, self._reroute_all)
+                self.drop_flow(flow, FlowState.LINK_CONGESTED) #####
+                #self.open_flow(flow)
+
     
     #Remove a link and notify neighbor
     def remove_link(self, dir: Direction, notify_neighbor = True):
@@ -92,25 +81,19 @@ class Sat:
             return
         if notify_neighbor:
             self.notify_neighbor_unlink(dir)
-
+        #if constants.DEBUG:
         #print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
         #print(f"Link {dir} removed for satellite {self.get_name()}")######
         leftovers = self._links[dir].idle() #stores remaining flows
         if leftovers and self.is_operational():
             for flow in leftovers:
-                #if constants.DEBUG:
-                #print("Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                if constants.DEBUG:
+                    print("[remove_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                flow.add_step(self) #open_flow-like behaviour without actually opening the flux
+                flow.alias_id = self.mapping_table.add(flow.alias_id)
                 flow.drop_steps_from(self)
-
-                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
-                    self.open_flow(flow)
+                self.drop_flow(flow, FlowState.LINK_CONGESTED)
+                #self.open_flow(flow)
         if not(self.is_operational()):
             if self.serving_gs:
                 #if constants.DEBUG:
@@ -144,7 +127,7 @@ class Sat:
     #Return tuple (flow, link) if the flow id is stored
     def get_stored_flow_direction(self, alias_id: int) -> list[(Flow, Link)]:
         if alias_id in self.flows.keys():
-            #print("+++++++++++++++++++++++++++++++++++++++++++ storing")
+            #print("+ storing")
             return self.flows[alias_id]
         return []
 
@@ -214,29 +197,18 @@ class Sat:
             if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 gs_candidates.append(gs) #if distance from GS's lat & lon is less then satellite's area radius appends GS to candidates
         if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
-            #print(f"[Update GS link] {self._gs_link} from Satellite {self.get_name()} is updated to new GS: {[gs.get_name() for gs in gs_candidates]}") #più link si collegano da vari satelliti a una singola GS con questa implementazione
             leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
-            #print(f"[Leftovers] Leftovers detached from GS: {leftovers}") #print leftovers
             for gs in gs_candidates: #dopo aver rimosso tutti i gs link, per ogni gs attacco il link alle gs candidate
                 self._gs_link.attach_to_gs(gs) #and reconnect to new candidates
             if leftovers:
                 for flow in leftovers:
+                    if constants.DEBUG:
+                        print("[_update_gs_link] Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                    flow.add_step(self) #open_flow-like behaviour without actually opening the flux
+                    flow.alias_id = self.mapping_table.add(flow.alias_id)
                     flow.drop_steps_from(self)
-                    if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
-                                                        Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                                        Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                                        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                                        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                                        Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                                        Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                                        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                        # Routing CENTRALIZZATO: drop dei leftovers
-                        #continue
-                        self.drop_flow(flow, FlowState.LINK_CONGESTED)
-                    else:
-                        self.open_flow(flow)
-                        #if constants.DEBUG:
-                            #print("Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])'''
+                    self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop flow
+                    #self.open_flow(flow)
 
     #Update satellite position
     def _update_position(self):
@@ -395,8 +367,6 @@ class Sat:
                 else:
                     f, flow = flow.split(available_bandwidth)
                     adapted_routing_decisions.append((action, f, link))
-                    #adapted_routing_decisions.append((RoutingAction.REOPEN, flow, None))
-                    #break
             elif action == RoutingAction.ERROR:
                 adapted_routing_decisions.append((action, flow, link))
                 break
@@ -440,8 +410,6 @@ class Sat:
                         dist = float("inf")
                     else:
                         dist = distance.distance((link.lat, link.lon), flow.destination).km #else calculates the real distance to destination
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
-                        #    dist = float('inf')
                     candidates.append({'distance': dist, 'dir': key}) #add candidate with distance and direction
             candidates.sort(key=lambda x: x['distance']) #sort candidates for distance, first = closest
 
@@ -471,8 +439,6 @@ class Sat:
                         dist = float("inf")
                     else:
                         dist = distance.distance((link.lat, link.lon), flow.destination).km
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
-                        #    dist = float('inf')
                     candidates.append({'distance': dist, 'dir': key})
             candidates.sort(key=lambda x: x['distance'])
 
@@ -500,8 +466,6 @@ class Sat:
                         dist = float("inf")
                     else:
                         dist = distance.distance((link.lat, link.lon), flow.destination).km
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
-                        #    dist = float('inf')
                     #Calculate Load Balance Score 
                     if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB]:
@@ -537,8 +501,6 @@ class Sat:
                         dist = float("inf")
                     else:
                         dist = distance.distance((link.lat, link.lon), flow.destination).km
-                        #if dist > distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km:
-                        #    dist = float('inf')
 
                     # Calcolo del punteggio di bilanciamento del carico
                     if link.get_available_bandwidth() > 0:
