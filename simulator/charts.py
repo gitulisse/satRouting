@@ -82,12 +82,10 @@ def show_shortest_paths_table(results: dict):
 
     refactored_results = {
         'DIJKSTRA' : {},
-        Strategy.POSITION_GUESSING_NO_LB.name : {},
+        #Strategy.POSITION_GUESSING_NO_LB.name : {},
         #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
-        #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
-        Strategy.POSITION_SHARING_NO_LB.name : {},
+        #Strategy.POSITION_SHARING_NO_LB.name : {},
         #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
-        #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
         #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
         #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION.name : {},
         #Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy

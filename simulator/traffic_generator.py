@@ -47,7 +47,7 @@ class TrafficGenerator:
         print("     Received", destination_gs_flow_info[1]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
         print("         Lost", destination_gs_flow_info[2]  / 10, "Gb from", self.source_gs.get_name(), "to", self.destination_gs.get_name())
 
-        if constants.DEBUG:
+        '''if constants.DEBUG:
             all_ids = []
             all_sats = []
             for name, sat in self.source_gs.satellites.items():
@@ -66,6 +66,6 @@ class TrafficGenerator:
                             print(id, r, alias_id, state)
             
             print("         Totale satelliti con strutture flows occupate:", len(all_sats))
-            print("         Totale flussi in giro:", len(set(all_ids)))
+            print("         Totale flussi in giro:", len(set(all_ids)))'''
             
         #self.draw_flow_paths(flow) #draw the flow paths made by satellite sequela 

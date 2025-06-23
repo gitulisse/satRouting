@@ -47,6 +47,7 @@ def prepare():
         env.put(i, topology_builder) #put the action topology builder for update topology
         
     if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.SOURCE_ROUTING_NO_LB,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -103,6 +104,7 @@ def start():
 
     #if the strategy requires LB print the current UPDATE_TIME
     if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.SOURCE_ROUTING_NO_LB,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -121,6 +123,7 @@ def start():
         print("- Adaptive load balancing weight factor:", constants.LOAD_BALANCING_WEIGHT_FACTOR)
     
     if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.SOURCE_ROUTING_NO_LB,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -260,6 +263,7 @@ def topology_builder():
 
     # update the graph to new constellation topology
     if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.SOURCE_ROUTING_NO_LB,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
@@ -267,8 +271,8 @@ def topology_builder():
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
                                       Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+        
         env.main_graph = nx.Graph()
-
         # Add active links to active satellites
         for name, sat in env.satellites.items():
             for dir, link in sat._links.items(): 
@@ -293,7 +297,6 @@ def topology_builder():
                         available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY
                     )
 
-        
         num_nodes = env.main_graph.number_of_nodes()
         num_edges = env.main_graph.number_of_edges()
         edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
