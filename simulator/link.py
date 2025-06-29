@@ -58,15 +58,17 @@ class Link:
             #print(f"[INFO] Available bandwidth on link is {self.get_available_bandwidth()} Gbps now")
             #if constants.DEBUG:
              #   print("Reserved on link", flow.rate, "Mb for flux", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
-            if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.SOURCE_ROUTING_NO_LB, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                 target_name = (self.target[0].get_name() 
                     if isinstance(self.target, list) and self.target 
                     else self.target.get_name())
@@ -119,15 +121,17 @@ class LaserLink(Link):
         leftovers = []
         while len(self.flows.values()) > 0:
             flow = list(self.flows.values())[0]
-            if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                     Strategy.SOURCE_ROUTING_NO_LB,
-                                    Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                    Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                    Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                    Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                    Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                    Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                    Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                 #print(f"IDLE FLOW ID {flow.id} & Alias id {flow.alias_id} on parent Mapping Table {self._parent.mapping_table.table}")
                 #if flow.alias_id not in self._parent.mapping_table.table:
                  #   print(f"Skipping invalid alias_id -centralized-: {flow.alias_id}")

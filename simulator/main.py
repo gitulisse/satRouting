@@ -162,15 +162,13 @@ env.prepare() #prepare the environment with all necessary components
 traffic_generators = []
 header_builders = []
 
-if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA,
+if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.SOURCE_ROUTING_NO_LB,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
@@ -184,7 +182,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_SHARING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                                  Strategy.POSITION_SHARING_COST_BALANCING]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")

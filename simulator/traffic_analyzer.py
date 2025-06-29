@@ -19,6 +19,9 @@ from strategy import Strategy
 import threading
 import time
 import utils
+import networkx as nx
+import random
+from itertools import permutations
 
 class AnalysisMetric(Enum): #metrics
     COMPARISON_WITH_DIJKSTRA = 1
@@ -39,28 +42,25 @@ class TrafficAnalyzer:
             case AnalysisMetric.COMPARISON_WITH_DIJKSTRA: #case 1
                 simulation_duration_backup = constants.SIMULATION_DURATION #save simulation duration that determinates how much time is executed for each strategy
                 constants.SIMULATION_DURATION = 1 #change duration
-                self.prepare_results_for_comparison_with_dijkstra(ground_stations=self.ground_stations)
-                for i in range(0, simulation_duration_backup):
-                    utils.set_hour_shift(i) #repeat simulation shifting hour from 0 to simulation_duration_backup
-                    env.reset()
-                    env.prepare()
-                    env.put(0, self.sample_dijkstra, ground_stations=self.ground_stations, satellites=self.satellites) #execute the simulation with dijkstra algorithm
-                    env.start()
-                for strategy in [#Strategy.POSITION_GUESSING_NO_LB,
+                self.prepare_results_for_comparison(ground_stations=self.ground_stations)
+
+                traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()]) #create traffic matrix using GS names
+                print(traffic_matrix)
+                for strategy in [Strategy.BASELINE_DIJKSTRA,
+                                  #Strategy.POSITION_GUESSING_NO_LB,
                                   #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_SHARING_NO_LB,
                                   #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION,
-                                  #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION
+                                  #Strategy.POSITION_SHARING_COST_BALANCING,
+                                  #Strategy.SOURCE_ROUTING_NO_LB,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
                                   ]:
                     constants.ROUTING_STRATEGY = strategy 
                     flows = {} #empty dictionary of flows
@@ -68,7 +68,7 @@ class TrafficAnalyzer:
                         utils.set_hour_shift(i)
                         env.reset()
                         env.prepare()
-                        env.put(0, self.prepare_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
+                        env.put(0, self.prepare_strategy_comparison, ground_stations=self.ground_stations, flows=flows)#, traffic_matrix=traffic_matrix)
                         env.put(0, self.sample_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.put(0, self.end_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.start()
@@ -125,11 +125,6 @@ class TrafficAnalyzer:
 
                 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
                 print(traffic_matrix)
-                '''for strategy in [Strategy.POSITION_SHARING_NO_LB,
-                                 Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                 Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                 Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB]:'''
-                
                 for strategy in [#Strategy.POSITION_GUESSING_NO_LB,
                                   #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
@@ -137,14 +132,14 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION,
-                                  #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION
+                                  Strategy.POSITION_SHARING_COST_BALANCING,
+                                  Strategy.BASELINE_DIJKSTRA,
+                                  Strategy.SOURCE_ROUTING_NO_LB,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
                                   ]:
                     constants.ROUTING_STRATEGY = strategy
                     for time in neighbors_update_times:
@@ -200,7 +195,6 @@ class TrafficAnalyzer:
                     env.start()
                 constants.ROUTING_STRATEGY = strategy_backup
 
-
         print(self.results)
         #if duration is longer then 60 secs cretes a random file with srtored results of simulation
         if constants.SIMULATION_DURATION >= 60:
@@ -211,14 +205,12 @@ class TrafficAnalyzer:
 
         return self.results
 
-
-    def prepare_results_for_comparison_with_dijkstra(self, ground_stations):
+    def prepare_results_for_comparison(self, ground_stations):
         self.results = {}
         for source in ground_stations.values():
             for destination in ground_stations.values():
                 if source == destination: continue
                 self.results[source.get_name() + ' - ' + destination.get_name()] = { #create a key in self.result made by GSsource-GSdestination
-                    'DIJKSTRA' : {}, #key that will contain results for dijkstra #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {}, #key that will contain results for k shortest edge disjoint source routing
                     #Strategy.POSITION_GUESSING_NO_LB.name : {},
                     #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
                     #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
@@ -226,15 +218,14 @@ class TrafficAnalyzer:
                     #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
                     #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-                    #Strategy.POSITION_SHARING_WITH_COSTS_SELECTION.name : {},
-                    #Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
-                    #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING.name : {},
-                    #Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
-                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING.name : {},
-                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
-                    #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING.name : {},
-                    #Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB.name : {},
-                    #Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION.name : {},
+                    #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
+                    Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
+                    #Strategy.SOURCE_ROUTING_NO_LB.name : {}, #key that will contain results for source routing without load balancing
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy (even dijkstra) 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
@@ -242,43 +233,41 @@ class TrafficAnalyzer:
                         'failed' : 0, #count all failed routings
                         'distance' : [] #store the travelled distance
                     }
-    #calculate shortest path between 2 GS stations with DIJKSTRA
-    def sample_dijkstra(self, kwargs):
-        ground_stations: dict = kwargs['ground_stations']
-        satellites: dict = kwargs['satellites']
-        for source in ground_stations.values():
-            for destination in ground_stations.values():
-                if source == destination: continue
-                dijkstra_shortest_paths = self._get_dijkstra_shortest_paths(satellites, source, destination)
-                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(dijkstra_shortest_paths[0]))
-                self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min([self._get_path_distance(dijkstra_shortest_path, source, destination, satellites) for dijkstra_shortest_path in dijkstra_shortest_paths]))
-        
+
     def prepare_strategy_comparison(self, kwargs): #prepare the comparison among strategies
         ground_stations: dict = kwargs['ground_stations']
         flows: dict = kwargs['flows']
+        #traffic_matrix = kwargs['traffic_matrix']
+        # Genera tutte le coppie source-destination (GS -> GS), poi le mescola
+        #all_pairs = list(permutations(ground_stations.values(), 2))
+        #random.shuffle(all_pairs)
         for source in ground_stations.values():
+        #for source, destination in all_pairs:
+            #gs_traffic_details = traffic_matrix[source.get_name()] #for every source store in a dictionary the outgoing traffic from each source GS with destination and traffic
+            #traffic_rate = gs_traffic_details[destination.get_name()]
             for destination in ground_stations.values():
+            #for destination_name in gs_traffic_details: #for each destination
+                #destination = ground_stations[destination_name.upper()]
                 if source == destination: continue
-                flow = utils.create_new_flow((destination.lat, destination.lon), 0.5) #0.5 best choice, create a flow with 0.5 initial traffic rate
+                flow = utils.create_new_flow((destination.lat, destination.lon), 0) #traffic_rate) #0.5 medium, create a flow with 0.5 initial traffic rate
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow  #store the flow in dictionary flows as: flows = {"GS1 - GS2": <Flow object>, "GS1 - GS3": <Flow object>,...}
                 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                    Strategy.POSITION_SHARING_NO_LB,
+                                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                    Strategy.POSITION_SHARING_COST_BALANCING]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
-                if constants.ROUTING_STRATEGY in [#Strategy.BASELINE_DIJKSTRA, 
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-                    print("PARTITO CENTRALIZED ROUTING")
+                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
+                                    Strategy.SOURCE_ROUTING_NO_LB,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                    #print("PARTITO CENTRALIZED ROUTING")
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
     def sample_strategy_comparison(self, kwargs): #store perferomance data for comparison
@@ -290,8 +279,8 @@ class TrafficAnalyzer:
                 flow = flows[source.get_name() + ' - ' + destination.get_name()] #store the flow obtained by key source-destination in the dictionary flows
                 if destination.is_incoming_flow_alive(flow): #if the flow is incoming in destination
                     destination.get_flow_info(flow, until=utils.get_current_time()) #obtain flow infos until the time of the current simulation
-                    #print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flow.paths[-1]])
-                    #print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flow.paths[-1]), "hops.")
+                    print(f"Routing strategy's shortest path from {source.get_name()} to {destination.get_name()}: ", [sat.get_name() for sat in flow.paths[-1]])
+                    print(f"Routing strategy's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(flow.paths[-1]), "hops.")
                     self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['successful'].append(len(flow.paths[-1])) #store length (as steps) of successful paths
                     self.results[source.get_name() + ' - ' + destination.get_name()][constants.ROUTING_STRATEGY.name]['distance'].append(flow.travelled_distance) #store the travelled distance 
                 else:
@@ -311,32 +300,9 @@ class TrafficAnalyzer:
     def _get_candidate_end_satellites_names(self, satellites, position):#obtain list of closer satellites in coverage area #position for destination coordinates
         sat_list = utils.get_closer_satellites(satellites, position) #list of closer satellites
         return [sat['name'] for sat in sat_list if sat['distance'] < constants.SATELLITE_COVERAGE_AREA_RADIUS] #list of the only satellites inside the coverage area of self
-    
-    def _get_path_distance(self, path: list, source, destination, satellites) -> float: #calculate the distance travelled by the flow
-        distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites) #calculate distance between GS and the first satellite
-        distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites) #calculate & add the distance between last satellite and GS
-        older_hop = path[0] #first satellite of path
-        for hop in path[1:]: #for every hop after the first one, calucate & add distance between satellites
-            distance += utils.get_distance_between_satellites(older_hop, hop, satellites=satellites)
-            older_hop = hop
-        return distance
 
-    def _get_dijkstra_shortest_paths(self, satellites, source, destination): #calculate all the shortest available paths
-        g = dijkstra.Graph() #construct a graph for satellites
-        for name, sat in satellites.items(): #for every satellite item using as keys name & sat, and for every link of them check if link is active
-            for link in sat._links.values(): 
-                if link.is_active():
-                    g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target)) #add a connection from name(the current satellite) to the target
-        end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) #otherwise check for the closet satellites in the area of destination GS
-        #calculate Dijkstra's shortest path
-        d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #initialize dijkstra algorithm on the graph starting from source
-        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites]
-        shortest_path = min(shortest_paths, key=lambda x: len(x))
-        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)]
-        for sp in shortest_paths: #print("PERCORSI", shortest_paths)
-            print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
-        print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
-        return shortest_paths
+
+
 
     #prepare the dictionary for avarage link occupation analysis
     def prepare_results_for_average_link_occupation_analysis(self):
@@ -366,16 +332,15 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_SHARING_WITH_COSTS_SELECTION]:
+                                  Strategy.POSITION_SHARING_COST_BALANCING]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
-                if constants.ROUTING_STRATEGY in [  #Strategy.BASELINE_DIJKSTRA, SISTEMARE
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                  Strategy.SOURCE_ROUTING_NO_LB,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
                 #source.send_flow(flow) #send flow
 

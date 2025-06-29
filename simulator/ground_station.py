@@ -33,6 +33,7 @@ class GroundStation:
         self.results = None
         self._graph = None
         self._auxiliary_graph = None
+        self.no_weight_graph = None
         self.excluded_links = []
         self.link_utilization = {}  #dictionary that maps link to its utilization
         self.destination = None
@@ -262,7 +263,7 @@ class GroundStation:
 
         if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
             
-            dijkstra_shortest_path = self.calculate_dijkstra({
+            dijkstra_shortest_path = self.calculate_k_disjoint_paths({
                 'source': self,
                 'destination': self.destination,
                 'satellites': self.satellites,
@@ -273,6 +274,10 @@ class GroundStation:
                 #print("No valid path found for Dijkstra, returning empty routing output.")
                 return routing_output
             print("Dijkstra shortest path found:", dijkstra_shortest_path)
+
+            selected_path = dijkstra_shortest_path[0]
+            routing_output = self.process_routing_output_no_lb(selected_path, flow)
+            routing_output = self.adapt_routing_with_single_split(flow, routing_output)
             
         elif constants.ROUTING_STRATEGY == Strategy.SOURCE_ROUTING_NO_LB:
 
@@ -288,11 +293,11 @@ class GroundStation:
                 return routing_output
             
             selected_path = disjoint_paths[0]  # Select the first path as the source routing path
-            routing_output = self.process_routing_output(selected_path, flow)
+            routing_output = self.process_routing_output_no_lb(selected_path, flow)
             routing_output = self.adapt_routing_with_single_split(flow, routing_output)
             
-        elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                            Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB]:
 
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
@@ -312,14 +317,14 @@ class GroundStation:
             #print(f"basic centralized method - routing output {routing_output}")
 
             #print("ROUTING 1______", routing_output)
-            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
+            if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
-            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+            if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
             #print("ROUTING ******", routing_output)
         
-        elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                            Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB]:
 
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
@@ -335,12 +340,12 @@ class GroundStation:
             probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
             selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
             routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
-            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING:
+            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
-            if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
 
-        elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION:
+        elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
 
             disjoint_paths = self.calculate_k_disjoint_paths({
                 'source': self,
@@ -360,26 +365,6 @@ class GroundStation:
                 selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
                 routing_output = self.process_routing_output(selected_path, flow) #process the output for routing  
 
-        elif constants.ROUTING_STRATEGY in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
-
-            disjoint_paths = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-
-            if not disjoint_paths:
-                return routing_output
-            probabilities = self.calculate_path_weights_length_shortest_node_disjoint(self._graph, disjoint_paths) #calculate probabilities based on length of k paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
-            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
-            if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING:
-                routing_output = self.adapt_routing_with_single_split(flow, routing_output)
-            if constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
-        #print("The routing output obtained from basic_centralized_route:", routing_output)
         return routing_output #RoutingAction, Flow, Link
 
     def extract_separated_decision_lists(self, nested_decisions):
@@ -614,13 +599,6 @@ class GroundStation:
             else:
                 adapted_routing_decisions.append((action, remaining_flow, link))
 
-        #if remaining_flow and remaining_flow.rate > 0:
-            #print("[DEBUG] Undeliverable flow with rate", remaining_flow.rate, "after single split adaptation." )
-            #flow.add_step(self) #open_flow-like behaviour without actually opening the flux
-            #flow.alias_id = self.mapping_table.add(flow.alias_id)
-            #flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
-            #self.drop_flow(remaining_flow, FlowState.LINK_CONGESTED)
-
         return adapted_routing_decisions
 
     def check_path_for_splitted_flow_simple(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
@@ -811,7 +789,7 @@ class GroundStation:
         selected_path = None  # Inizializza la variabile per prevenire l'errore
         #print("Nodes in g_auxiliary:", g_auxiliary.nodes)
 
-        if constants.ROUTING_STRATEGY == Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+        if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB:
             #print(f"starting node is {source_satellite}")
             for dst_sat in destination_satellites:
                 #print(f"dst_sat {dst_sat} in destination_satellites: {destination_satellites}")#debug
@@ -832,7 +810,7 @@ class GroundStation:
                 probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
         
-        elif constants.ROUTING_STRATEGY == Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+        elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
             for dst_sat in destination_satellites:
                 try:
                     paths = list(nx.edge_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
@@ -844,7 +822,7 @@ class GroundStation:
                 probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
-        elif constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
+        '''elif constants.ROUTING_STRATEGY == Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB:
             for dst_sat in destination_satellites:
                 try:
                     paths = list(nx.node_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
@@ -854,7 +832,7 @@ class GroundStation:
             #self.print_paths(disjoint_paths, "Length shortest node disjoint paths")
             if disjoint_paths:
                 probabilities = self.calculate_path_weights_length_shortest_node_disjoint(g_auxiliary, disjoint_paths)
-                selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+                selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)'''
 
         if selected_path is None:  # Se nessun percorso è stato trovato
             print(f"DROPPED FLOW STORED while calculate path exclusions, No valid path for {remaining_flow} rate {remaining_flow.rate} from {self.get_name()} to {self.destination.get_name()}.")
@@ -881,6 +859,41 @@ class GroundStation:
         print(f"{label}:")
         for path in paths:
             print(f"  Path: {list(zip(path[:-1], path[1:]))}")
+
+    def process_routing_output_no_lb(self, selected_path, flow):
+        processed_output = []
+        print(f">>> Processing Selected Path: {selected_path}")
+
+        for i in range(len(selected_path) - 1):
+            current_node = selected_path[i]
+            next_node = selected_path[i + 1]
+            link = self._get_link_between_nodes_or_ground_station(current_node, next_node, self.satellites, self.gss)
+            if not link:
+                print(f"[WARNING]: No link found between {current_node} and {next_node}. Skipping.")
+                continue
+            processed_output.append((RoutingAction.FORWARD, flow, link))
+
+        # Controllo finale 
+        last_node = selected_path[-1]
+        if (self.destination not in self.satellites[last_node]._gs_link.get_attached_gs()):
+            print(f"[ERROR] Satellite {last_node} is not directly connected to GS {self.destination.get_name()}. Excluding and recalculating.")
+            self.excluded_links.append((selected_path[-2], last_node))
+            # Ricalcola un percorso alternativo
+            return self.calculate_path_with_exclusions(flow, selected_path[0], self._auxiliary_graph)
+
+        #print("Destination while processing output",  self.destination.get_name())
+        # Se tutto va bene, procedi con il link finale
+        last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
+
+        if last_link:
+            #print("[INFO]: Final link to GS found.")
+            processed_output.append((RoutingAction.DELIVER, flow, last_link))
+        else:
+            print(f"[ERROR]: No final link to GS from satellite {last_node} found. Path discarded.")
+            return []
+
+        return processed_output
+
 
     def process_routing_output(self, selected_path, flow):
         processed_output = []
@@ -934,16 +947,15 @@ class GroundStation:
         destination: dict = kwargs['destination']
         satellites: dict = kwargs['satellites']
         flow: Flow = kwargs['flow']  # aggiunto flow
-        if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
-                                        Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                        Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                        Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING]:
-            k = constants.K_SHORTEST_VALUE # Numero massimo di percorsi disgiunti consentiti
-        if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                  Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
-            k = constants.K_SHORTEST_VALUE_LB  # Numero massimo di percorsi disgiunti richiesti
+        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                        Strategy.SOURCE_ROUTING_NO_LB,
+                                        Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB]:
+            k = constants.K_SHORTEST_VALUE #valore pari a 1
+        if constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+            k = constants.K_SHORTEST_VALUE_LB #valore pari a 4
         
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
         
@@ -959,10 +971,7 @@ class GroundStation:
  
     def _get_k_disjoint_paths(self, satellites, source, destination):
         print("Starting Main Graph", env.main_graph)
-        #num_nodes = env.main_graph.number_of_nodes()
-        #num_edges = env.main_graph.number_of_edges()
-        #edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
-        #print(f"[DEBUG] _get_k_disjoint Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
+
         source_satellite = []
         destination_satellite = []
         closer_satellites = utils.get_closest_satellite_for_graph(satellites, (source.lat, source.lon))#trova satellite più vicino a sorgente #modifica nel trovare il satellite più vicino alla SORGENTE!
@@ -996,12 +1005,13 @@ class GroundStation:
         for gs_name in env.ground_stations.keys():
             if gs_name in env.main_graph:
                 self._auxiliary_graph.remove_node(gs_name)
-        #num_nodes = self._auxiliary_graph.number_of_nodes()
-        #num_edges = self._auxiliary_graph.number_of_edges()
-        #edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
-        ##print(f"AUXILIARY _get_k_disjoint AUXILIARY Graph Simplified List  of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")
+        self.no_weight_graph = self._auxiliary_graph.copy() #per il calcolo senza pesi
+        for u, v, data in self.no_weight_graph.edges(data=True):
+            data['weight'] = 1
+
         disjoint_paths = [] #list of k paths
-        if constants.ROUTING_STRATEGY == Strategy.SOURCE_ROUTING_NO_LB:
+        
+        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
             if source == destination:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
@@ -1017,7 +1027,28 @@ class GroundStation:
                         print(f"[ERROR] Destination satellites missing from graph!")
                         return []
                     try:
-                        k = constants.K_SHORTEST_VALUE + 1
+                        path = nx.dijkstra_path(self.no_weight_graph, src_sat, dst_sat, weight='weight')
+                        disjoint_paths.append(path)
+                    except nx.NetworkXNoPath:
+                        print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
+
+        elif constants.ROUTING_STRATEGY == Strategy.SOURCE_ROUTING_NO_LB:
+            if source == destination:
+                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
+                disjoint_paths = []
+                disjoint_paths.append([closer_sats[0]['name']])
+                return disjoint_paths
+            for src_sat in source_satellite: #in case there are more than one source and destination satellites (for a more complex algorithm)
+                for dst_sat in destination_satellite:
+                    if src_sat not in valid_source_sats:
+                        print(f"[ERROR] Source satellites missing from graph!")
+                        return []
+                    if dst_sat not in valid_destination_sats:
+                        print(f"[ERROR] Destination satellites missing from graph!")
+                        return []
+                    try:                        
+                        k = constants.K_SHORTEST_VALUE
                         paths = []
                         for path in nx.shortest_simple_paths(self._auxiliary_graph, src_sat, dst_sat, weight='weight'):
                             paths.append(path)
@@ -1028,8 +1059,8 @@ class GroundStation:
                         print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
             
-        if constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                          Strategy.KSHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                          Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB]:
             if source == destination:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
@@ -1045,14 +1076,23 @@ class GroundStation:
                         print(f"[ERROR] Destination satellites missing from graph!")
                         return []
                     try:
-                        paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) #### #calculate disjoint paths in graph excluding already used nodes
-                        disjoint_paths.extend(paths)  #add all found paths
+                        if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING:
+                            k = constants.K_SHORTEST_VALUE
+                        else:
+                            k = constants.K_SHORTEST_VALUE_LB
+                        all_paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat))
+                        weighted_paths = [
+                            (p, sum(self._auxiliary_graph[u][v].get('weight', 1) for u, v in zip(p, p[1:])))
+                            for p in all_paths
+                        ]
+                        weighted_paths.sort(key=lambda x: x[1])  # Ordina per peso
+                        disjoint_paths = [p for p, _ in weighted_paths[:k]]
                     except nx.NetworkXNoPath:
                         print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
-        elif constants.ROUTING_STRATEGY in [Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_LB,
-                                            Strategy.KSHORTEST_EDGE_DISJOINT_SOURCE_ROUTING_WITH_COSTS_SELECTION]:
+        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                            Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                            Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
             if source == destination:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
@@ -1068,20 +1108,29 @@ class GroundStation:
                         print(f"[ERROR] Destination satellites missing from graph!")
                         return []
                     try:
-                        paths = list(nx.edge_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) #### #calculate disjoint paths in graph excluding already used nodes
-                        disjoint_paths.extend(paths)  #add all found paths
+                        if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
+                            k = constants.K_SHORTEST_VALUE
+                        else:
+                            k = constants.K_SHORTEST_VALUE_LB
+                        all_paths = list(nx.edge_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat))
+                        weighted_paths = [
+                            (p, sum(self._auxiliary_graph[u][v].get('weight', 1) for u, v in zip(p, p[1:])))
+                            for p in all_paths
+                        ]
+                        weighted_paths.sort(key=lambda x: x[1])  # Ordina per peso
+                        disjoint_paths = [p for p, _ in weighted_paths[:k]]
                     except nx.NetworkXNoPath:
                         print(f"[INFO] Getting K-paths - No Edge disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
-        elif constants.ROUTING_STRATEGY in [Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING,
-                                            Strategy.LENGTH_SHORTEST_NODE_DISJOINT_SOURCE_ROUTING_WITH_LB]:
+        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                             Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
             if source == destination:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 disjoint_paths.append([closer_sats[0]['name']])
                 return disjoint_paths
-            for src_sat in source_satellite:
+            for src_sat in source_satellite: #in case there are more than one source and destination satellites (for a more complex algorithm)
                 for dst_sat in destination_satellite:
                     if src_sat not in valid_source_sats:
                         print(f"[ERROR] Source satellites missing from graph!")
@@ -1090,18 +1139,51 @@ class GroundStation:
                         print(f"[ERROR] Destination satellites missing from graph!")
                         return []
                     try:
-                        paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) #calculate disjoint paths in graph excluding already used nodes
-                        disjoint_paths.extend(paths)  #add all found paths
+                        if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK:
+                            k = constants.K_SHORTEST_VALUE
+                        else:
+                            k = constants.K_SHORTEST_VALUE_LB
+                        all_paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat))
+                        bandwidth_paths = [
+                            (p, min(self._auxiliary_graph[u][v].get('available_bandwidth', 0) for u, v in zip(p, p[1:])))
+                            for p in all_paths
+                        ]
+                        bandwidth_paths.sort(key=lambda x: x[1], reverse=True)  # Ordina per banda decrescente
+                        disjoint_paths = [p for p, _ in bandwidth_paths[:k]]
                     except nx.NetworkXNoPath:
-                        print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")       
+                        print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
-        '''num_nodes = self._auxiliary_graph.number_of_nodes()
-        num_edges = self._auxiliary_graph.number_of_edges()
-        edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
-        print(f"AUXILIARY Graph Simplified List  of {num_edges} Edges, {num_nodes} Nodes in g graph: {edges_list}")'''
-        #print("Percorsi generati da _get_k_disjoint_paths:", disjoint_paths)
-        ### dopo le modifiche aggiorniamo il grafo
-        #env.main_graph = g.copy() #store the graph for successive use
+        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                             Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+            if source == destination:
+                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
+                disjoint_paths = []
+                disjoint_paths.append([closer_sats[0]['name']])
+                return disjoint_paths
+            for src_sat in source_satellite: #in case there are more than one source and destination satellites (for a more complex algorithm)
+                for dst_sat in destination_satellite:
+                    if src_sat not in valid_source_sats:
+                        print(f"[ERROR] Source satellites missing from graph!")
+                        return []
+                    if dst_sat not in valid_destination_sats:
+                        print(f"[ERROR] Destination satellites missing from graph!")
+                        return []
+                    try:
+                        if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK:
+                            k = constants.K_SHORTEST_VALUE
+                        else:
+                            k = constants.K_SHORTEST_VALUE_LB
+                        all_paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat))
+                        bandwidth_paths = [
+                            (p, min(self._auxiliary_graph[u][v].get('available_bandwidth', 0) for u, v in zip(p, p[1:])))
+                            for p in all_paths
+                        ]
+                        bandwidth_paths.sort(key=lambda x: x[1], reverse=True)  # Ordina per banda decrescente
+                        disjoint_paths = [p for p, _ in bandwidth_paths[:k]]
+                    except nx.NetworkXNoPath:
+                        print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
+
         return disjoint_paths
    
 
@@ -1223,8 +1305,8 @@ class GroundStation:
 
     #calculate the distance travelled by the flow
     def _get_path_distance(self, path: list, source, destination, satellites) -> float:
-        distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites) #calculate distance between GS and the first satellite
-        distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites) #calculate & add the distance between last satellite and GS
+        #distance = utils.get_distance_between_satellite_and_gs(path[0], source, satellites=satellites) #calculate distance between GS and the first satellite
+        #distance += utils.get_distance_between_satellite_and_gs(path[-1], destination, satellites=satellites) #calculate & add the distance between last satellite and GS
         older_hop = path[0] #first satellite of path
 
         #for every hop after the first one, calucate & add distance between satellites
