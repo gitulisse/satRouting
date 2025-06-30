@@ -271,7 +271,7 @@ class GroundStation:
             })
 
             if not dijkstra_shortest_path:
-                #print("No valid path found for Dijkstra, returning empty routing output.")
+                print("No valid path found for BASELINE_DIJKSTRA, returning empty routing output.")
                 return routing_output
             print("Dijkstra shortest path found:", dijkstra_shortest_path)
 
@@ -289,7 +289,7 @@ class GroundStation:
             })
 
             if not disjoint_paths:
-                #print("No valid path found for Dijkstra, returning empty routing output.")
+                print("No valid path found for SOURCE_ROUTING_NO_LB, returning empty routing output.")
                 return routing_output
             
             selected_path = disjoint_paths[0]  # Select the first path as the source routing path
@@ -307,7 +307,7 @@ class GroundStation:
             })
 
             if not disjoint_paths:
-                #print("No valid Disjoint paths found, returning empty routing output.")
+                print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
             
             probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
@@ -320,10 +320,9 @@ class GroundStation:
             if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
             if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
-            #print("ROUTING ******", routing_output)
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
         
-        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB]:
 
             disjoint_paths = self.calculate_k_disjoint_paths({
@@ -340,10 +339,10 @@ class GroundStation:
             probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
             selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
             routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
-            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
+            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
             if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output) ################ adapt
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
 
         elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
 
@@ -364,6 +363,52 @@ class GroundStation:
                 costs = self.calculate_path_costs(self._graph, disjoint_paths, self.link_utilization, alpha) #calculate the costs of k paths
                 selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
                 routing_output = self.process_routing_output(selected_path, flow) #process the output for routing  
+
+        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                            Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self,
+                'destination': self.destination,
+                'satellites': self.satellites,
+                'flow': flow
+            })
+
+            if not disjoint_paths:
+                #print("No valid Disjoint paths found, returning empty routing output.")
+                return routing_output
+            
+            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
+
+            if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK:
+                routing_output = self.adapt_routing_with_single_split(flow, routing_output)
+            if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+
+        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                            Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+
+            disjoint_paths = self.calculate_k_disjoint_paths({
+                'source': self,
+                'destination': self.destination,
+                'satellites': self.satellites,
+                'flow': flow
+            })
+            #for path_index, path in enumerate(disjoint_paths): #Debug
+            #    print(f"Processing path {path_index + 1}: {path}")
+            if not disjoint_paths:
+                #print("No valid Disjoint paths found, returning empty routing output.")
+                return routing_output
+            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
+            
+            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK:
+                routing_output = self.adapt_routing_with_single_split(flow, routing_output)
+            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
 
         return routing_output #RoutingAction, Flow, Link
 
@@ -950,11 +995,15 @@ class GroundStation:
         if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                         Strategy.SOURCE_ROUTING_NO_LB,
                                         Strategy.NODE_DISJOINT_SOURCE_ROUTING,
-                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB]:
+                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                        Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK]:
             k = constants.K_SHORTEST_VALUE #valore pari a 1
         if constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
             k = constants.K_SHORTEST_VALUE_LB #valore pari a 4
         
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)
@@ -1090,7 +1139,7 @@ class GroundStation:
                     except nx.NetworkXNoPath:
                         print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
-        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                             Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                             Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
             if source == destination:
@@ -1237,6 +1286,7 @@ class GroundStation:
                 base_weight = graph[current_node][next_node]['weight']
                 link_key = (current_node, next_node)
                 utilization = self.link_utilization.get(link_key, 0)
+                #print("SELF.LINK_UTILIZATION:", utilization)
                 link = self._get_link_between_nodes(current_node, next_node, self.satellites)
                 # Determina capacità massima in base al tipo di link
                 max_capacity = (
@@ -1246,7 +1296,9 @@ class GroundStation:
                 if max_capacity <= 0:
                     raise ValueError(f"Capacità massima non valida per il link {current_node}-{next_node}: {max_capacity}")
                 penalty = utilization / max_capacity
+                #print("penalty", penalty)
                 weight += base_weight * (1 + penalty)
+                #print("weight", weight)
             path_weights.append(weight)
 
         if not path_weights:
@@ -1262,28 +1314,8 @@ class GroundStation:
 
         total_inverted_weights = sum(inverted_weights)
         probabilities = [iw / total_inverted_weights for iw in inverted_weights]
-
+        #print("PROBABILITES", probabilities)
         return probabilities
-
-    def calculate_path_weights_length_shortest_node_disjoint(self, graph, paths):
-        # Calcola i pesi dei path
-        path_costs = [path_weight(graph, p, weight="weight") for p in paths]
-        sum_weights = sum(path_costs)
-
-        # Caso degenerato: tutti i pesi 0 o lista vuota
-        if sum_weights == 0 or len(paths) == 0:
-            return [1.0 / len(paths)] * len(paths) if paths else []
-
-        # Calcola i pesi inversi (1 - costo_relativo)
-        inverse_weights = [1 - (c / sum_weights) for c in path_costs]
-        total_inverse_weight = sum(inverse_weights)
-
-        # Caso degenerato anche qui
-        if total_inverse_weight == 0:
-            return [1.0 / len(paths)] * len(paths)
-
-        # Normalizza i pesi
-        return [w / total_inverse_weight for w in inverse_weights]
 
     def select_path_with_probabilities(self, paths, probabilities): 
         if not paths:
@@ -1296,7 +1328,6 @@ class GroundStation:
         # Scelta casuale ponderata dal vettore delle probabilità
         selected_path = random.choices(population=paths, weights=probabilities, k=1)[0]
         return selected_path
-
 
     #obtain list of closer satellites in coverage area
     def _get_candidate_end_satellites_names(self, satellites, position): #position for destination coordinates
@@ -1381,70 +1412,6 @@ class GroundStation:
         #print(f"Recupero link tra satellite '{node1}' e satellite '{node2}'.")
         return self._get_link_between_nodes(node1, node2, satellites) #two satellites case
 
-
-    def calculate_dijkstra(self, kwargs):
-        source: dict = kwargs['source']
-        destination: dict = kwargs['destination']
-        satellites: dict = kwargs['satellites']
-
-        #Calculates the shortest path with Dijkstra's algorithm
-        dijkstra_shortest_path = self._get_dijkstra_shortest_path(satellites, source, destination)
-        #if not dijkstra_shortest_path:
-         #   print(f"No valid path found from {source.get_name()} to {destination.get_name()}.")
-        #else:
-         #   print(f"Shortest path from {source.get_name()} to {destination.get_name()}: {dijkstra_shortest_path}")
-        return dijkstra_shortest_path
-    
-    #calculates all the shortest available paths from SOURCE to DESTINATION returning THE SHORTEST PATH with minimum distance on minimum number of hops
-    def _get_dijkstra_shortest_path(self, satellites, source, destination):
-        g = dijkstra.Graph() #construct a graph for satellites
-        for name, sat in satellites.items():
-            for dir, link in sat._links.items():  # Itera sui link del satellite
-                if link.is_active() and link.target:  # Controlla se il link è attivo e ha un target
-                    g.add_edge(name, link.target.get_name(), utils.get_distance_between_satellites(sat, link.target))  # Aggiungi l'arco al grafo
-                    #print(f"Edge added: {name} -> {link.target.get_name()} with distance {utils.get_distance_between_satellites(sat, link.target)}")
-        end_satellites = self._get_candidate_end_satellites_names(satellites, (destination.lat, destination.lon)) #otherwise check for the closet satellites in the area of destination GS
-
-        d = dijkstra.DijkstraSPF(g, source.sat.get_name()) #calculate Dijkstra's shortest path, initialize dijkstra algorithm on the graph starting from source
-        if source == destination:
-            #print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
-            closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
-            shortest_paths = []
-            shortest_paths.append([closer_sats[0]['name']])
-            path_distances = [(path, self._get_path_distance(path, source, destination, satellites)) for path in shortest_paths]
-            shortest_path, min_distance = min(path_distances, key=lambda x: x[1])
-            print(f"The shortest path from {source.get_name()} to {destination.get_name()} for a total distance of {min_distance:.2f} km is: {shortest_path}")
-            return shortest_path
-
-        shortest_paths = [d.get_path(end_satellite) for end_satellite in end_satellites]
-        if not shortest_paths: #if there are shortest paths (there is always a path, but it's a check for wrong construction of constellation)
-            print(f"No available paths from {source.get_name()} to {destination.get_name()}.")
-            return []  #or could put None as return, if necessary
-
-        shortest_path = min(shortest_paths, key=lambda x: len(x)) #return only one of the shortest paths, not all
-        shortest_paths = [path for path in shortest_paths if len(path) == len(shortest_path)] #returns all the paths with same length as the shortest
-        #for sp in shortest_paths:
-         #   print(f"Dijkstra's shortest path from {source.get_name()} to {destination.get_name()}: ", sp)
-        #print(f"Dijkstra's shortest path length from {source.get_name()} to {destination.get_name()}: ", len(shortest_paths), "x", len(shortest_path), "hops.")
-        '''
-        #debugging for links
-        if constants.DEBUG:
-            for name, sat in env.satellites.items():
-                active_links = [
-                    (dir.name, link.target.get_name())  # Ottieni la direzione e il nome del satellite target
-                    for dir, link in sat._links.items() if link.is_active()
-                ]
-                print(f"Check for links of Satellite {name} links: {active_links}")
-        '''
-        #Calculates distances for all paths remained with minimum number of hops
-        path_distances = [(path, self._get_path_distance(path, source, destination, satellites)) for path in shortest_paths]
-        shortest_path, min_distance = min(path_distances, key=lambda x: x[1]) #order and find the path with the minimum distance
-        # Print the shortest path and its distance
-        print(f"The shortest path from {source.get_name()} to {destination.get_name()} for a total distance of {min_distance:.2f} km is: {shortest_path}")
-        # Saving results
-        #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['successful'].append(len(shortest_path))
-        #self.results[source.get_name() + ' - ' + destination.get_name()]['DIJKSTRA']['distance'].append(min_distance)
-        return shortest_path #only the path with minimum distance on minimum number of hops
 
     def extract_separated_decision_lists(self, nested_decisions):
         separated_lists = []

@@ -288,7 +288,7 @@ class Sat:
             self.drop_flow(flow, FlowState.SATELLITE_NOT_OPERATIONAL)
         else:
             if routing_decisions == None: #Se ci sono già le decisions
-                routing_decisions = self.route(flow) #triple(action, flow, link) could be more then one if there are splitted flows #otherwise if satellite is operational, calculates routing for the flow (START THE ROUTE DECISION CORE)
+                routing_decisions = self.route(flow) #triple(action, flow, link) could be more then one if there are splitted flows #otherwise if satellite is operational, calculates routing for the flow 
                 #print("Routing decisions [_reopen_flow]", flow.id, "on Satellite", self.get_name(), ", Routing Decision:", routing_decisions) #print routing decisions
                 self._close_internal_flow(flow.alias_id)
                 if len(routing_decisions) > 1: #if more routing decisions, get and add input id 
@@ -389,7 +389,7 @@ class Sat:
                 if len(steps) > 0:
                     indices.append(-1)
                 return [steps[i] for i in indices] #list of excluded steps as NEXT HOP
-        
+
         routing_output = list()
         #calculates distance from the target, if in the satellite's range, flow is delivered to GS destination
         distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), flow.destination).km
@@ -489,6 +489,73 @@ class Sat:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
+        elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS:
+            nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
+
+            candidates = []
+            # Costruzione lista candidati con punteggi diretti
+            for key, link in self._links.items():
+                if link in avoid or not link.is_active():
+                    continue
+
+                if link.target in nodes_to_be_excluded:
+                    dist = float('inf')
+                else:
+                    dist = distance.distance((link.lat, link.lon), flow.destination).km
+
+                # Load balancing score diretto (1-hop)
+                direct_lb_score = (1 - link.state) * 4  # Normalizzato su scala 0-4
+
+                # Recupera satellite target (1-hop)
+                neighbor_sat = link.target
+
+                # Load balancing score dei link 2-hop (satelliti adiacenti al neighbor)
+                two_hop_links = [
+                    l for l in neighbor_sat._links.values()
+                    if l.target is not None and l.is_active() and l.target != self
+                ]
+                if two_hop_links:
+                    two_hop_avg_state = sum(1 - l.state for l in two_hop_links) / len(two_hop_links)
+                    two_hop_lb_score = two_hop_avg_state * 4  # Normalizzato
+                else:
+                    two_hop_lb_score = 0
+
+                # Salva candidato
+                candidates.append({
+                    'distance': dist,
+                    'dir': key,
+                    'link': link,
+                    'direct_lb_score': direct_lb_score,
+                    'two_hop_lb_score': two_hop_lb_score
+                })
+
+            # Ordina per distanza crescente (necessario per ordering_score)
+            candidates.sort(key=lambda x: x['distance'])
+
+            # Calcola ordering_score e total_score
+            for i, candidate in enumerate(candidates):
+                ordering_score = 4 - i if candidate['distance'] != float('inf') else 0
+
+                # Pondera i contributi (puoi regolare questi pesi a piacere)
+                alpha = 0.5  # peso per bilanciamento 1-hop vs 2-hop
+                lb_score = alpha * candidate['direct_lb_score'] + (1 - alpha) * candidate['two_hop_lb_score']
+
+                # Punteggio totale
+                candidate['total_score'] = ordering_score + lb_score
+
+            # Ordina per punteggio complessivo decrescente
+            candidates.sort(key=lambda x: x['total_score'], reverse=True)
+
+            # Prepara output routing
+            if not(candidates):
+                routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
+
+            for candidate in candidates:
+                for r_o in routing_output:
+                    if r_o[0] == RoutingAction.ERROR:
+                        raise RuntimeError("routing_output already contains an error action")
+                routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
+
         elif constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_COST_BALANCING]:
             nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
 
@@ -550,6 +617,7 @@ class Sat:
                     if r_o[0] == RoutingAction.ERROR:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
+            
         #print("  Debugging routing output:", routing_output) # DEBUG
         return routing_output
 

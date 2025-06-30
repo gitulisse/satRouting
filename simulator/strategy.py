@@ -9,10 +9,11 @@ class Strategy(Enum):
     POSITION_SHARING_LB_ON_SATURATED_LINK = 5
     POSITION_SHARING_PROGRESSIVE_LB = 6
 
-    POSITION_SHARING_COST_BALANCING = 14 #path cost balancing
-    POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7
+    POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7#one hop neighbors information sharing
     
- 
+    POSITION_AND_STATE_SHARING_TWO_HOPS = 19 #two hops neighbors
+    POSITION_SHARING_COST_BALANCING = 14 #path cost balancing
+    
     BASELINE_DIJKSTRA = 8 #get_dijkstra shortest paths
     SOURCE_ROUTING_NO_LB = 20
 
@@ -23,9 +24,11 @@ class Strategy(Enum):
 
     EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING = 15 #path cost selection
 
-    NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK = 13 #based on link occupation of the path
-    NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK = 16
+    #escludibili queste due strategie
+    NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK = 13 #based on link occupation of the path 
     EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK = 17
+
+    NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK = 16
     EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK = 18
 
     

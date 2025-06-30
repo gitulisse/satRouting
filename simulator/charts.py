@@ -88,6 +88,7 @@ def show_shortest_paths_table(results: dict):
         #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
         #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
         #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+        #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},  #key that will contain results for the used strategy
         #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
         Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
         #Strategy.SOURCE_ROUTING_NO_LB.name : {},

@@ -54,6 +54,7 @@ class TrafficAnalyzer:
                                   #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                   #Strategy.POSITION_SHARING_COST_BALANCING,
                                   #Strategy.SOURCE_ROUTING_NO_LB,
                                   #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
@@ -132,6 +133,7 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                   Strategy.POSITION_SHARING_COST_BALANCING,
                                   Strategy.BASELINE_DIJKSTRA,
                                   Strategy.SOURCE_ROUTING_NO_LB,
@@ -218,6 +220,7 @@ class TrafficAnalyzer:
                     #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
                     #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+                    #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},
                     #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
                     Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
                     #Strategy.SOURCE_ROUTING_NO_LB.name : {}, #key that will contain results for source routing without load balancing
@@ -258,6 +261,7 @@ class TrafficAnalyzer:
                                     Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                     Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                     Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                     Strategy.POSITION_SHARING_COST_BALANCING]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA, 
@@ -332,6 +336,7 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                   Strategy.POSITION_SHARING_COST_BALANCING]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,

@@ -168,7 +168,11 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
@@ -179,9 +183,12 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
 
 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                   Strategy.POSITION_SHARING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                   Strategy.POSITION_SHARING_COST_BALANCING]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
