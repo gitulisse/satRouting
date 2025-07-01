@@ -58,8 +58,7 @@ class Link:
             #print(f"[INFO] Available bandwidth on link is {self.get_available_bandwidth()} Gbps now")
             #if constants.DEBUG:
              #   print("Reserved on link", flow.rate, "Mb for flux", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
-            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                  Strategy.SOURCE_ROUTING_NO_LB, 
+            if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB, 
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
@@ -121,8 +120,7 @@ class LaserLink(Link):
         leftovers = []
         while len(self.flows.values()) > 0:
             flow = list(self.flows.values())[0]
-            if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                    Strategy.SOURCE_ROUTING_NO_LB,
+            if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
                                     Strategy.NODE_DISJOINT_SOURCE_ROUTING,
                                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
