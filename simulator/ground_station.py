@@ -1062,7 +1062,7 @@ class GroundStation:
                         print(f"[ERROR] Destination satellites missing from graph!")
                         return []
                     try:
-                        path = nx.dijkstra_path(self._auxiliary_graph, src_sat, dst_sat)
+                        path = nx.shortest_path(self._auxiliary_graph, src_sat, dst_sat, weight='weight')
                         disjoint_paths.append(path)
                     except nx.NetworkXNoPath:
                         print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
@@ -1083,7 +1083,7 @@ class GroundStation:
                         print(f"[ERROR] Destination satellites missing from graph!")
                         return []
                     try:
-                        path = nx.dijkstra_path(self._auxiliary_graph, src_sat, dst_sat, weight='weight')
+                        path = nx.shortest_path(self._auxiliary_graph, src_sat, dst_sat)
                         disjoint_paths.append(path)
                     except nx.NetworkXNoPath:
                         print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")

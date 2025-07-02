@@ -52,7 +52,7 @@ def show_shortest_paths_table(results: dict):
     distances.insert(0, "Average path length (km)")
     #create values for table
 
-    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'BASELINE_DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories)) if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
+    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'BASELINE_DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories))] #if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
 
     #create table
     table = ax.table(cellText=table_data, loc='center', cellLoc='center')

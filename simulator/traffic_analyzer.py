@@ -106,7 +106,24 @@ class TrafficAnalyzer:
                     constants.TOTAL_VOLUME_OF_TRAFFIC = volume
                     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
                     print(traffic_matrix)
-                    for strategy in Strategy:
+                    #for strategy in Strategy:
+                    for strategy in [#Strategy.BASELINE_DIJKSTRA,
+                                  Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
+                                  Strategy.POSITION_SHARING_COST_BALANCING,
+                                  #Strategy.SOURCE_ROUTING_NO_LB,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
+                                  ]:
                         env.reset()
                         constants.ROUTING_STRATEGY = strategy
                         env.prepare()
@@ -400,7 +417,25 @@ class TrafficAnalyzer:
                 destination = ground_stations[destination_name.upper()]
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name]) #create flow
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
-                source.send_flow(flow) #send flow
+                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                    Strategy.POSITION_SHARING_NO_LB,
+                                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
+                                    Strategy.POSITION_SHARING_COST_BALANCING]:
+                    source.send_flow(flow) #send flow to destination for distributed strategies
+                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                    Strategy.SOURCE_ROUTING_NO_LB,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                    #print("PARTITO CENTRALIZED ROUTING")
+                    source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
     def sample_delivered_dropped_ratio(self, kwargs): #analyze and store delivered & dropped ratio
         ground_stations: dict = kwargs['ground_stations']

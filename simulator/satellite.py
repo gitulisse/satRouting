@@ -64,8 +64,8 @@ class Sat:
             self._update_position() #update
         if leftovers:
             for flow in leftovers:   
-                if constants.DEBUG:
-                    print("[add_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                #if constants.DEBUG:
+                 #   print("[add_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                 flow.add_step(self) #open_flow-like behaviour without actually opening the flux
                 flow.alias_id = self.mapping_table.add(flow.alias_id)
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
@@ -87,8 +87,8 @@ class Sat:
         leftovers = self._links[dir].idle() #stores remaining flows
         if leftovers and self.is_operational():
             for flow in leftovers:
-                if constants.DEBUG:
-                    print("[remove_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                #if constants.DEBUG:
+                 #   print("[remove_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                 flow.add_step(self) #open_flow-like behaviour without actually opening the flux
                 flow.alias_id = self.mapping_table.add(flow.alias_id)
                 flow.drop_steps_from(self)
@@ -202,8 +202,8 @@ class Sat:
                 self._gs_link.attach_to_gs(gs) #and reconnect to new candidates
             if leftovers:
                 for flow in leftovers:
-                    if constants.DEBUG:
-                        print("[_update_gs_link] Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
+                    #if constants.DEBUG:
+                     #   print("[_update_gs_link] Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                     flow.add_step(self) #open_flow-like behaviour without actually opening the flux
                     flow.alias_id = self.mapping_table.add(flow.alias_id)
                     flow.drop_steps_from(self)
