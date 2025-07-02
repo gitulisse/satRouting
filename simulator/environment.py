@@ -266,48 +266,37 @@ def topology_builder():
         satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)
         satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
 
-    # update the graph to new constellation topology
-    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
-        env.main_graph = nx.Graph()
-        # Add active links to active satellites
-        for name, sat in env.satellites.items():
-            for dir, link in sat._links.items(): 
-                if link.is_active() and link.target:
-                    env.main_graph.add_edge(
-                        name,
-                        link.target.get_name(), 
-                        weight=utils.get_distance_between_satellites(sat, link.target), 
-                        available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
-                        link_obj=link #reference to link object in graph
-                    )
+    env.main_graph = nx.Graph()
+    # Add active links to active satellites
+    for name, sat in env.satellites.items():
+        for dir, link in sat._links.items(): 
+            if link.is_active() and link.target:
+                env.main_graph.add_edge(
+                    name,
+                    link.target.get_name(), 
+                    weight=utils.get_distance_between_satellites(sat, link.target), 
+                    available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
+                    link_obj=link #reference to link object in graph
+                )
 
-        # Link to GS and closer satellites
-        for gs_name, gs in env.ground_stations.items():
-            closer_satellites = utils.get_closer_satellites_for_graph(env.satellites, (gs.lat, gs.lon))
-            for sat_name, sat in closer_satellites:
-                distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, gs)
-                if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                    env.main_graph.add_edge(
-                        gs_name, sat_name,
-                        weight=distance_to_sat,
-                        available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY
-                    )
+    # Link to GS and closer satellites
+    for gs_name, gs in env.ground_stations.items():
+        closer_satellites = utils.get_closer_satellites_for_graph(env.satellites, (gs.lat, gs.lon))
+        for sat_name, sat in closer_satellites:
+            distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, gs)
+            if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
+                env.main_graph.add_edge(
+                    gs_name, sat_name,
+                    weight=distance_to_sat,
+                    available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY
+                )
 
-        num_nodes = env.main_graph.number_of_nodes()
-        num_edges = env.main_graph.number_of_edges()
-        edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
-        #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
-        
-        print("Applied. Main graph successfully updated by topology_builder.")
+    num_nodes = env.main_graph.number_of_nodes()
+    num_edges = env.main_graph.number_of_edges()
+    edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}"
+    #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
+    
+    print("Applied. Main graph successfully updated by topology_builder.")
    
 #calculate the value of control_traffic_data used during the simulation
 def log_control_traffic_message(bytes: int):

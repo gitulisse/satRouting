@@ -22,7 +22,7 @@ def show_shortest_paths_table(results: dict):
         dijkstra_variance = 0
         dijkstra_distance = 0
         for strategy, data in strategy_data.items():
-            if strategy == 'DIJKSTRA':
+            if strategy == 'BASELINE_DIJKSTRA':
                 dijkstra_mean = round(statistics.mean(data['successful']), 2) if len(data['successful']) > 0 else 0
                 dijkstra_variance = round(statistics.variance(data['successful']), 2) if len(data['successful']) > 1 else 0
                 dijkstra_distance = round(statistics.mean(data['distance']), 2) if len(data['distance']) > 0 else 0
@@ -52,7 +52,7 @@ def show_shortest_paths_table(results: dict):
     distances.insert(0, "Average path length (km)")
     #create values for table
 
-    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories))] #if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
+    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'BASELINE_DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories)) if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
 
     #create table
     table = ax.table(cellText=table_data, loc='center', cellLoc='center')
@@ -80,17 +80,17 @@ def show_shortest_paths_table(results: dict):
     #display table
     plt.show()
 
-    refactored_results = {'DIJKSTRA' : {},
+    refactored_results = {Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
         #Strategy.POSITION_GUESSING_NO_LB.name : {},
-        Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
+        #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
         #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
         #Strategy.POSITION_SHARING_NO_LB.name : {},
-        Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
+        #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
         #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
         #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
         #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},  #key that will contain results for the used strategy
         #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
-        #Strategy.SOURCE_ROUTING_NO_LB.name : {},
+        Strategy.SOURCE_ROUTING_NO_LB.name : {},
         #Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
         #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
         #Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
@@ -116,7 +116,7 @@ def show_shortest_paths_table(results: dict):
     distances_wrt_dijkstra = ["Average path length increase wrt Dijkstra"]
     distances = []
     for strategy, data in refactored_results.items():
-        if strategy == 'DIJKSTRA':
+        if strategy == 'BASELINE_DIJKSTRA':
             dijkstra_distance = round(statistics.mean(data['distance']), 2) if len(data['distance']) > 0 else 0
         strategies.append(strategy)
         failed_percentage.append(str(round((data['failed'] / (data['failed'] + len(data['successful']))) * 100, 2)) + "%")

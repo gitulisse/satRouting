@@ -491,9 +491,8 @@ class Sat:
 
         elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS:
             nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
-
             candidates = []
-            # Costruzione lista candidati con punteggi diretti
+
             for key, link in self._links.items():
                 if link in avoid or not link.is_active():
                     continue
@@ -503,24 +502,23 @@ class Sat:
                 else:
                     dist = distance.distance((link.lat, link.lon), flow.destination).km
 
-                # Load balancing score diretto (1-hop)
-                direct_lb_score = (1 - link.state) * 4  # Normalizzato su scala 0-4
-
-                # Recupera satellite target (1-hop)
+                direct_lb_score = (1 - link.state) * 4
                 neighbor_sat = link.target
 
-                # Load balancing score dei link 2-hop (satelliti adiacenti al neighbor)
                 two_hop_links = [
                     l for l in neighbor_sat._links.values()
                     if l.target is not None and l.is_active() and l.target != self
                 ]
                 if two_hop_links:
-                    two_hop_avg_state = sum(1 - l.state for l in two_hop_links) / len(two_hop_links)
-                    two_hop_lb_score = two_hop_avg_state * 4  # Normalizzato
+                    active_links = [l for l in two_hop_links if (1 - l.state) > 0.1]
+                    if active_links:
+                        two_hop_avg_state = sum(1 - l.state for l in active_links) / len(active_links)
+                        two_hop_lb_score = two_hop_avg_state * 4
+                    else:
+                        two_hop_lb_score = 0
                 else:
                     two_hop_lb_score = 0
 
-                # Salva candidato
                 candidates.append({
                     'distance': dist,
                     'dir': key,
@@ -529,27 +527,20 @@ class Sat:
                     'two_hop_lb_score': two_hop_lb_score
                 })
 
-            # Ordina per distanza crescente (necessario per ordering_score)
             candidates.sort(key=lambda x: x['distance'])
 
-            # Calcola ordering_score e total_score
             for i, candidate in enumerate(candidates):
                 ordering_score = 4 - i if candidate['distance'] != float('inf') else 0
-
-                # Pondera i contributi (puoi regolare questi pesi a piacere)
-                alpha = 0.5  # peso per bilanciamento 1-hop vs 2-hop
+                alpha = 0.3  # o dinamico (in questo caso do maggiore enfasi ai valori di score dei 2 hop)
                 lb_score = alpha * candidate['direct_lb_score'] + (1 - alpha) * candidate['two_hop_lb_score']
+                delta = candidate['direct_lb_score'] - candidate['two_hop_lb_score']
+                penalty = max(delta, 0)
+                candidate['total_score'] = ordering_score + lb_score - penalty
 
-                # Punteggio totale
-                candidate['total_score'] = ordering_score + lb_score
-
-            # Ordina per punteggio complessivo decrescente
             candidates.sort(key=lambda x: x['total_score'], reverse=True)
 
-            # Prepara output routing
-            if not(candidates):
+            if not candidates:
                 routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
-
             for candidate in candidates:
                 for r_o in routing_output:
                     if r_o[0] == RoutingAction.ERROR:

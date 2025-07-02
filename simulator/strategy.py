@@ -14,6 +14,7 @@ class Strategy(Enum):
     POSITION_AND_STATE_SHARING_TWO_HOPS = 19 #two hops neighbors
     POSITION_SHARING_COST_BALANCING = 14 #path cost balancing
     
+    BASELINE_DIJKSTRA = 8
     SOURCE_ROUTING_NO_LB = 20
 
     NODE_DISJOINT_SOURCE_ROUTING = 9 #based on length of the path

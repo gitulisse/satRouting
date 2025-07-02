@@ -162,7 +162,8 @@ env.prepare() #prepare the environment with all necessary components
 traffic_generators = []
 header_builders = []
 
-if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
+if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                  Strategy.SOURCE_ROUTING_NO_LB,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
@@ -208,7 +209,6 @@ env.start()
 # alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
 
 traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
-
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
 results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
