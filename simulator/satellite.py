@@ -63,7 +63,8 @@ class Sat:
                                           Strategy.POSITION_GUESSING_PROGRESSIVE_LB]:
             self._update_position() #update
         if leftovers:
-            for flow in leftovers:   
+            print("leftovers in add_link:", leftovers)
+            for flow in leftovers:
                 #if constants.DEBUG:
                  #   print("[add_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                 flow.add_step(self) #open_flow-like behaviour without actually opening the flux
@@ -86,6 +87,7 @@ class Sat:
         #print(f"Link {dir} removed for satellite {self.get_name()}")######
         leftovers = self._links[dir].idle() #stores remaining flows
         if leftovers and self.is_operational():
+            print("leftovers in remove_link:", leftovers)
             for flow in leftovers:
                 #if constants.DEBUG:
                  #   print("[remove_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
@@ -202,6 +204,7 @@ class Sat:
             for gs in gs_candidates: #dopo aver rimosso tutti i gs link, per ogni gs attacco il link alle gs candidate
                 self._gs_link.attach_to_gs(gs) #and reconnect to new candidates
             if leftovers:
+                print("leftovers in update_gs_link:", leftovers)
                 for flow in leftovers:
                     #if constants.DEBUG:
                      #   print("[_update_gs_link] Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
@@ -302,6 +305,7 @@ class Sat:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                         self.send_flow(f, link) #send
                     elif action == RoutingAction.ERROR:
+                        print("drop in reopen_flow")
                         self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
