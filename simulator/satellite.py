@@ -71,6 +71,7 @@ class Sat:
                 flow.alias_id = self.mapping_table.add(flow.alias_id)
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
                 self.drop_flow(flow, FlowState.LINK_CONGESTED) #####
+                print("drop flow 1 sat", flow, "with", flow.rate)
                 #self.open_flow(flow)
 
     
@@ -89,12 +90,14 @@ class Sat:
         if leftovers and self.is_operational():
             print("leftovers in remove_link:", leftovers)
             for flow in leftovers:
+                print("leftover REMOVAL of flow with rate", flow.rate)
                 #if constants.DEBUG:
                  #   print("[remove_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
                 flow.add_step(self) #open_flow-like behaviour without actually opening the flux
                 flow.alias_id = self.mapping_table.add(flow.alias_id)
                 flow.drop_steps_from(self)
                 self.drop_flow(flow, FlowState.LINK_CONGESTED)
+                print("drop flow 2 sat", flow, "with", flow.rate)
                 #self.open_flow(flow)
         if not(self.is_operational()):
             if self.serving_gs:
@@ -212,6 +215,7 @@ class Sat:
                     flow.alias_id = self.mapping_table.add(flow.alias_id)
                     flow.drop_steps_from(self)
                     self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop flow
+                    print("drop flow 4 sat", flow, "with", flow.rate)
                     #self.open_flow(flow)
 
     #Update satellite position
@@ -283,6 +287,7 @@ class Sat:
                 link.send_flow(flow) #then send flow
         else:
             self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop it
+            print("drop flow 5 sat", flow, "with", flow.rate)
     
     #reopen flow
     def _reopen_flow(self, flow: Flow, routing_decisions = None):#print(f"Self sat {self.get_name()} is operational?___{self.is_operational()}")
@@ -290,6 +295,7 @@ class Sat:
             print("Satellite", self.get_name(), "is not operational")
             self._close_internal_flow(flow.alias_id) #if Satellite NOT operational, close and drop flow
             self.drop_flow(flow, FlowState.SATELLITE_NOT_OPERATIONAL)
+            print("drop flow 6 sat", flow, "with", flow.rate)
         else:
             if routing_decisions == None: #Se ci sono già le decisions
                 routing_decisions = self.route(flow) #triple(action, flow, link) could be more then one if there are splitted flows #otherwise if satellite is operational, calculates routing for the flow 
@@ -307,6 +313,7 @@ class Sat:
                     elif action == RoutingAction.ERROR:
                         print("drop in reopen_flow")
                         self.drop_flow(f, link) #drop
+                        print("drop flow 7 sat", flow, "with", flow.rate)
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.drop_steps_from(self)
@@ -329,6 +336,7 @@ class Sat:
                     elif action == RoutingAction.ERROR:
                         routing_decisions.pop(0)
                         self.drop_flow(f, link) #drop
+                        print("drop flow 8 sat", f, "with", f.rate)
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
                         f.drop_steps_from(self)
@@ -345,6 +353,7 @@ class Sat:
         #print("°    flow.alias_id", flow.alias_id)
         if flow.ttl == 0:
             self.drop_flow(flow, FlowState.EXPIRED_TTL)
+            print("drop flow 9 sat", flow, "with", flow.rate)
         else:
             if routing_decisions != None: #if there are some decisions pass them for forwarding
                 self._reopen_flow(flow, routing_decisions)

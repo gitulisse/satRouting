@@ -92,7 +92,7 @@ class GroundStation:
 
     def close_outgoing_flow(self, flow: Flow):#close the outgoing flow
         if self.keep_log:
-            print(">-< SELF.outgoing_flows", self.outgoing_flows)
+            #print(">-< SELF.outgoing_flows", self.outgoing_flows)
             for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
                 if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
                     
@@ -634,7 +634,9 @@ class GroundStation:
                         print(f"[adapt_routing_with_single_split] outgoing flows add remaining_flow {remaining_flow} with rate {remaining_flow.rate}")
                         self.outgoing_flows.append((remaining_flow, utils.get_current_time(), None)) #nuovo
                         remaining_flow.travelled_distance = 0
+                        
                         self.drop_flow(remaining_flow, FlowState.SATELLITE_CONGESTED)
+                        print("drop flow 1 with", remaining_flow.rate)
                         break
                 else:
                     print(f"Link {link} is fully saturated. No flow can pass.")
@@ -706,8 +708,10 @@ class GroundStation:
                         flow.add_step(self) #open_flow-like behaviour without actually opening the flux
                         #flow.alias_id = self.mapping_table.add(flow.alias_id)
                         flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
+                        
                         self.drop_flow(flow, FlowState.LINK_CONGESTED) 
-        
+                        print("drop flow 2 with", flow.rate)
+
         return adapted_routing_decisions  # Termina la ricerca; il flow non viene instradato
 
     def check_path_for_splitted_flow(self, flow: Flow, support_routing_decisions, adapted_routing_decisions):
@@ -875,9 +879,10 @@ class GroundStation:
             print(f"[calculate path with exclusions] outgoing flows add remaining_flow {remaining_flow} with rate {remaining_flow.rate}")
             self.outgoing_flows.append((remaining_flow, utils.get_current_time(), None))
             remaining_flow.travelled_distance = 0
-
-            self.drop_flow(remaining_flow, FlowState.SATELLITE_CONGESTED) #dropping the flow if no path is found
             
+            self.drop_flow(remaining_flow, FlowState.SATELLITE_CONGESTED) #dropping the flow if no path is found
+            print("drop flow 4 with", remaining_flow.rate)
+
             reached_node = None
             return []
 
@@ -1003,6 +1008,7 @@ class GroundStation:
             print(f"[calculate k disjoint paths] outgoing flows add flow {flow} with rate {flow.rate}")
             self.outgoing_flows.append((flow, utils.get_current_time(), None))
             self.drop_flow(flow, FlowState.SATELLITE_CONGESTED)
+            print("drop flow 5 with", flow.rate)
             return []  # Restituisci immediatamente una lista vuota
         k_disjoint_paths = k_disjoint_paths[:k] # Limita il numero di percorsi disgiunti a k
         return k_disjoint_paths
@@ -1408,6 +1414,7 @@ class GroundStation:
                 nested_decisions = nested_decisions.pop(0)
         return separated_lists
 
+    #'''
     def drop_flow(self, flow: Flow, reason: FlowState):
         if constants.DEBUG: #debugging messages
             msg = "Flow " + str(flow.id) + " with alias id " + str(flow.alias_id) + " with rate " + str(flow.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
@@ -1429,3 +1436,4 @@ class GroundStation:
         self.DEBUG_dropped_flows.append(flow) 
         self.gss[[key for key, gs in self.gss.items() if gs.lat == flow.destination[0] and gs.lon == flow.destination[1]][0]].DEBUG_get_dropped_flow(flow)
         #self.gss in sostituzione di self.ground_stations
+    #'''

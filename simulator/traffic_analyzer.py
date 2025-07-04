@@ -101,8 +101,10 @@ class TrafficAnalyzer:
             case AnalysisMetric.DELIVERED_DROPPED_RATIO: #poco senso con Centralized Route #va a rieseguire per ogni strategia ripartendo da 1 Mb e aggiungendo 1 Mb di traffico per ogni ciclio su tutte le strategie
                 total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC
                 self.prepare_results_for_delivered_dropped_ratio()
-
-                for volume in range(1, total_traffic_backup + 1, 1): #Aumenta sempre più il volume del traffico immesso in rete con range(from 1, to total_traffic_backup, with steps of 1)
+                
+                volumes = [10]
+                for volume in volumes:
+                #for volume in range(1, total_traffic_backup + 1, 1): #Aumenta sempre più il volume del traffico immesso in rete con range(from 1, to total_traffic_backup, with steps of 1)
                     constants.TOTAL_VOLUME_OF_TRAFFIC = volume
                     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
                     print(traffic_matrix)
@@ -112,14 +114,14 @@ class TrafficAnalyzer:
                                   #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_SHARING_NO_LB,
-                                  #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                   #Strategy.POSITION_SHARING_COST_BALANCING,
                                   #Strategy.SOURCE_ROUTING_NO_LB,
                                   #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING

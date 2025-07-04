@@ -158,6 +158,29 @@ def start():
         else:
             action()
         
+    print("\n=== DEBUG: Stato finale delle ground stations ===")
+    for gs_id, gs in env.ground_stations.items():
+        print(f"\nGround Station {gs.get_name()} (ID: {gs_id}):")
+
+        print("  → OUTGOING FLOWS:")
+        for flow, start_time, end_time in gs.outgoing_flows:
+            start_str = start_time.utc_strftime() if start_time is not None else "UNKNOWN"
+            end_str = end_time.utc_strftime() if end_time is not None else "ONGOING"
+            print(f"    - Flow ID {flow.id}, rate: {flow.rate} Gbps, start: {start_str}, end: {end_str}")
+
+        print("  → INCOMING FLOWS (DELIVERED):")
+        for flow, start_time, end_time in gs.incoming_flows:
+            start_str = start_time.utc_strftime() if start_time is not None else "UNKNOWN"
+            end_str = end_time.utc_strftime() if end_time is not None else "ONGOING"
+            print(f"    - Flow ID {flow.id}, rate: {flow.rate} Gbps, start: {start_str}, end: {end_str}")
+
+        print("  → DROPPED FLOWS:")
+        for flow, start_time, end_time in gs.DEBUG_dropped_incoming_flows:
+            start_str = start_time.utc_strftime() if start_time is not None else "UNKNOWN"
+            end_str = end_time.utc_strftime() if end_time is not None else "ONGOING"
+            reason = flow.state.name if hasattr(flow.state, "name") else str(flow.state)
+            print(f"    - Flow ID {flow.id}, rate: {flow.rate} Gbps, start: {start_str}, end: {end_str}, reason: {reason}")
+
     print("Simulation ended.")
 
 #reset the environment

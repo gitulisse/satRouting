@@ -9,7 +9,7 @@ class Strategy(Enum):
     POSITION_SHARING_LB_ON_SATURATED_LINK = 5
     POSITION_SHARING_PROGRESSIVE_LB = 6
 
-    POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7#one hop neighbors information sharing
+    POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7 #one hop neighbors information sharing
     
     POSITION_AND_STATE_SHARING_TWO_HOPS = 8 #two hops neighbors
     POSITION_SHARING_COST_BALANCING = 9 #path cost balancing
