@@ -92,7 +92,7 @@ class GroundStation:
 
     def close_outgoing_flow(self, flow: Flow):#close the outgoing flow
         if self.keep_log:
-            #print(">-< SELF.outgoing_flows", self.outgoing_flows)
+            print(">-< SELF.outgoing_flows", self.outgoing_flows)
             for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
                 if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
                     

@@ -197,14 +197,19 @@ def show_average_link_occupation_chart(results: dict):
 
 def show_delivered_dropped_ratio_chart(results: dict):
     #colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
-    markers = ['.', 'v', 's', 'p', 'H', 'x', 'd', '|', '_', 'o', 'D', '*', 'X', '+', '>', '<', '1', '2'] ######
-
+    markers = ['.', 'v', 's', 'p', 'H', 'x', 'd', '|', '_', 'o', 'D', '*', 'X', '+', '>', '<', '1', '2',
+           '^', '8', 'h', 'P', '3', '4']  
     ax = plt.subplot()
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.15, box.width, box.height * 0.85])
 
-    for i, (strategy, data) in enumerate(results.items()):
-        plt.plot(data['volume_of_traffic'], [dropped * 100 / (delivered + dropped) for delivered, dropped in zip(data['delivered'], data['dropped'])], label=strategy, marker=markers[i]) #color=colors[i])
+    for i, (strategy, data) in enumerate((s for s in results.items() if s[1]['delivered'] and s[1]['dropped'])):
+        plt.plot(data['volume_of_traffic'],
+                [dropped * 100 / (delivered + dropped)
+                for delivered, dropped in zip(data['delivered'], data['dropped'])],
+                label=strategy,
+                marker=markers[i])
+
 
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
     plt.title("Dropped data per routing strategy")

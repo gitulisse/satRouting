@@ -133,7 +133,8 @@ class Sat:
 
     #Manage drop of flows
     def drop_flow(self, flow: Flow, reason: FlowState):
-        if constants.DEBUG: #debugging messages
+        printing=False
+        if printing: #constants.DEBUG: #debugging messages
             msg = "Flow " + str(flow.id) + " with alias id " + str(flow.alias_id) + " with rate " + str(flow.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
             if reason == FlowState.SATELLITE_CONGESTED:
                 msg += "Satellite is congested."
@@ -493,54 +494,58 @@ class Sat:
             nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
             candidates = []
 
-            for key, link in self._links.items():
+            alpha = 0.4   # Importanza del primo hop
+            gamma = 0.8   # Penalità bilanciata
+            beta = 2  # Peso maggiore alla distanza
+
+            for i, (key, link) in enumerate(self._links.items()):
                 if link in avoid or not link.is_active():
                     continue
 
                 if link.target in nodes_to_be_excluded:
-                    dist = float('inf')
+                    dist = float("inf")
                 else:
                     dist = distance.distance((link.lat, link.lon), flow.destination).km
 
                 direct_lb_score = (1 - link.state) * 4
                 neighbor_sat = link.target
 
-                two_hop_links = [
-                    l for l in neighbor_sat._links.values()
-                    if l.target is not None and l.is_active() and l.target != self
-                ]
-                if two_hop_links:
-                    active_links = [l for l in two_hop_links if (1 - l.state) > 0.1]
-                    if active_links:
-                        two_hop_avg_state = sum(1 - l.state for l in active_links) / len(active_links)
-                        two_hop_lb_score = two_hop_avg_state * 4
-                    else:
-                        two_hop_lb_score = 0
-                else:
-                    two_hop_lb_score = 0
+                # Second-hop active links
+                second_hop_scores = []
+                for second_link in neighbor_sat._links.values():
+                    if second_link.is_active() and second_link.target != self:
+                        second_hop_scores.append((1 - second_link.state) * 4)
+
+                avg_second_hop_score = sum(second_hop_scores) / len(second_hop_scores) if second_hop_scores else 0
+
+                # Calcolo del punteggio
+                lb_score = alpha * direct_lb_score + (1 - alpha) * avg_second_hop_score
+                delta = direct_lb_score - avg_second_hop_score
+                penalty = gamma * delta if delta > 0 else 0
 
                 candidates.append({
                     'distance': dist,
                     'dir': key,
-                    'link': link,
-                    'direct_lb_score': direct_lb_score,
-                    'two_hop_lb_score': two_hop_lb_score
+                    'first_hop_score': direct_lb_score,
+                    'avg_second_hop_score': avg_second_hop_score,
+                    'lb_score': lb_score,
+                    'penalty': penalty
                 })
 
             candidates.sort(key=lambda x: x['distance'])
 
             for i, candidate in enumerate(candidates):
-                ordering_score = 4 - i if candidate['distance'] != float('inf') else 0
-                alpha = 0.3  # o dinamico (in questo caso do maggiore enfasi ai valori di score dei 2 hop)
-                lb_score = alpha * candidate['direct_lb_score'] + (1 - alpha) * candidate['two_hop_lb_score']
-                delta = candidate['direct_lb_score'] - candidate['two_hop_lb_score']
-                penalty = max(delta, 0)
-                candidate['total_score'] = ordering_score + lb_score - penalty
+                ordering_score = (4 - i if candidate['distance'] != float("inf") else 0) * beta
+                candidate['total_score'] = ordering_score + candidate['lb_score'] - candidate['penalty']
+                print(f"[DEBUG][TWO_HOPS_TUNED] candidate {candidate['dir']} i={i}: "
+                    f"ordering_score={ordering_score:.2f}, lb_score={candidate['lb_score']:.2f}, "
+                    f"penalty={candidate['penalty']:.2f}, total_score={candidate['total_score']:.2f}")
 
             candidates.sort(key=lambda x: x['total_score'], reverse=True)
 
             if not candidates:
                 routing_output.append((RoutingAction.ERROR, FlowState.SATELLITE_NOT_OPERATIONAL))
+
             for candidate in candidates:
                 for r_o in routing_output:
                     if r_o[0] == RoutingAction.ERROR:
@@ -565,7 +570,6 @@ class Sat:
                         load_balancing_score = link.get_available_bandwidth() / constants.SATELLITE_LINK_CAPACITY * 4
                     else:
                         load_balancing_score = 0
-                    alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]  
 
                     #candidates.append({'distance': dist, 'dir': key, 'costs': costs})
                     candidates.append({'distance': dist, 'dir': key, 'load_balancing_score': load_balancing_score})
@@ -590,11 +594,10 @@ class Sat:
                     candidate['normalized_distance'] = 1  # Oppure un altro valore predefinito
 
             # Calcolo del punteggio complessivo
-            alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            alpha = 0.25
             for i, candidate in enumerate(candidates):
                 ordering_score = 4 - i if candidate['distance'] != float('inf') else 0  # Vicinanza più alta = punteggio più alto
-                for alpha in alpha_values:
-                    candidate['costs_score'] = (alpha * (1 - candidate['normalized_distance'])) + \
+                candidate['costs_score'] = (alpha * (1 - candidate['normalized_distance'])) + \
                                             ((1 - alpha) * candidate['load_balancing_score'])
 
             candidates.sort(key=lambda x: x['costs_score'], reverse=True)

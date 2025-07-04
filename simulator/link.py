@@ -48,12 +48,21 @@ class Link:
             #if constants.DEBUG:
              #   print("Closed flow on general link", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flow.rate) # "Gbps at time", utils.get_current_time().utc_strftime())
             self.target.close_flow(flow.clone()) #cloned flow sent to target will be closed by the target          
+            
+            # Aggiorna lo stato del link dopo la rimozione del flow
+            alpha = 0.5  # puoi testare anche altri valori come 0.3 o 0.7
+            measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
+            self.state = alpha * measured_utilization + (1 - alpha) * self.state
     
     #manage reservation of bandwidth for a specified Flow
     def reserve_bandwidth(self, flow: Flow) -> bool:
         #print(">>>>>>>>>> Reserving bandwidth....")
         if self.get_available_bandwidth() >= flow.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all flows' rate in self.flows
             self.flows[flow.alias_id] = flow #store flow in flows using alias_id as key
+            #########self.state = 1 - self.get_available_bandwidth() / self.capacity #update STATE
+            alpha = 0.5  # puoi anche testare 0.3 o 0.7
+            measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
+            self.state = alpha * measured_utilization + (1 - alpha) * self.state
             #print(f"[RESERVE BANDWIDTH] self.flows adding {self.flows}")
             #print(f"[INFO] Available bandwidth on link is {self.get_available_bandwidth()} Gbps now")
             #if constants.DEBUG:
@@ -81,7 +90,7 @@ class Link:
             return True
         else:
             if constants.DEBUG:
-                print("Failed to reserve", flow.rate, "Mb for flux", flow.id, "with alias id", flow.alias_id)
+                print("Failed to reserve", flow.rate, "Gb for flux", flow.id, "with alias id", flow.alias_id)
             #print("Reserving for link", self._parent.get_name(), "-", target_name, "Failed to reserve", flow.rate, "Gb, for flow", flow.id, "with alias id", flow.alias_id, "at time", utils.get_current_time().utc_strftime())
             return False
 
@@ -173,6 +182,7 @@ class RadioLink(Link):
     def __init__(self, parent_sat):
         super().__init__(parent_sat, constants.GROUND_STATION_LINK_CAPACITY)
         self.target: list[GroundStation] = []  #maybe a list as target for radiolink can be trivial
+        self.state = 0.0
 
     #attach link to GS
     def attach_to_gs(self, gs):
@@ -187,7 +197,7 @@ class RadioLink(Link):
             flow = list(self.flows.values())[0] #take first value of flows
             leftovers.append(flow.clone()) #add cloned flow to leftovers
             #rimuove l'alias_id del flusso dalla tabella di mapping del satellite padre e chiude il flusso interno
-            print(f"Removing flow {flow.alias_id} from parent {self._parent.get_name()} mapping table {self._parent.mapping_table.table}")##########
+            #print(f"Removing flow {flow.alias_id} from parent {self._parent.get_name()} mapping table {self._parent.mapping_table.table}")##########
             input_id = self._parent.mapping_table.remove(flow.alias_id) #remove id from parent table and store id value in input_id
             self._parent._close_internal_flow(flow.alias_id) #close internal flow in parent
             leftovers[-1].alias_id = input_id #set the input of the last inserted flow in leftovers
@@ -214,6 +224,10 @@ class RadioLink(Link):
         #print(f"Flows in self.flows Radiolink: {self.flows}")##########
         if flow.alias_id in self.flows:
             self.flows.pop(flow.alias_id) #remove flow using id
+            #####self.state = 1 - self.get_available_bandwidth() / self.capacity #update STATE with removing
+            alpha = 0.5  # puoi anche testare 0.3 o 0.7
+            measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
+            self.state = alpha * measured_utilization + (1 - alpha) * self.state
         else:
             print(f"[WARN RADIOLINK] alias_id {flow.alias_id} non trovato in self.flows di {self._parent.get_name()}. Chiavi attuali: {list(self.flows.keys())}")
         #self.flows.pop(flow.alias_id) 
