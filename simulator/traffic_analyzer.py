@@ -102,8 +102,8 @@ class TrafficAnalyzer:
                 total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC
                 self.prepare_results_for_delivered_dropped_ratio()
                 
-                volumes = [10]
-                for volume in volumes:
+                volumes = [10] ####
+                for volume in volumes: ####
                 #for volume in range(1, total_traffic_backup + 1, 1): #Aumenta sempre più il volume del traffico immesso in rete con range(from 1, to total_traffic_backup, with steps of 1)
                     constants.TOTAL_VOLUME_OF_TRAFFIC = volume
                     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
