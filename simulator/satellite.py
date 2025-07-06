@@ -303,6 +303,7 @@ class Sat:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
                         self.send_flow(f, link) #send
                     elif action == RoutingAction.ERROR:
+                        print(f"    @@@@@ decentr {action, f, link} with RATE -> {f.rate}")
                         print("drop in reopen_flow")
                         self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:
@@ -325,7 +326,7 @@ class Sat:
                         #print("routing decision complete meno la prima per il nuovo satellite", routing_decisions)
                         self.send_flow(f, link, routing_decisions) #send centralized
                     elif action == RoutingAction.ERROR:
-                        print(f"       @@@@@ {action, f, link} with RATE -> {f.rate}")
+                        print(f"    @@@@@centr {action, f, link} with RATE -> {f.rate}")
                         routing_decisions.pop(0)
                         self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:

@@ -248,7 +248,7 @@ class GroundStation:
                 if all(action != RoutingAction.ERROR for action, _, _ in sublist)
             ]'''
         
-        print(f"> Cleaned Routing decisions for flow at start_centralized_routing {routing_decisions}")
+        #print(f"> Cleaned Routing decisions for flow at start_centralized_routing {routing_decisions}")
         #self.reset_all_links_capacity(self.satellites.values())
        
         for decision in routing_decisions: #ora che ho tutte le liste di tutti i flussi voglio inviare i singoli flussi con le loro decisioni sulla rete, uno alla volta
@@ -346,9 +346,14 @@ class GroundStation:
             if not disjoint_paths:
                 #print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
-            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
-            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
+            #probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            #selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            
+            self.detected_paths = disjoint_paths #ranked_paths
+            selected_path = self.detected_paths[0]
+            routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
+            del self.detected_paths[0]
+
             if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
             if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
@@ -368,11 +373,21 @@ class GroundStation:
             if not disjoint_paths:
                 #print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
-            alpha_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            
+            print("disjoint paths for cost balancing", disjoint_paths)
+
+            alpha_values = [0.5] #, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
             for alpha in alpha_values:
+                
+                self.detected_paths = disjoint_paths #ranked_paths
+                #print("self.detected_paths", self.detected_paths)
+                #selected_path = self.detected_paths[0]
+
                 costs = self.calculate_path_costs(self._graph, disjoint_paths, self.link_utilization, alpha) #calculate the costs of k paths
                 selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
                 routing_output = self.process_routing_output(selected_path, flow) #process the output for routing  
+                
+                self.detected_paths.remove(selected_path)
 
         elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
                                             Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
@@ -388,9 +403,12 @@ class GroundStation:
                 #print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
             
-            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            #probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            #selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
+            self.detected_paths = disjoint_paths #ranked_paths
+            selected_path = self.detected_paths[0]
             routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
+            del self.detected_paths[0]
 
             if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
@@ -411,16 +429,20 @@ class GroundStation:
             if not disjoint_paths:
                 #print("No valid Disjoint paths found, returning empty routing output.")
                 return routing_output
-            probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
-            selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
-            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
+            #probabilities = self.calculate_path_weights_kshortest_disjoint(self._graph, disjoint_paths) #calculate probabilities based on weights of k disjoint paths
+            #selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities) #select path based on probabilities
             
+            self.detected_paths = disjoint_paths #ranked_paths
+            selected_path = self.detected_paths[0]
+            routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
+            del self.detected_paths[0]
+
             if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK:
                 routing_output = self.adapt_routing_with_single_split(flow, routing_output)
             if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
 
-        print("= After Basic Centralized Route =", routing_output)
+        #print("= After Basic Centralized Route =", routing_output)
         return routing_output #RoutingAction, Flow, Link
 
     def extract_separated_decision_lists(self, nested_decisions):
@@ -549,7 +571,7 @@ class GroundStation:
                     adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flow, FlowState.SATELLITE_CONGESTED)) #None))   #qui si aggiunge l'ERROR
                     remaining_flow = None #remaing flow becomes None cause it's lost and cannot be delivered
                     return adapted_routing_decisions
-       
+
             # Calcolo dei nuovi percorsi
             new_routing_decisions_remaining_flow = self.calculate_path_with_exclusions(remaining_flow, reached_node, g_auxiliary=self._auxiliary_graph)
             #print("NEW routing decisions calculated path with exclusions for flow", remaining_flow ,":", new_routing_decisions_remaining_flow)
@@ -792,6 +814,7 @@ class GroundStation:
         return adapted_routing_decisions
 
     def calculate_path_with_exclusions(self, remaining_flow: Flow, reached_node, g_auxiliary):
+        print("method calculate_path_with_exclusions")
         '''num_nodes = self._auxiliary_graph.number_of_nodes()
         num_edges = self._auxiliary_graph.number_of_edges()
         edges_list = [f"{u} <-> {v} ({data.get('available_bandwidth', 'N/A')})" for u, v, data in self._auxiliary_graph.edges(data=True)] #, W: {data.get('weight', 'N/A'):.2f}
@@ -847,7 +870,7 @@ class GroundStation:
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
                 destination_satellites.append(sat_name)
 
-        selected_path = None  # Inizializza la variabile per prevenire l'errore
+        selected_path = None  # Reinizializza la variabile per prevenire l'errore
         #print("Nodes in g_auxiliary:", g_auxiliary.nodes)
 
         if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB:
@@ -898,6 +921,7 @@ class GroundStation:
             return []
 
         print(f"Selected path in calculate with exclusion: {selected_path}")
+        selected_path = selected_path[0]
         return self.process_routing_output(selected_path, remaining_flow)
 
     def print_graph_edges(self, graph, label):
