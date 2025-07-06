@@ -213,8 +213,8 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
 #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
 #charts.show_shortest_paths_table(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
-#charts.show_average_link_occupation_chart(results)
+results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
+charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
 #charts.show_delivered_dropped_ratio_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.CONTROL_TRAFFIC_COMPARISON)
@@ -226,7 +226,7 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 # Se invece hai già i risultati salvati (tipo in un json), usa queste istruzioni per visualizzare il grafico corrispondente
 # senza stare a rigenerare tutti i dati. 
-#charts.show_shortest_paths_table(read_from_json("dijkstra_table"))
+#charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_centralized"))
 #charts.show_average_link_occupation_chart(read_from_json("average_link_occupation"))
 #charts.show_delivered_dropped_ratio_chart(read_from_json("results_delivered_and_dropped_ratio"))
 #charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))

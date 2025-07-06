@@ -57,11 +57,15 @@ class TrafficAnalyzer:
                                   #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
                                   #Strategy.POSITION_SHARING_COST_BALANCING,
                                   Strategy.SOURCE_ROUTING_NO_LB,
-                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
-                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
-                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
                     constants.ROUTING_STRATEGY = strategy 
                     flows = {} #empty dictionary of flows
@@ -124,7 +128,11 @@ class TrafficAnalyzer:
                                   #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
                         env.reset()
                         constants.ROUTING_STRATEGY = strategy
@@ -160,7 +168,11 @@ class TrafficAnalyzer:
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
                     constants.ROUTING_STRATEGY = strategy
                     for time in neighbors_update_times:
@@ -243,11 +255,15 @@ class TrafficAnalyzer:
                     #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},
                     #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
                     Strategy.SOURCE_ROUTING_NO_LB.name : {}, #key that will contain results for source routing without load balancing
-                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
-                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
-                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {}
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy (even dijkstra) 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
@@ -289,7 +305,11 @@ class TrafficAnalyzer:
                                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                     #print("PARTITO CENTRALIZED ROUTING")
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
@@ -324,7 +344,28 @@ class TrafficAnalyzer:
     #prepare the dictionary for avarage link occupation analysis
     def prepare_results_for_average_link_occupation_analysis(self):
         self.results = {}
-        for s in Strategy:
+        for s in [Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
+                                  Strategy.POSITION_SHARING_COST_BALANCING,
+                                  Strategy.BASELINE_DIJKSTRA,
+                                  Strategy.SOURCE_ROUTING_NO_LB,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
+                                  ]:
+        #for s in Strategy:
             self.results[s.name] = {
                 'average_link_occupation' : [],
                 'involved_satellites' : [],
@@ -358,7 +399,11 @@ class TrafficAnalyzer:
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
                 #source.send_flow(flow) #send flow
 
@@ -435,7 +480,11 @@ class TrafficAnalyzer:
                                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                     #print("PARTITO CENTRALIZED ROUTING")
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 

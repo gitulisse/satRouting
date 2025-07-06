@@ -52,7 +52,7 @@ def show_shortest_paths_table(results: dict):
     distances.insert(0, "Average path length (km)")
     #create values for table
 
-    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'BASELINE_DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories))] #if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
+    table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'BASELINE_DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories)) if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
 
     #create table
     table = ax.table(cellText=table_data, loc='center', cellLoc='center')
@@ -91,11 +91,15 @@ def show_shortest_paths_table(results: dict):
         #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},  #key that will contain results for the used strategy
         #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
         Strategy.SOURCE_ROUTING_NO_LB.name : {},
-        #Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
-        #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-        #Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
-        #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-        #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
+        Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
+        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+        Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
+        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
+        Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
+        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
+        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
+        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {}
     }
 
     for key in refactored_results.keys():
@@ -157,8 +161,13 @@ def show_shortest_paths_table(results: dict):
 
 
 def show_average_link_occupation_chart(results: dict):
-    colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
-    markers = ['.','v','s','p','H','x','d','|','_']
+    colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k',
+    'tab:orange', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan',
+    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+    '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#000000'
+]
+    markers = ['.', 'v', 's', 'p', 'H', 'x', 'd', '|', '_', 'o', 'D', '*', 'X', '+', '>', '<', '1', '2',
+           '^', '8', 'h', 'P', '3', '4']
 
     ax1 = plt.subplot(1, 2, 1)
     ax2 = plt.subplot(1, 2, 2)

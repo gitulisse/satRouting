@@ -102,7 +102,7 @@ class GroundStation:
     def close_outgoing_flow(self, flow: Flow):#close the outgoing flow
         if self.keep_log:
             for i, (outgoing_flow, start_time, end_time) in enumerate(self.outgoing_flows):
-                print(f"[DEBUG] Respected closing outgoing flows? 1:{flow == outgoing_flow} & 2:{flow.alias_id == outgoing_flow.alias_id} & 3:{flow.rate == outgoing_flow.rate} & 4:{end_time == None} -- flow.rate = {flow.rate} & outgoing_flow.rate = {outgoing_flow.rate}")
+                #print(f"[DEBUG] Respected closing outgoing flows? 1:{flow == outgoing_flow} & 2:{flow.alias_id == outgoing_flow.alias_id} & 3:{flow.rate == outgoing_flow.rate} & 4:{end_time == None} -- flow.rate = {flow.rate} & outgoing_flow.rate = {outgoing_flow.rate}")
                 if flow == outgoing_flow and flow.alias_id == outgoing_flow.alias_id and flow.rate == outgoing_flow.rate and end_time == None:
                     self.outgoing_flows[i] = (outgoing_flow, start_time, utils.get_current_time())
                     #outgoing_flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self.sat, self)
