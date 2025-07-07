@@ -53,9 +53,7 @@ def prepare():
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
         #update positions
         for sat in env.satellites.values(): 
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
@@ -74,8 +72,7 @@ def prepare():
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                      Strategy.POSITION_SHARING_COST_BALANCING]: ####
+                                      Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]: ####
         #update positions
         for sat in env.satellites.values(): 
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
@@ -113,14 +110,11 @@ def start():
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
                                       Strategy.POSITION_SHARING_NO_LB,
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                      Strategy.POSITION_SHARING_COST_BALANCING]:
+                                      Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]:
         print("- Satellite neighbors information update scheduled each", constants.SATELLITE_NEIGHBORS_UPDATE_TIME, "seconds")
 
     #if POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB then print the WEIGHT_FACTOR
@@ -134,9 +128,7 @@ def start():
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
         print("- Launching Centralized Strategy of Simulation.")
    
     #while the queue has actions then execute all actions

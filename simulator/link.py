@@ -56,10 +56,11 @@ class Link:
         #print(">>>>>>>>>> Reserving bandwidth....")
         if self.get_available_bandwidth() >= flow.rate: #the remaining capacity is calculated as the normal capacity minus the sum of all flows' rate in self.flows
             self.flows[flow.alias_id] = flow #store flow in flows using alias_id as key
-            #########self.state = 1 - self.get_available_bandwidth() / self.capacity #update STATE
-            alpha = 0.5  # puoi anche testare 0.3 o 0.7
-            measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
-            self.state = alpha * measured_utilization + (1 - alpha) * self.state
+            self.state = 1 - self.get_available_bandwidth() / self.capacity #update STATE
+            #alpha = 0.5  # puoi anche testare 0.3 o 0.7
+            #measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
+            #self.state = alpha * measured_utilization + (1 - alpha) * self.state
+            
             #print(f"[RESERVE BANDWIDTH] self.flows adding {self.flows}")
             #print(f"[INFO] Available bandwidth on link is {self.get_available_bandwidth()} Gbps now")
             #if constants.DEBUG:
@@ -71,9 +72,7 @@ class Link:
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                 target_name = (self.target[0].get_name() 
                     if isinstance(self.target, list) and self.target 
                     else self.target.get_name())
@@ -220,10 +219,11 @@ class RadioLink(Link):
         #print("[INFO] Closing Radiolink close flow on parent", self._parent.get_name(), "to target GSs ", [gs.get_name() for gs in self.target])
         #print(f"Flows in self.flows Radiolink: {self.flows}")##########
         self.flows.pop(flow.alias_id) #remove flow using id
-        #####self.state = 1 - self.get_available_bandwidth() / self.capacity #update STATE with removing
-        alpha = 0.5  # puoi anche testare 0.3 o 0.7
-        measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
-        self.state = alpha * measured_utilization + (1 - alpha) * self.state
+        
+        self.state = 1 - self.get_available_bandwidth() / self.capacity #update STATE with removing
+        #alpha = 0.5  # puoi anche testare 0.3 o 0.7
+        #measured_utilization = 1 - self.get_available_bandwidth() / self.capacity
+        #self.state = alpha * measured_utilization + (1 - alpha) * self.state
         #self.flows.pop(flow.alias_id) 
         for gs in self.target:
             #if constants.DEBUG:

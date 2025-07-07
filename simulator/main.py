@@ -120,8 +120,6 @@ ground_stations = {
     'NEW YORK' : new_york_gs,
     'DAR ES SALAAM' : dar_es_salaam_gs,
     'BUENOS AIRES' : buenos_aires_gs
-    #'PRETORIA' : pretoria_gs,
-    #'CAPE TOWN' : cape_town_gs
 }
 
 #Obtain the Traffic Matrix
@@ -170,9 +168,7 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
@@ -188,8 +184,7 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                  Strategy.POSITION_SHARING_COST_BALANCING]:
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
         #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
@@ -211,10 +206,10 @@ env.start()
 traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
-#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-#charts.show_shortest_paths_table(results)
-results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
-charts.show_average_link_occupation_chart(results)
+results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+charts.show_shortest_paths_table(results)
+#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
+#charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
 #charts.show_delivered_dropped_ratio_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.CONTROL_TRAFFIC_COMPARISON)

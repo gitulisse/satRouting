@@ -53,19 +53,16 @@ class TrafficAnalyzer:
                                   #Strategy.POSITION_SHARING_NO_LB,
                                   #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                  #Strategy.POSITION_SHARING_COST_BALANCING,
-                                  Strategy.SOURCE_ROUTING_NO_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
+                                  #Strategy.SOURCE_ROUTING_NO_LB,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
                     constants.ROUTING_STRATEGY = strategy 
                     flows = {} #empty dictionary of flows
@@ -122,7 +119,6 @@ class TrafficAnalyzer:
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                  #Strategy.POSITION_SHARING_COST_BALANCING,
                                   #Strategy.SOURCE_ROUTING_NO_LB,
                                   #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
                                   #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
@@ -131,8 +127,6 @@ class TrafficAnalyzer:
                                   #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
                         env.reset()
                         constants.ROUTING_STRATEGY = strategy
@@ -162,7 +156,6 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                  Strategy.POSITION_SHARING_COST_BALANCING,
                                   Strategy.SOURCE_ROUTING_NO_LB,
                                   #Strategy.NODE_DISJOINT_SOURCE_ROUTING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
@@ -170,9 +163,7 @@ class TrafficAnalyzer:
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
                     constants.ROUTING_STRATEGY = strategy
                     for time in neighbors_update_times:
@@ -193,14 +184,14 @@ class TrafficAnalyzer:
             #case 5
             case AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS: #analyse how change the performance selecting a different weight factor
                 strategy_backup = constants.ROUTING_STRATEGY
-                constants.ROUTING_STRATEGY = Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB
+                constants.ROUTING_STRATEGY = Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB
                 weights = [0.1, 0.25, 0.37, 0.5, 0.63, 0.75, 0.9]
                 self.prepare_results_for_weight_sensitivity_analysis(weights)
                 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
                 print(traffic_matrix)
                 for weight in weights:
                     constants.LOAD_BALANCING_WEIGHT_FACTOR = weight
-                    for i in range(0, 10):
+                    for i in range(0, 2):
                         utils.set_hour_shift(i)
                         env.reset()
                         env.prepare()
@@ -238,6 +229,8 @@ class TrafficAnalyzer:
 
         return self.results
 
+
+    #COMPARISON WITH DIJKSTRA
     def prepare_results_for_comparison(self, ground_stations):
         self.results = {}
         for source in ground_stations.values():
@@ -251,19 +244,16 @@ class TrafficAnalyzer:
                     #Strategy.POSITION_SHARING_NO_LB.name : {},
                     #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
                     #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
-                    #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-                    #Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},
-                    #Strategy.POSITION_SHARING_COST_BALANCING.name : {},
-                    Strategy.SOURCE_ROUTING_NO_LB.name : {}, #key that will contain results for source routing without load balancing
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {}
+                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},
+                    #Strategy.SOURCE_ROUTING_NO_LB.name : {}, #key that will contain results for source routing without load balancing
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
+                    ##Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): #for every strategy (even dijkstra) 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
@@ -296,8 +286,7 @@ class TrafficAnalyzer:
                                     Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                     Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                     Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                    Strategy.POSITION_SHARING_COST_BALANCING]:
+                                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                     Strategy.SOURCE_ROUTING_NO_LB,
@@ -307,9 +296,7 @@ class TrafficAnalyzer:
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                     #print("PARTITO CENTRALIZED ROUTING")
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
@@ -341,7 +328,7 @@ class TrafficAnalyzer:
         flows.clear() #after closing all active flows, the dictionary flows is cleared for future simulations
     
 
-    #prepare the dictionary for avarage link occupation analysis
+    #PREPARE the dictionary for avarage link occupation analysis
     def prepare_results_for_average_link_occupation_analysis(self):
         self.results = {}
         for s in [Strategy.POSITION_GUESSING_NO_LB,
@@ -352,7 +339,6 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                  Strategy.POSITION_SHARING_COST_BALANCING,
                                   Strategy.BASELINE_DIJKSTRA,
                                   Strategy.SOURCE_ROUTING_NO_LB,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING,
@@ -361,9 +347,7 @@ class TrafficAnalyzer:
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
                                   ]:
         #for s in Strategy:
             self.results[s.name] = {
@@ -390,8 +374,7 @@ class TrafficAnalyzer:
                                   Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                   Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                  Strategy.POSITION_SHARING_COST_BALANCING]:
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.SOURCE_ROUTING_NO_LB,
@@ -401,9 +384,7 @@ class TrafficAnalyzer:
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
                 #source.send_flow(flow) #send flow
 
@@ -444,10 +425,30 @@ class TrafficAnalyzer:
                             all_sats_and_link_occupations.append((name, constants.SATELLITE_LINK_CAPACITY - link.get_available_bandwidth())) #max capacity - the bandwidth still available
         return all_sats_and_link_occupations
 
-    #prepare the dictionary for delivered dropped ratio
+
+
+    #PREPARE the dictionary for delivered dropped ratio
     def prepare_results_for_delivered_dropped_ratio(self):
         self.results = {}
-        for s in Strategy:
+        for s in [Strategy.POSITION_GUESSING_NO_LB,
+                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_SHARING_NO_LB,
+                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
+                                  Strategy.BASELINE_DIJKSTRA,
+                                  Strategy.SOURCE_ROUTING_NO_LB,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK
+                                  ]:
+        #for s in Strategy:
             self.results[s.name] = {
                 'delivered' : [],
                 'dropped' : [],
@@ -471,8 +472,7 @@ class TrafficAnalyzer:
                                     Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                     Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                     Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS,
-                                    Strategy.POSITION_SHARING_COST_BALANCING]:
+                                    Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]:
                     source.send_flow(flow) #send flow to destination for distributed strategies
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                     Strategy.SOURCE_ROUTING_NO_LB,
@@ -482,9 +482,7 @@ class TrafficAnalyzer:
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
                     #print("PARTITO CENTRALIZED ROUTING")
                     source.start_centralized_routing(flow, env.ground_stations) #send flow to destination for centralized strategies
 
@@ -513,7 +511,9 @@ class TrafficAnalyzer:
                 flow = flows[source.get_name() + ' - ' + destination.get_name()]
                 source.close_outgoing_flow(flow) #close outgoing flows
 
-    #prepare the dictionary for control traffic comparison
+
+
+    #PREPARE the dictionary for control traffic comparison
     def prepare_results_for_control_traffic_comparison(self, update_times):
         self.results = {}
         for s in [Strategy.POSITION_SHARING_NO_LB,
@@ -566,7 +566,8 @@ class TrafficAnalyzer:
                 flow = flows[source.get_name() + ' - ' + destination.get_name()]
                 source.close_outgoing_flow(flow) #close flow
 
-    #prepare the dictionary to analyze weight sensitivity
+
+    #PREPARE the dictionary to analyze weight sensitivity
     def prepare_results_for_weight_sensitivity_analysis(self, weights: list):
         self.results = {}
         for weight in weights:

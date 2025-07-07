@@ -12,7 +12,6 @@ class Strategy(Enum):
     POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB = 7 #one hop neighbors information sharing
     
     POSITION_AND_STATE_SHARING_TWO_HOPS = 8 #two hops neighbors
-    POSITION_SHARING_COST_BALANCING = 9 #path cost balancing
     
     BASELINE_DIJKSTRA = 10
     SOURCE_ROUTING_NO_LB = 11
