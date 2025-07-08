@@ -500,7 +500,7 @@ class Sat:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
-        elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS:
+        elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS:
             nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
             candidates = []
 

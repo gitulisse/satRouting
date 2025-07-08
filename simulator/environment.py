@@ -46,13 +46,12 @@ def prepare():
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME): #for all the simulation's duration with the update time as interval between step
         env.put(i, topology_builder) #put the action topology builder for update topology
         
-    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                      Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                      Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
         #update positions
         for sat in env.satellites.values(): 
@@ -72,7 +71,7 @@ def prepare():
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]: ####
+                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]: ####
         #update positions
         for sat in env.satellites.values(): 
             for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
@@ -102,33 +101,30 @@ def start():
     print("- Topology update scheduled each", constants.TOPOLOGY_UPDATE_TIME, "seconds")
 
     #if the strategy requires LB print the current UPDATE_TIME
-    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                      Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
                                       Strategy.POSITION_SHARING_NO_LB,
                                       Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS]:
+                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
         print("- Satellite neighbors information update scheduled each", constants.SATELLITE_NEIGHBORS_UPDATE_TIME, "seconds")
 
     #if POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB then print the WEIGHT_FACTOR
     if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
         print("- Adaptive load balancing weight factor:", constants.LOAD_BALANCING_WEIGHT_FACTOR)
     
-    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING,
+    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                      Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
         print("- Launching Centralized Strategy of Simulation.")
    
     #while the queue has actions then execute all actions

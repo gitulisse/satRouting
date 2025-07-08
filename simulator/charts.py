@@ -87,16 +87,14 @@ def show_shortest_paths_table(results: dict):
         #Strategy.POSITION_SHARING_NO_LB.name : {},
         #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
         #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
-        Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-        Strategy.POSITION_AND_STATE_SHARING_TWO_HOPS.name : {},  #key that will contain results for the used strategy
-        #Strategy.SOURCE_ROUTING_NO_LB.name : {},
-        #Strategy.NODE_DISJOINT_SOURCE_ROUTING.name : {},
+        #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+        #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},  #key that will contain results for the used strategy
+        #Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
+        #Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
         #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-        #Strategy.EDGE_DISJOINT_SOURCE_ROUTING.name : {},
         #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-        #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {},
-        #Strategy.NODE_DISJOINT_SOURCE_ROUTING_ON_SATURATED_LINK.name : {},
-        #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {}
+        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
+        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
     }
 
     for key in refactored_results.keys():
