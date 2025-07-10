@@ -72,10 +72,27 @@ class Sat:
                 flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
                 self.drop_flow(flow, FlowState.LINK_CONGESTED) #####
                 #self.open_flow(flow)
-        #self._reroute_all()
+        self.update_only_network_state()
         #env.put(env.elapsed_time, self._reroute_all)
 
-    
+    def update_only_network_state(self):
+        # Aggiorna posizione e stato
+        self._update_position()
+        self._update_state()
+        
+        # Aggiorna ogni link attivo
+        for dir, link in self._links.items():
+            if link.is_active():
+                link.send_update(
+                    self.get_latitude(),
+                    self.get_longitude(),
+                    self.state,
+                    utils.get_coupled_link_direction(dir)
+                )
+                if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
+                    env.log_control_traffic_message(2)
+                env.log_control_traffic_message(6)
+        
     #Remove a link and notify neighbor
     def remove_link(self, dir: Direction, notify_neighbor = True):
         link = self._links.get(dir) #obtain the link from dictionary _links
@@ -217,7 +234,7 @@ class Sat:
                     flow.drop_steps_from(self)
                     self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop flow
                     #self.open_flow(flow)
-            #self._reroute_all()
+            self.update_only_network_state()
             #env.put(env.elapsed_time, self._reroute_all)
 
     #Update satellite position

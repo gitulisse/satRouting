@@ -205,8 +205,8 @@ env.start()
 traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
 # Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
-results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-charts.show_shortest_paths_table(results)
+#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+#charts.show_shortest_paths_table(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
 #charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)

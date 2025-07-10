@@ -369,9 +369,9 @@ class GroundStation:
             selected_path = self.detected_paths[0]
             routing_output = self.process_routing_output(selected_path, flow)  #process the output for routing
             del self.detected_paths[0]
-
             if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
                 routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+
 
         elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
 
@@ -393,14 +393,17 @@ class GroundStation:
             alpha =  constants.LOAD_BALANCING_WEIGHT_FACTOR #0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
             self.detected_paths = disjoint_paths #ranked_paths
-            #print("self.detected_paths", self.detected_paths)
-            #selected_path = self.detected_paths[0]
+            print("self.detected_paths", self.detected_paths)
+           
+            path_cost_pairs = self.calculate_path_costs(self._graph, self.detected_paths, alpha) #calculate the costs of k paths 
+            print("path_cost_pairs", path_cost_pairs)
+            selected_path = path_cost_pairs[0][0]
+            del self.detected_paths[0]
+            #selected_path = self.select_path_with_probabilities(path_cost_pairs) #select the path based on the previous costs
+            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing
+            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
+                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
 
-            costs = self.calculate_path_costs(self._graph, disjoint_paths, self.link_utilization, alpha) #calculate the costs of k paths
-            selected_path = self.select_path_based_on_costs(disjoint_paths, costs) #select the path based on the previous costs
-            routing_output = self.process_routing_output(selected_path, flow) #process the output for routing  
-            
-            self.detected_paths.remove(selected_path)
 
         #print("= After Basic Centralized Route =", routing_output)
         return routing_output #RoutingAction, Flow, Link
@@ -866,7 +869,19 @@ class GroundStation:
                 probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
-        if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
+        elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
+            for dst_sat in destination_satellites:
+                try:
+                    paths = list(nx.edge_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
+                    disjoint_paths.extend(paths)
+                except nx.NetworkXNoPath:
+                    print(f"[DROP] Calculate with Exclusions - No Edge disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
+            #self.print_paths(disjoint_paths, "Edge disjoint paths")
+            if disjoint_paths:
+                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
+
+        elif constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
             #print(f"starting node is {source_satellite}")
             for dst_sat in destination_satellites:
                 #print(f"dst_sat {dst_sat} in destination_satellites: {destination_satellites}")#debug
@@ -1103,7 +1118,7 @@ class GroundStation:
                     try:
                         if constants.ROUTING_STRATEGY == Strategy.SOURCE_ROUTING_BY_HOP_NO_LB:
                             path = nx.shortest_path(self._auxiliary_graph, src_sat, dst_sat)
-                        else:
+                        else: #if Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB
                             path = nx.shortest_path(self._auxiliary_graph, src_sat, dst_sat, weight='weight')
                         disjoint_paths.append(path)
                     except nx.NetworkXNoPath:
@@ -1164,6 +1179,7 @@ class GroundStation:
                     except nx.NetworkXNoPath:
                         print(f"[INFO] Getting K-paths - No Edge disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
+        
         elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
             if source == destination:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
@@ -1181,7 +1197,7 @@ class GroundStation:
                         return []
                     try:
                         k = constants.K_SHORTEST_VALUE_LB
-                        all_paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat))
+                        all_paths = list(nx.node_disjoint_paths(self._auxiliary_graph, src_sat, dst_sat)) ###
                         bandwidth_paths = [
                             (p, min(self._auxiliary_graph[u][v].get('available_bandwidth', 0) for u, v in zip(p, p[1:])))
                             for p in all_paths
@@ -1192,40 +1208,48 @@ class GroundStation:
                         print(f"[INFO] Getting K-paths - No Node disjoint path for {constants.ROUTING_STRATEGY} between {src_sat} and {dst_sat}.")
 
         return disjoint_paths
-   
+    
 
-    def calculate_path_costs(self, graph, paths, link_utilization, alpha): #sistemare questi valori...bisogna testare tutte le combinazioni di ALPHA e 1-ALPHA(quindi togliendo direttamente beta)
-        lengths = [path_weight(graph, path, weight="weight") for path in paths] #calculate normalized lengths of paths
-        min_length = min(lengths)
-        max_length = max(lengths)
-        normalized_lengths = []
-        for length in lengths:
-            if max_length == min_length:
-                #print("All paths have the same length. Normalization is trivial.")
-                normalized_length = 0  # O scegli un valore significativo per il contesto
-            else:
-                normalized_length = (length - min_length) / (max_length - min_length)
-            normalized_lengths.append(normalized_length)
-        
-        costs = []
-        for path, normalized_length in zip(paths, normalized_lengths): #calculate costs for each path
-            if len(path) == 1:  # Se il percorso ha un solo nodo, non ha link
-                costs.append(0) 
-            else:
-                link_occupation = sum(
-                    link_utilization.get((path[i], path[i+1]), 0) for i in range(len(path) - 1)
-                ) / (len(path) - 1)  #avarage occupation of link
-                cost = (alpha * normalized_length) + ((1 - alpha) * link_occupation)
-                costs.append(cost)
-        return costs
+    def calculate_path_costs(self, graph, paths, alpha):
+        path_costs = []
 
-    def select_path_based_on_costs(self, paths, costs):
-        total_cost = sum(costs) 
-        if total_cost == 0:
-            return paths[0]
-        probabilities = [1 - (cost / total_cost) for cost in costs]  # Percorsi con costi bassi hanno maggiore probabilità, conversione dei costi in probabilità
-        selected_path = random.choices(population=paths, weights=probabilities, k=1)[0]
-        return selected_path
+        for path in paths:
+            if len(path) == 1:
+                path_costs.append((path, 0))
+                continue
+
+            weights = []
+            inv_bandwidths = []
+            min_bw = float('inf')
+
+            for u, v in zip(path, path[1:]):
+                edge = graph.get_edge_data(u, v, default={})
+                weight = edge.get('weight', 1)
+                bandwidth = edge.get('available_bandwidth', 1)
+
+                weights.append(weight)
+                inv_bandwidths.append(1 / bandwidth if bandwidth > 0 else float('inf'))
+                min_bw = min(min_bw, bandwidth)
+
+            avg_weight = sum(weights) / len(weights)
+            avg_inv_bw = sum(inv_bandwidths) / len(inv_bandwidths)
+            inv_min_bw = 1 / min_bw if min_bw > 0 else float('inf')
+
+            beta = 1 - alpha
+
+            # Penalizzazione bilanciata tra congestione media e collo di bottiglia
+            cost = alpha * avg_weight + beta * (0.5 * avg_inv_bw + 0.5 * inv_min_bw)
+            path_costs.append((path, cost))
+
+        # Ordina i percorsi in base al costo crescente
+        path_costs.sort(key=lambda x: x[1])
+
+        print("PATH COSTS",path_costs)
+        return path_costs
+
+
+
+
 
     def calculate_path_weights_kshortest_disjoint(self, graph, disjoint_paths):
         #print(f"°°°°°    DISJOINT PATHS: {disjoint_paths}")

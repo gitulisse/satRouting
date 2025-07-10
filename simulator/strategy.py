@@ -19,7 +19,7 @@ class Strategy(Enum):
     NODE_DISJOINT_SOURCE_ROUTING_LB = 13 #based on length for K paths (K = 4)
     EDGE_DISJOINT_SOURCE_ROUTING_LB = 14 #based on length for K paths (K = 4)
 
-    NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK = 17 #based on link occupation of the path
+    NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK = 15 #based on link occupation of the path
     EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING = 16 #path cost selection
 
     
