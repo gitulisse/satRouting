@@ -49,33 +49,91 @@ class Sat:
     def is_operational(self) -> bool:
         return len([link for link in self._links.values() if link.is_active()]) != 0
 
+    #Update link with Ground Station
+    def _update_gs_link(self):
+        gs_candidates = []
+        for gs in self._ground_stations.values():
+            distance_from_destination = distance.distance(
+                (self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)
+            ).km
+            if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
+                gs_candidates.append(gs)
+
+        if set(gs_candidates) != set(self._gs_link.get_attached_gs()):
+            leftovers = self._gs_link.detach_from_all()
+
+            for gs in gs_candidates:
+                self._gs_link.attach_to_gs(gs)
+
+            if leftovers:
+                print(f"[LINK DOWN] GS detach su {self.get_name()} con leftovers: {[f.id for f in leftovers]}")
+                for flow in leftovers:
+                    flow.drop_steps_from(self)
+                    print("drop flow in method _update_gs_link", flow.id, "with rate", flow.rate)
+                    self.drop_flow(flow, FlowState.LINK_CONGESTED)
+
+            self.update_only_network_state()
+
+
+
+    #Remove a link and notify neighbor
+    def remove_link(self, dir: Direction, notify_neighbor=True):
+        link = self._links.get(dir)
+        if not link.is_active():
+            return
+
+        if notify_neighbor:
+            self.notify_neighbor_unlink(dir)
+
+        leftovers = link.idle()
+        if leftovers and self.is_operational():
+            print(f"[LINK DOWN] Rimozione link su {self.get_name()} con leftovers: {[f.id for f in leftovers]}")
+            for flow in leftovers:
+                flow.drop_steps_from(self)
+                print("drop flow in method remove_link", flow.id, "with rate", flow.rate)
+                self.drop_flow(flow, FlowState.LINK_CONGESTED)
+
+        if not self.is_operational() and self.serving_gs:
+            self.serving_gs.reattach()
+
+
+    
     #Manages adding links to a Satellite
     def add_link(self, sat, dir: Direction):
+        #print("METHOD: add_link")
         link = self._links.get(dir)
-        if link.target == sat: #if link already exists, avoid duplicates and return
+
+        # Se il link è già impostato correttamente, non fare nulla
+        if link.target == sat:
             return
-        #if constants.DEBUG:
-           # print("Adding link from Satellite", self.get_name(), "to Satellite", sat.get_name(), "at time", utils.get_current_time().utc_strftime())
-        self.notify_neighbor_unlink(dir) #notify link removal to neighbor
-        leftovers = link.point_to_sat(sat) #stores remaining flows about link pointing to satellite
-        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                          Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                          Strategy.POSITION_GUESSING_PROGRESSIVE_LB]:
-            self._update_position() #update
+
+        # Notifica al vicino che il link verrà rimosso
+        self.notify_neighbor_unlink(dir)
+
+        # Rimuove i flussi attivi sul vecchio link
+        leftovers = link.point_to_sat(sat)
+
+        # Aggiorna la posizione se richiesto dalla strategia
+        if constants.ROUTING_STRATEGY in [
+            Strategy.POSITION_GUESSING_NO_LB,
+            Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+            Strategy.POSITION_GUESSING_PROGRESSIVE_LB
+        ]:
+            self._update_position()
+
+        # Se ci sono flussi rimasti sul vecchio link, vengono droppati senza reroute
         if leftovers:
-            #print("leftovers in add_link:", leftovers)
             for flow in leftovers:
-                #if constants.DEBUG:
-                 #   print("[add_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
-                flow.add_step(self) #open_flow-like behaviour without actually opening the flow
-                flow.alias_id = self.mapping_table.add(flow.alias_id)
-                flow.drop_steps_from(self) #remove flow's steps that pass through this link of the satellite
-                self.drop_flow(flow, FlowState.LINK_CONGESTED) #####
-                #self.open_flow(flow)
+                flow.drop_steps_from(self)
+                print("drop flow in method add_link", flow.id, "with rate", flow.rate)
+                self.drop_flow(flow, FlowState.LINK_CONGESTED)
+
+        # Aggiorna lo stato locale del satellite
         self.update_only_network_state()
-        #env.put(env.elapsed_time, self._reroute_all)
+
 
     def update_only_network_state(self):
+        #print("METHOD: update_only_network_state")
         # Aggiorna posizione e stato
         self._update_position()
         self._update_state()
@@ -92,34 +150,7 @@ class Sat:
                 if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
                     env.log_control_traffic_message(2)
                 env.log_control_traffic_message(6)
-        
-    #Remove a link and notify neighbor
-    def remove_link(self, dir: Direction, notify_neighbor = True):
-        link = self._links.get(dir) #obtain the link from dictionary _links
-        ####print(f"Attempting to remove link {dir} for satellite {self.get_name()} that's active? {link.is_active()}")######
-        if not(link.is_active()):  # Verifica che il link esista ed è attivo
-            return
-        if notify_neighbor:
-            self.notify_neighbor_unlink(dir)
-        #if constants.DEBUG:
-        #print("Removing link from Satellite", self.get_name(), "to Satellite", self._links[dir].target.get_name(), "at time", utils.get_current_time().utc_strftime())
-        #print(f"Link {dir} removed for satellite {self.get_name()}")######
-        leftovers = self._links[dir].idle() #stores remaining flows
-        if leftovers and self.is_operational():
-            #print("leftovers in remove_link:", leftovers)
-            for flow in leftovers:
-                #if constants.DEBUG:
-                 #   print("[remove_link] Leftover from link:", dir, "on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
-                #flow.add_step(self) ####forse da commentare,non necessario #open_flow-like behaviour without actually opening the flow
-                #flow.alias_id = self.mapping_table.add(flow.alias_id) ####forse da commentare,non necessario
-                flow.drop_steps_from(self)
-                self.drop_flow(flow, FlowState.LINK_CONGESTED)
-                #self.open_flow(flow)
-        if not(self.is_operational()):
-            if self.serving_gs:
-                #if constants.DEBUG:
-                    #print("Satellite", self.get_name(), "is serving Ground Station", self.serving_gs.get_name(), "but is no longer operational. Requesting reattachment...")
-                self.serving_gs.reattach() #reconnection to Ground Station
+            
     
     #Return name of Satellite as the last 3 digit of satellite's name ("satellite156") as 156
     def get_name(self) -> int:
@@ -134,6 +165,7 @@ class Sat:
         return self._lon
     
     def store_flow_direction(self, flow: Flow, link: Link):
+        #print("METHOD: store_flow_direction")
         #print(f"    Storing flow {flow.alias_id} in satellite {self.get_name()} headed to link {flow},{link if link != None else None} at time {utils.get_current_time().utc_strftime()}")
         #print("self.flows check", self.flows)
         if flow.alias_id not in self.flows.keys():
@@ -154,6 +186,11 @@ class Sat:
 
     #Manage drop of flows
     def drop_flow(self, flow: Flow, reason: FlowState):
+        print("FLOW ID to be dropped SATELLITE", flow.id, "into DEBUG_DROPPED_FLOWS", self.DEBUG_dropped_flows)
+        if flow.id in self.DEBUG_dropped_flows:
+            print("ID already stored in dropped flows")
+            return
+        print("METHOD: drop_flow satellite -- FLOW ID:", flow.id, "with rate", flow.rate)
         printing=False
         if printing: #constants.DEBUG: #debugging messages
             msg = "Flow " + str(flow.id) + " with alias id " + str(flow.alias_id) + " with rate " + str(flow.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "
@@ -176,6 +213,7 @@ class Sat:
 
     #Update infos on neighbors
     def update_neighbors(self):
+        #print("METHOD: update_neighbors")
         #self._update_position() #update satellite position ###
         #self._update_gs_link() #update connection to Ground Station ###
         self._update_state() #update satellite state
@@ -188,6 +226,7 @@ class Sat:
     
     #Update satellite state
     def _update_state(self):
+        #print("METHOD: update_state")
         #print("XXXXX    Updating state for Satellite", self.get_name(), "self._link.values():", self._links.values())
         #print("___ any link active?", any([link for link in self._links.values() if link.is_active()]))
         if any([link for link in self._links.values() if link.is_active()]): #check if exists an active link
@@ -212,33 +251,10 @@ class Sat:
             #if self.state > 0.1:
             #    print("Satellite State:", self.state, "sat:", self.get_name())
         
-    #Update link with Ground Station
-    def _update_gs_link(self):
-        #print("UPDATE GS LINK method")
-        gs_candidates = []
-        for gs in self._ground_stations.values():
-            distance_from_destination = distance.distance((self.get_latitude(), self.get_longitude()), (gs.lat, gs.lon)).km #calculate distance between 2 points using Geopy
-            if distance_from_destination < constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                gs_candidates.append(gs) #if distance from GS's lat & lon is less then satellite's area radius appends GS to candidates
-        if set(gs_candidates) != set(self._gs_link.get_attached_gs()): #if candidates GS are different from already connected GS the satellite requires an update of link with a NEW GS 
-            leftovers = self._gs_link.detach_from_all() #satellite remove all GS links
-            for gs in gs_candidates: #dopo aver rimosso tutti i gs link, per ogni gs attacco il link alle gs candidate
-                self._gs_link.attach_to_gs(gs) #and reconnect to new candidates
-            if leftovers:
-                #print("leftovers in update_gs_link:", leftovers)
-                for flow in leftovers:
-                    #if constants.DEBUG:
-                     #   print("[_update_gs_link] Leftover from gs_link on Satellite", self.get_name(), "at time", utils.get_current_time().utc_strftime(), "flow:", flow.id, [step.get_name() for step in flow.get_steps()])
-                    #flow.add_step(self) ####forse da commentare,non necessario  #open_flow-like behaviour without actually opening the flow
-                    #flow.alias_id = self.mapping_table.add(flow.alias_id) ####forse da commentare,non necessario
-                    flow.drop_steps_from(self)
-                    self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop flow
-                    #self.open_flow(flow)
-            self.update_only_network_state()
-            #env.put(env.elapsed_time, self._reroute_all)
 
     #Update satellite position
     def _update_position(self):
+        #print("METHOD: _update_position")
         geocentric = self._earth_satellite.at(utils.get_current_time()) #calculate geocentric position of satellite (effective update!)
         lat, lon = wgs84.latlon_of(geocentric) #geographic coordinates conversion to standard WGS84
         self._lat = lat.degrees 
@@ -280,6 +296,7 @@ class Sat:
 
     #Notifies unlinking to neighbor
     def notify_neighbor_unlink(self, dir: Direction):
+        #print("METHOD: notify_neighbor_unlink")
         link = self._links.get(dir)
         if link.is_active():
             #if constants.DEBUG:
@@ -288,33 +305,37 @@ class Sat:
     
     #Sender of flows
     def send_flow(self, flow: Flow, link: Link, routing_decisions = None):
-        if link.reserve_bandwidth(flow): #if the needed bandwidth is available return TRUE
-            '''if constants.DEBUG:
-                if isinstance(link, RadioLink):
-                    print("Opened flow", flow.id, "to Radiolink on Satellite", self.get_name(), "with rate", flow.rate, "Gbps on link headed to", [gs.get_name() for gs in link.target]) #"at time", utils.get_current_time().utc_strftime())
-                else:
-                    print("Opened flow", flow.id, "to Laserlink on Satellite", self.get_name(), "with rate", flow.rate, "Gbps on link headed to", link.target.get_name()) # "at time", utils.get_current_time().utc_strftime())
-            '''
-            self.store_flow_direction(flow, link) #save direction
+        if link.reserve_bandwidth(flow):
+            #print(f"[SEND] Flow {flow.id} inviato da {self.get_name()} a {link.target.get_name() if hasattr(link.target, 'get_name') else link.target} con rate {flow.rate} Gbps")
+
+            self.store_flow_direction(flow, link)
+
             if isinstance(link, RadioLink):
-                flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0]) #if link is a radiolink calculates the distance satellite and GS
+                flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0])
             else:
-                flow.travelled_distance += utils.get_distance_between_satellites(self, link.target) #otherwise calculates distance between satellites
-            if routing_decisions != None:
-                link.send_flow(flow, routing_decisions) #send centralized
+                flow.travelled_distance += utils.get_distance_between_satellites(self, link.target)
+
+            if routing_decisions is not None:
+                link.send_flow(flow, routing_decisions)
             else:
-                link.send_flow(flow) #then send flow
+                link.send_flow(flow)
         else:
-            self.drop_flow(flow, FlowState.LINK_CONGESTED) #otherwise drop it
+            print(f"[DROP] Fallita riserva su {self.get_name()} per flow {flow.id} (rate {flow.rate} Gbps)")
+            print("drop flow in method send_flow", flow.id, "with rate", flow.rate)
+            self.drop_flow(flow, FlowState.LINK_CONGESTED)
+
     
     #reopen flow
     def _reopen_flow(self, flow: Flow, routing_decisions = None):#print(f"Self sat {self.get_name()} is operational?___{self.is_operational()}")
+        #print("METHOD: _reopen_flow")
         if self.is_operational() == False:
             print("Satellite", self.get_name(), "is not operational")
             self._close_internal_flow(flow.alias_id) #if Satellite NOT operational, close and drop flow
+            print("drop flow in method _reopen_flow sat not operational", flow.id, "with rate", flow.rate)
             self.drop_flow(flow, FlowState.SATELLITE_NOT_OPERATIONAL)
         else:
             if routing_decisions == None: #Se ci sono già le decisions
+                #print(f"[REROUTE] Ricalcolo routing per flow {flow.id} su satellite {self.get_name()} alle {utils.get_current_time().utc_strftime()}")
                 routing_decisions = self.route(flow) #triple(action, flow, link) could be more then one if there are splitted flows #otherwise if satellite is operational, calculates routing for the flow 
                 #print("Routing decisions [_reopen_flow]", flow.id, "on Satellite", self.get_name(), ", Routing Decision:", routing_decisions) #print routing decisions
                 self._close_internal_flow(flow.alias_id)
@@ -324,10 +345,12 @@ class Sat:
                         f.alias_id = self.mapping_table.add(f.alias_id)
                 for action, f, link in routing_decisions:
                     if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
+                        #print(f"    @@@@@ decentr {action, f, link} with RATE -> {f.rate}")
                         self.send_flow(f, link) #send
                     elif action == RoutingAction.ERROR:
-                        #print(f"    @@@@@ decentr {action, f, link} with RATE -> {f.rate}")
+                        print(f"[DROP] No available links. Dropping flow id={f.id} alias_id={f.alias_id} at {self.get_name()}")
                         #print("drop in reopen_flow")
+                        print("drop flow in method _reopen_flow routing ERROR decentralized", flow.id, "with rate", flow.rate)
                         self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
@@ -351,6 +374,7 @@ class Sat:
                     elif action == RoutingAction.ERROR:
                         #print(f"    @@@@@centr {action, f, link} with RATE -> {f.rate}")
                         routing_decisions.pop(0)
+                        print("drop flow in method _reopen_flow routing ERROR centralized", flow.id, "with rate", flow.rate)
                         self.drop_flow(f, link) #drop
                     elif action == RoutingAction.REOPEN:
                         f.alias_id = self.mapping_table.get_input_id(f.alias_id)
@@ -360,6 +384,7 @@ class Sat:
 
 
     def open_flow(self, flow: Flow, routing_decisions=None): #Manage the open of flows 
+        #print("METHOD: open_flow satellite")
         #if constants.DEBUG:
          #   print("--- Opening flow on [sat]", flow.id, "alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps") #"at time", utils.get_current_time().utc_strftime())
         flow.add_step(self) #flow is added to the self satellite #print("  Opening flow2", flow, "id", flow.id, "with alias_id", flow.alias_id, "on Satellite", self.get_name(), "with rate:", flow.rate, "Gbps")
@@ -367,6 +392,7 @@ class Sat:
         #print(" <[MAPPING]> Self mapping table open_flow on", self.get_name(), "SAT :", self.mapping_table.table) #print mapping table for debug
         #print("°    flow.alias_id", flow.alias_id)
         if flow.ttl == 0:
+            print("drop flow in method open_flow", flow.id, "with rate", flow.rate)
             self.drop_flow(flow, FlowState.EXPIRED_TTL)
         else:
             if routing_decisions != None: #if there are some decisions pass them for forwarding
@@ -376,13 +402,14 @@ class Sat:
 
     #Manage routing decisions (START THE CORE OF ROUTING DECISIONS doing basic route then adapting to link bandwidth)
     def route(self, flow: Flow) -> list[(RoutingAction, Flow, Link)]:
+        #print("METHOD: route satellite")
         routing_decisions = self.basic_route(flow)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_decisions)
         return routing_decisions
 
     #Routing decisions for bandwidth
     def adapt_routing_decisions_to_available_link_bandwidth(self, flow: Flow, routing_decisions: list[tuple[RoutingAction, Link]]) -> list[tuple[RoutingAction, Flow, Link]]:
-        #print("adapt_routing_decisions_to_available_link_bandwidth metodo")
+        #print("METHOD: adapt_routing_decisions_to_available_link_bandwidth")
         adapted_routing_decisions = []
         for action, link in routing_decisions:
             if action == RoutingAction.FORWARD or action == RoutingAction.DELIVER:
@@ -405,6 +432,7 @@ class Sat:
 
     #Route method
     def basic_route(self, flow: Flow, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]: ##---- reserve_band? send_flow
+        #print("METHOD: basic_route")
         #Excludes node (next hop) from candidates to avoid Loops #definition of function get_nodes_to_be_excluded_from_next_hop_candidates to redefine it for every simulation, not execution of function
         def get_nodes_to_be_excluded_from_next_hop_candidates(flow) -> list: #get_nodes_to_be_excluded_from_next_hop_candidates PERMETTE DI VALUTARE QUALE SARA' IL PROSSIMO HOP
             if constants.LOOP_AVOIDANCE_CUTOFF == 0: #if 0 no need to avoid loops #if > 0 excludes a defined number of previously made passages by the flow
@@ -518,14 +546,15 @@ class Sat:
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
         elif constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS:
+            import statistics
+
             nodes_to_be_excluded = get_nodes_to_be_excluded_from_next_hop_candidates(flow)
             candidates = []
 
-            alpha = 0.4   # Importanza del primo hop
-            gamma = 0.8   # Penalità bilanciata
-            beta = 2  # Peso maggiore alla distanza
+            alpha = 0.4  # importanza del primo hop
+            penalty_weight = 0.3  # penalità per deviazione standard
 
-            for i, (key, link) in enumerate(self._links.items()):
+            for key, link in self._links.items():
                 if link in avoid or not link.is_active():
                     continue
 
@@ -534,39 +563,52 @@ class Sat:
                 else:
                     dist = distance.distance((link.lat, link.lon), flow.destination).km
 
-                direct_lb_score = (1 - link.state) * 4
+                first_hop_score = (1 - link.state) * 4
                 neighbor_sat = link.target
 
-                # Second-hop active links
                 second_hop_scores = []
+                second_hop_distances = []
                 for second_link in neighbor_sat._links.values():
                     if second_link.is_active() and second_link.target != self:
-                        second_hop_scores.append((1 - second_link.state) * 4)
+                        score = (1 - second_link.state) * 4
+                        second_hop_scores.append(score)
+                        second_hop_distances.append(distance.distance((second_link.lat, second_link.lon), flow.destination).km)
 
-                avg_second_hop_score = sum(second_hop_scores) / len(second_hop_scores) if second_hop_scores else 0
+                if len(second_hop_scores) < 2 or max(second_hop_scores) < 1.0:
+                    continue
 
-                # Calcolo del punteggio
-                lb_score = alpha * direct_lb_score + (1 - alpha) * avg_second_hop_score
-                delta = direct_lb_score - avg_second_hop_score
-                penalty = gamma * delta if delta > 0 else 0
+                avg_second_hop_score = sum(second_hop_scores) / len(second_hop_scores)
+                std_dev = statistics.stdev(second_hop_scores) if len(second_hop_scores) > 1 else 0
+
+                connectivity_ratio = len(second_hop_scores) / len(neighbor_sat._links)
+                fanout_bonus = connectivity_ratio * 1.5
+
+                avg_second_hop_distance = sum(second_hop_distances) / len(second_hop_distances) if second_hop_distances else float("inf")
+                distance_penalty = avg_second_hop_distance / 10000  # normalizzato
+
+                lb_score = (
+                    alpha * first_hop_score +
+                    (1 - alpha) * avg_second_hop_score +
+                    fanout_bonus -
+                    penalty_weight * std_dev -
+                    distance_penalty
+                )
 
                 candidates.append({
                     'distance': dist,
                     'dir': key,
-                    'first_hop_score': direct_lb_score,
+                    'first_hop_score': first_hop_score,
                     'avg_second_hop_score': avg_second_hop_score,
-                    'lb_score': lb_score,
-                    'penalty': penalty
+                    'std_dev': std_dev,
+                    'lb_score': lb_score
                 })
 
+            # Ordina per distanza crescente (opzionale)
             candidates.sort(key=lambda x: x['distance'])
 
             for i, candidate in enumerate(candidates):
-                ordering_score = (4 - i if candidate['distance'] != float("inf") else 0) * beta
-                candidate['total_score'] = ordering_score + candidate['lb_score'] - candidate['penalty']
-                #print(f"[DEBUG][TWO_HOPS_TUNED] candidate {candidate['dir']} i={i}: "
-                 #   f"ordering_score={ordering_score:.2f}, lb_score={candidate['lb_score']:.2f}, "
-                  #  f"penalty={candidate['penalty']:.2f}, total_score={candidate['total_score']:.2f}")
+                ordering_score = max(0, 2 - i) if candidate['distance'] != float("inf") else 0
+                candidate['total_score'] = ordering_score + candidate['lb_score']
 
             candidates.sort(key=lambda x: x['total_score'], reverse=True)
 
@@ -579,10 +621,13 @@ class Sat:
                         raise RuntimeError("routing_output already contains an error action")
                 routing_output.append((RoutingAction.FORWARD, self._links.get(candidate['dir'])))
 
+
+
         #print("  Debugging routing output:", routing_output) # DEBUG
         return routing_output
 
     def close_flow(self, flow: Flow): #close flows
+        #print("METHOD: close_flow")
         #print("[INFO] CLOSING flow Method with alias_id:", flow.alias_id , "on Satellite", self.get_name())
         local_ids = self.mapping_table.get_local_ids(flow.alias_id) #obtains local ids associated with flow id
         #print(f"&& local_ids are {local_ids}")
@@ -593,6 +638,7 @@ class Sat:
 
     #close internal flows
     def _close_internal_flow(self, alias_id: int):
+        #print("METHOD: _close_internal_flow")
         #print("[INFO] Closing INTERNAL flow with alias_id:", alias_id , "on Satellite", self.get_name()) #viene eseguito ogni volta che aggiorno la capacità del link
         flow_link_pairs = self.get_stored_flow_direction(alias_id) #obtain association between flow and link
         if flow_link_pairs:
@@ -631,6 +677,7 @@ class Sat:
         return active_links
     
     def extract_satellites_from_routing_decisions(self, routing_decisions: list[tuple]) -> list[str]:#extract satellite sequence starting from routing decisions
+        #print("METHOD: extract_satellites_from_routing_decisions")
         satellites = []
         if not routing_decisions:
             return satellites  # Restituisci lista vuota se non ci sono decisioni

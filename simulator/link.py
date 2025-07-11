@@ -28,6 +28,7 @@ class Link:
     
     #send flows 
     def send_flow(self, flow: Flow, routing_decisions=None):
+        #print("METHOD: send_flow link")
         #print("sendflow link base class")
         if flow.alias_id not in self.flows.keys(): #if alias_id isn't in flows keys raise error
             raise RuntimeError("Resources needs to be reserved before sending flow " + str(flow.id) + " with alias id " + str(flow.alias_id))
@@ -38,6 +39,7 @@ class Link:
 
     #close flows
     def close_flow(self, flow: Flow):
+        #print("METHOD: close_flow link")
         #print("[INFO] Link close flow on parent", self._parent.get_name(), "to target", self.target.get_name(), "with bandwidth", self.get_available_bandwidth())
         #print(f"Flows in self.flows General Link: {self.flows}")
         #print(f"[INFO] Rimozione flow con alias_id {flow.alias_id}")
@@ -69,7 +71,6 @@ class Link:
                                               Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
                 target_name = (self.target[0].get_name() 
@@ -100,6 +101,7 @@ class LaserLink(Link):
 
     #maintain trace of the leftover flows & redirect the LaserLink
     def point_to_sat(self, sat) -> list[Flow]:
+        #print("METHOD: point_to_sat")
         leftovers = [] #residual flows
         #print(f"Flowes: {self.flows}")
         while len(self.flows.values()) > 0: #if there are flows
@@ -120,6 +122,7 @@ class LaserLink(Link):
     
     #put link in idle state
     def idle(self) -> list[Flow]:
+        #print("METHOD: idle")
         #print(f"[IDLE] Link {self._parent.get_name()} -> {self.target.get_name()} going idle with flows: {self.flows}")##########
         leftovers = []
         while len(self.flows.values()) > 0:
@@ -154,17 +157,20 @@ class LaserLink(Link):
     
     #update coordinates and state
     def update(self, lat, lon, state):
+        #print("METHOD: update")
         self.lat = lat
         self.lon = lon
         self.state = state
 
     #send the update to a target(if active)
     def send_update(self, lat, lon, state, dir: Direction):
+        #print("METHOD: send_update")
         if self.is_active():
             self.target.update_link_info(lat, lon, state, dir)
 
     #remove the link of a target with the specified direction(dir)
     def unlink(self, dir: Direction):
+        #print("METHOD: unlink")
         if self.is_active():
             self.target.remove_link(dir, False)
 
@@ -177,11 +183,13 @@ class RadioLink(Link):
 
     #attach link to GS
     def attach_to_gs(self, gs):
+        #print("METHOD: attach_to_gs")
         if not(self.target.__contains__(gs)): #if the GS isn't already in the target list of the link
             self.target.append(gs) #add to list
 
     #disconnect link from GS
     def detach_from_all(self):
+        #print("METHOD: detach_from_all")
         leftovers = [] #residual flows
         #salva tutti i flussi nella lista leftovers
         while len(self.flows.values()) > 0: #if there are flows
@@ -202,6 +210,7 @@ class RadioLink(Link):
 
     #send flow
     def send_flow(self, flow: Flow, routing_decisions=None):
+        #print("METHOD: send_flow radiolink")
         # print("sendflow radiolink")
         if flow.alias_id not in self.flows.keys(): #if id isn't among the keys of flows return error
             raise RuntimeError("Resources needs to be reserved before sending flow " + str(flow.id) + " with alias id " + str(flow.alias_id))
@@ -211,6 +220,7 @@ class RadioLink(Link):
 
     #close flow
     def close_flow(self, flow: Flow):
+        #print("METHOD: close_flow")
         #print("[INFO] Closing Radiolink close flow on parent", self._parent.get_name(), "to target GSs ", [gs.get_name() for gs in self.target])
         #print(f"Flows in self.flows Radiolink: {self.flows}")##########
         self.flows.pop(flow.alias_id) #remove flow using id

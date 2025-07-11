@@ -13,6 +13,7 @@ ground_stations: dict
 
 class PriorityQueue:
     def __init__(self):
+        #print("METHOD: __init__")
         self.queue = []
 
     def put(self, priority, function, **kwargs):
@@ -148,6 +149,7 @@ def start():
         
     print("\n=== DEBUG: Stato finale delle ground stations ===")
     for gs_id, gs in env.ground_stations.items():
+        #print("GS: env.gr", env.ground_stations.items())
         print(f"\nGround Station {gs.get_name()} (ID: {gs_id}):")
 
         print("  → OUTGOING FLOWS:")
