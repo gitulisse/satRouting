@@ -401,7 +401,7 @@ class GroundStation:
             
             print("disjoint paths for cost balancing", disjoint_paths)
 
-            alpha =  constants.LOAD_BALANCING_WEIGHT_FACTOR #0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            alpha = 0.25 #constants.LOAD_BALANCING_WEIGHT_FACTOR #0.1, 0.25, 0.37, 0.5, 0.63, 0.75, 0.9]
 
             self.detected_paths = disjoint_paths #ranked_paths
             print("self.detected_paths", self.detected_paths)
@@ -1088,7 +1088,7 @@ class GroundStation:
         valid_destination_sats = [sat for sat in destination_satellite if sat in env.main_graph]
         # Rimuovi gli archi con banda disponibile pari a 0
         edges_to_remove = [(u, v) for u, v, data in env.main_graph.edges(data=True) if data.get('available_bandwidth', 0) == 0] #graph.edges...
-        print(f"[DEBUG] Removing {len(edges_to_remove)} edges: {edges_to_remove}")
+        #print(f"[DEBUG] Removing {len(edges_to_remove)} edges: {edges_to_remove}")
         for u, v in edges_to_remove:
             env.main_graph.remove_edge(u, v)
         self._graph = env.main_graph.copy()
@@ -1255,6 +1255,8 @@ class GroundStation:
     def calculate_path_costs(self, graph, paths, alpha):
         print("METHOD: calculate_path_costs")
         path_costs = []
+
+        alpha = constants.LOAD_BALANCING_WEIGHT_FACTOR # [0.1, 0.25, 0.37, 0.5, 0.63, 0.75, 0.9]
 
         for path in paths:
             if len(path) == 1:

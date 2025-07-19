@@ -87,10 +87,10 @@ class Sat:
 
         leftovers = link.idle()
         if leftovers and self.is_operational():
-            print(f"[LINK DOWN] Rimozione link su {self.get_name()} con leftovers: {[f.id for f in leftovers]}")
+            #print(f"[LINK DOWN] Rimozione link su {self.get_name()} con leftovers: {[f.id for f in leftovers]}")
             for flow in leftovers:
                 flow.drop_steps_from(self)
-                print("drop flow in method remove_link", flow.id, "with rate", flow.rate)
+                #print("drop flow in method remove_link", flow.id, "with rate", flow.rate)
                 self.drop_flow(flow, FlowState.LINK_CONGESTED)
 
         if not self.is_operational() and self.serving_gs:
@@ -131,7 +131,6 @@ class Sat:
         # Aggiorna lo stato locale del satellite
         self.update_only_network_state()
 
-
     def update_only_network_state(self):
         #print("METHOD: update_only_network_state")
         # Aggiorna posizione e stato
@@ -147,9 +146,9 @@ class Sat:
                     self.state,
                     utils.get_coupled_link_direction(dir)
                 )
-                if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
-                    env.log_control_traffic_message(2)
-                env.log_control_traffic_message(6)
+                #if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
+                #    env.log_control_traffic_message(2)
+                #env.log_control_traffic_message(6)
             
     
     #Return name of Satellite as the last 3 digit of satellite's name ("satellite156") as 156
@@ -171,8 +170,8 @@ class Sat:
         if flow.alias_id not in self.flows.keys():
             self.flows[flow.alias_id] = (flow, link)
             #print(" <======= stored new into self.flows", self.flows)
-        else:
-            raise RuntimeError("Alias id already present in flows structure.", flow.alias_id)
+        #else:
+         #   raise RuntimeError("Alias id already present in flows structure.", flow.alias_id)
         #if constants.DEBUG:
          #   print("Stored new flow", flow.id,"with alias id", flow.alias_id, "with rate", flow.rate, "on Satellite", self.get_name()) # "at time", utils.get_current_time().utc_strftime())
 
@@ -186,11 +185,11 @@ class Sat:
 
     #Manage drop of flows
     def drop_flow(self, flow: Flow, reason: FlowState):
-        print("FLOW ID to be dropped SATELLITE", flow.id, "into DEBUG_DROPPED_FLOWS", self.DEBUG_dropped_flows)
+        #print("FLOW ID to be dropped SATELLITE", flow.id, "into DEBUG_DROPPED_FLOWS", self.DEBUG_dropped_flows)
         if flow.id in self.DEBUG_dropped_flows:
             print("ID already stored in dropped flows")
             return
-        print("METHOD: drop_flow satellite -- FLOW ID:", flow.id, "with rate", flow.rate)
+        #print("METHOD: drop_flow satellite -- FLOW ID:", flow.id, "with rate", flow.rate)
         printing=False
         if printing: #constants.DEBUG: #debugging messages
             msg = "Flow " + str(flow.id) + " with alias id " + str(flow.alias_id) + " with rate " + str(flow.rate) + " Gbps has been dropped by Satellite " + str(self.get_name()) + " at time " + utils.get_current_time().utc_strftime() + ". "

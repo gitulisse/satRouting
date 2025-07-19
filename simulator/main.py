@@ -29,6 +29,7 @@ def read_from_json(filename):
         return json.load(f)
 
 # Constellation map generated
+
 def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
     def draw_map(ax):
         # Add basic map features
@@ -37,63 +38,29 @@ def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
         ax.add_feature(cfeature.COASTLINE, edgecolor='black')
         ax.add_feature(cfeature.BORDERS, linestyle=':')
 
-        # Draw parallels and meridians
-        parallels = np.linspace(-90, 90, 13)
-        meridians = np.linspace(-180, 180, 13)
-
         # Add gridlines
         gridlines = ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.7, linestyle='--')
         gridlines.xlabels_top = gridlines.ylabels_right = False
 
     plt.figure(figsize=(8, 6))
     ax = plt.axes(projection=ccrs.PlateCarree())
+    ax.set_global()
+    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 
-    ax.set_global()  ###
-    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree()) ###
-
-    # Draw the map with features
+    # Draw the map
     draw_map(ax)
 
-    # Plot satellites on the map
-    for satellite in satellites:
-        x = satellite.get_longitude()
-        y = satellite.get_latitude()
-        plt.plot(x, y, 'ok', markersize=3, transform=ccrs.PlateCarree())
-        plt.text(x, y, str(satellite.get_name()), fontsize=7, transform=ccrs.PlateCarree())
 
-    # Plot ground stations on the map
+    # Plot ground stations
     for gs in ground_stations:
         x = gs.lon
         y = gs.lat
         plt.plot(x, y, 'or', markersize=10, transform=ccrs.PlateCarree())
-        # plt.text(x - 5, y + 3, str(gs.get_name()), fontsize=9, fontweight='bold')
-
-    # Plot links if provided
-    if 'links' in kwargs:
-        links = kwargs['links']
-        for link in links:
-            plt.plot([link[0].get_longitude(), link[1].get_longitude()], 
-                     [link[0].get_latitude(), link[1].get_latitude()],
-                     color='0.50', transform=ccrs.PlateCarree())
-
-    # Plot paths if provided
-    if 'paths' in kwargs:
-        paths = kwargs['paths']
-        used_c = []
-        for path in paths:
-            if len(used_c) == 5: 
-                used_c = []
-            c = random.choice([color for color in ['b', 'g', 'r', 'c', 'm'] if color not in used_c])
-            used_c.append(c)
-            old_node = path[0]
-            for node in path[1:]:
-                plt.plot([old_node.get_longitude(), node.get_longitude()], 
-                         [old_node.get_latitude(), node.get_latitude()],
-                         color=c, transform=ccrs.PlateCarree())
-                old_node = node
+        plt.text(x - 5, y + 3, str(gs.get_name()), fontsize=9, fontweight='bold', color='red', transform=ccrs.PlateCarree())
 
     plt.title("Constellation Map")
     plt.show()
+
 
 
 utils.ts = load.timescale()
@@ -221,7 +188,7 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 # Se invece hai già i risultati salvati (tipo in un json), usa queste istruzioni per visualizzare il grafico corrispondente
 # senza stare a rigenerare tutti i dati. 
 #charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_centralized"))
-#charts.show_average_link_occupation_chart(read_from_json("average_link_occupation"))
+#charts.show_average_link_occupation_chart(read_from_json("decentralized_occupation_results"))
 #charts.show_delivered_dropped_ratio_chart(read_from_json("results_delivered_and_dropped_ratio"))
 #charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))
 #charts.show_weight_sensitivity_analysis_chart(read_from_json("weight_sensitivity_analysis"))

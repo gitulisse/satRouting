@@ -55,10 +55,10 @@ class TrafficAnalyzer:
                                   #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                   #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
-                                  #Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                  #Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                  #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                  Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
                                   ]:
@@ -79,11 +79,26 @@ class TrafficAnalyzer:
                 total_traffic_backup = constants.TOTAL_VOLUME_OF_TRAFFIC #save total traffic
                 self.prepare_results_for_average_link_occupation_analysis()
 
-                for volume in range(1, total_traffic_backup + 1, 1): #range(from 1, to total_traffic_backup, with steps of 1)
+                for volume in range(1, total_traffic_backup + 1, 1): #20 range(from 1, to total_traffic_backup, with steps of 1)
                     constants.TOTAL_VOLUME_OF_TRAFFIC = volume
                     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()]) #create traffic matrix using GS names
                     print(traffic_matrix)
-                    for strategy in Strategy:
+                    for strategy in [#Strategy.BASELINE_DIJKSTRA,
+                                  #Strategy.POSITION_GUESSING_NO_LB,
+                                  #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  #Strategy.POSITION_SHARING_NO_LB,
+                                  #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
+                                  Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                  Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
+                                  ]:
                         for i in range(0, 10):
                             utils.set_hour_shift(i)
                             env.reset()
@@ -178,7 +193,7 @@ class TrafficAnalyzer:
             #case 5
             case AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS: #analyse how change the performance selecting a different weight factor
                 strategy_backup = constants.ROUTING_STRATEGY
-                constants.ROUTING_STRATEGY = Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB
+                constants.ROUTING_STRATEGY = Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB
                 weights = [0.1, 0.25, 0.37, 0.5, 0.63, 0.75, 0.9]
                 self.prepare_results_for_weight_sensitivity_analysis(weights)
                 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in self.ground_stations.values()])
@@ -240,10 +255,10 @@ class TrafficAnalyzer:
                     #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
-                    #Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {}, #key that will contain results for source routing without load balancing
-                    #Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
-                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {}, #key that will contain results for source routing without load balancing
+                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
                 }
@@ -321,15 +336,15 @@ class TrafficAnalyzer:
     #PREPARE the dictionary for avarage link occupation analysis
     def prepare_results_for_average_link_occupation_analysis(self):
         self.results = {}
-        for s in [Strategy.POSITION_GUESSING_NO_LB,
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
-                                  Strategy.BASELINE_DIJKSTRA,
+        for s in [#Strategy.POSITION_GUESSING_NO_LB,
+                                  #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                  #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                  #Strategy.POSITION_SHARING_NO_LB,
+                                  #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                  #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
+                                  #Strategy.BASELINE_DIJKSTRA,
                                   Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
                                   Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
                                   Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
