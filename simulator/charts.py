@@ -157,39 +157,46 @@ def show_shortest_paths_table(results: dict):
 
 def show_average_link_occupation_chart(results: dict):
     colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k',
-    'tab:orange', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan',
-    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-    '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#000000'
-]
+              'tab:orange', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan',
+              '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#000000']
+    
     markers = ['.', 'v', 's', 'p', 'H', 'x', 'd', '|', '_', 'o', 'D', '*', 'X', '+', '>', '<', '1', '2',
-           '^', '8', 'h', 'P', '3', '4']
+               '^', '8', 'h', 'P', '3', '4']
 
     ax1 = plt.subplot(1, 2, 1)
     ax2 = plt.subplot(1, 2, 2)
+    
+    # Posizionamento grafici
     box = ax1.get_position()
     ax1.set_position([box.x0, box.y0 + box.height * 0.2, box.width, box.height * 0.8])
     ax1.set_title("Average link occupation", fontsize=16)
 
     for i, (strategy, data) in enumerate(results.items()):
-        ax1.plot([data['volume_of_traffic'][index] for index in range(0, len(data['volume_of_traffic']), 10)], [statistics.mean(data['average_link_occupation'][index:index + 10]) * 100 / constants.SATELLITE_LINK_CAPACITY for index in range(0, len(data['average_link_occupation']), 10)], label=strategy, color=colors[i], marker=markers[i])
-
-    #for i, (strategy, data) in enumerate(results.items()):
-    #    ax1.plot(data['volume_of_traffic'], data['cumulative_dropped_data'], label=strategy, linestyle="--", color=colors[i])
+        ax1.plot(
+            [data['volume_of_traffic'][index] for index in range(0, len(data['volume_of_traffic']), 10)],
+            [statistics.mean(data['average_link_occupation'][index:index + 10]) * 100 / constants.SATELLITE_LINK_CAPACITY
+             for index in range(0, len(data['average_link_occupation']), 10)],
+            label=strategy, color=colors[i], marker=markers[i])
 
     box = ax2.get_position()
     ax2.set_position([box.x0, box.y0 + box.height * 0.2, box.width, box.height * 0.8])
     ax2.set_title("Involved satellites", fontsize=16)
 
     for i, (strategy, data) in enumerate(results.items()):
-        ax2.plot([data['volume_of_traffic'][index] for index in range(0, len(data['volume_of_traffic']), 10)], [statistics.mean(data['involved_satellites'][index:index + 10]) * 100 / 66 for index in range(0, len(data['involved_satellites']), 10)], label=strategy, color=colors[i], marker=markers[i])
+        ax2.plot(
+            [data['volume_of_traffic'][index] for index in range(0, len(data['volume_of_traffic']), 10)],
+            [statistics.mean(data['involved_satellites'][index:index + 10]) * 100 / 66
+             for index in range(0, len(data['involved_satellites']), 10)],
+            label=strategy, color=colors[i], marker=markers[i])
 
     ax1.set_xlabel("Volume of traffic (in Gbps)", fontsize=13)
-    ax1.set_ylabel("Average link occupation among involved satellites (in percentage)", fontsize=13)
+    ax1.set_ylabel("Link occupation (in percentage)", fontsize=13)
 
     ax2.set_xlabel("Volume of traffic (in Gbps)", fontsize=13)
     ax2.set_ylabel("Involved satellites (in percentage)", fontsize=13)
 
-    ax1.legend(loc='upper center', bbox_to_anchor=(1.15, -0.1), ncol=2)
+    ax1.legend(loc='upper center', bbox_to_anchor=(1.15, -0.1), ncol=2, fontsize=12) ###
 
     for label in (ax1.get_xticklabels() + ax1.get_yticklabels()):
         label.set_fontsize(13)
@@ -197,7 +204,12 @@ def show_average_link_occupation_chart(results: dict):
     for label in (ax2.get_xticklabels() + ax2.get_yticklabels()):
         label.set_fontsize(13)
 
+    # Imposta limiti fissi per gli assi y
+    ax1.set_ylim(0, 70)  # "Average link occupation"
+    ax2.set_ylim(0, 55)  # "Involved satellites"
+
     plt.show()
+
 
 def show_delivered_dropped_ratio_chart(results: dict):
     #colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
