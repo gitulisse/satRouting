@@ -14,9 +14,17 @@ The strategy parameter defines the routing strategy to simulate. The value shoul
 - 5: Position sharing with load balancing on saturated link
 - 6: Position sharing with progressive load balancing
 - 7: Position and load state sharing with adaptive load balancing
+- 8: Position and load state sharing with two-hop adaptive load balancing
+- 9: Baseline Dijkstra
+- 10: Hop-based source routing without load balancing
+- 11: Length-based source routing without load balancing
+- 12: Node disjoint source routing with load balancing
+- 13: Edge disjoint source routing with load balancing
+- 14: Node disjoint source routing with saturation aware load balancing
+- 15: Edge disjoint source routing with costs load balancing
 
 The duration parameter specifies the duration of the simulation, in seconds.
 
 The traffic parameter specifies the amount of traffic to be immitted into the satellite network each second, in Gbps.
 
-All the parameters are optional, as they assume a default value if not defined. 
+All the parameters are optional, as they assume a default value if not defined.
