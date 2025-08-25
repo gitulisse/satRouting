@@ -2,8 +2,7 @@ import argparse
 from queue import Queue
 from strategy import Strategy
 
-#Contant values to run the application
-
+#Constants values to run the application
 DEBUG = True
 
 LATITUDE_CUTOFF = 70
@@ -31,10 +30,10 @@ args = parser.parse_args()
 if args.strategy:
     ROUTING_STRATEGY = Strategy(args.strategy)
 else:
-    ROUTING_STRATEGY = Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK #if there is no strategy it's used Position sharing with Load Balance on saturated links
+    ROUTING_STRATEGY = Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK #if there is no strategy it's used Position Sharing with Load Balance on Saturated Links
 
 FLOW_TTL = 31
-LOOP_AVOIDANCE_CUTOFF = 9 #loop avoidance
+LOOP_AVOIDANCE_CUTOFF = 9 #loop avoidance value
 
 SIMULATION_DURATION = args.duration if args.duration else 60 #if there is no durantion it'll be set to 60 secs
 TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 10 #Gbps passed by user in the command else 20

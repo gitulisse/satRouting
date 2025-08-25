@@ -49,7 +49,6 @@ def get_countries_coordinates() -> pd.DataFrame:
         iso_3_codes.append(row['id'])
         latitudes.append(row['latitude'])
         longitudes.append(row['longitude'])
-
     df = pd.DataFrame({'latitude' : latitudes, 'longitude' : longitudes}, index=iso_3_codes)
     df = remove_extra_regions(df)
     return df
@@ -57,12 +56,11 @@ def get_countries_coordinates() -> pd.DataFrame:
 #identifies the closer satellites
 def get_closer_satellites(satellites, position: tuple[float, float], operational_only = True):
     distances = list()
-    for key, sat in satellites.items(): #check for satellites
-        if operational_only: #if attribute True
-            if sat.is_operational() == False: #double check if satellite it's really active
-                #print(f"Satellite {sat.get_name()} is not operational") #print the satellite not operational
-                continue #so ignore that satellite
-        distances.append({'distance': (distance.distance((sat.get_latitude(), sat.get_longitude()), position).km), 'name': key}) #for each active satellite calculate the distance from destination
+    for key, sat in satellites.items():
+        if operational_only:
+            if sat.is_operational() == False:
+                continue
+        distances.append({'distance': (distance.distance((sat.get_latitude(), sat.get_longitude()), position).km), 'name': key})
     distances.sort(key=lambda x: x['distance']) #sort from closest
     return distances
 
@@ -70,7 +68,6 @@ def get_closer_satellites(satellites, position: tuple[float, float], operational
 def get_closest_satellite_for_graph(satellites, position: tuple[float, float], operational_only=True):
     closest_satellite = None
     min_distance = float('inf')
-
     for key, sat in satellites.items():
         if operational_only and not sat.is_operational():
             continue
@@ -84,20 +81,19 @@ def get_closest_satellite_for_graph(satellites, position: tuple[float, float], o
 def get_closer_satellites_for_graph(satellites, position: tuple[float, float], operational_only = True):
     closer_satellites = []
     for key, sat in satellites.items():
-        if operational_only and not sat.is_operational():  ##exclude not operational sat
+        if operational_only and not sat.is_operational():
             continue
         distance_to_gs = distance.distance((sat.get_latitude(), sat.get_longitude()), position).km
-        if distance_to_gs <= constants.SATELLITE_COVERAGE_AREA_RADIUS:  #only in the radius
-            closer_satellites.append({'name': key, 'satellite': sat, 'distance': distance_to_gs})  #add object sat
-        closer_satellites.sort(key=lambda x: x['distance']) #sort from minimum, made 2 by 2 respecting the tuple
+        if distance_to_gs <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
+            closer_satellites.append({'name': key, 'satellite': sat, 'distance': distance_to_gs})
+        closer_satellites.sort(key=lambda x: x['distance'])
         chosen_satellites = [(entry['name'], entry['satellite']) for entry in closer_satellites]
     return chosen_satellites
 
-
 #calculate distance between satellites in km
 def get_distance_between_satellites(sat1, sat2, satellites = None):
-    if isinstance(sat1, int): #check sat1 is passed as an int
-        sat1 = satellites.get(sat1) #convert sat1 into a satellite object
+    if isinstance(sat1, int):
+        sat1 = satellites.get(sat1)
     if isinstance(sat2, int):
         sat2 = satellites.get(sat2)
     return distance.distance((sat1.get_latitude(), sat1.get_longitude()), (sat2.get_latitude(), sat2.get_longitude())).km
@@ -105,10 +101,10 @@ def get_distance_between_satellites(sat1, sat2, satellites = None):
 #calculate the distance as hypotenuse from GS to satellite
 def get_distance_between_satellite_and_gs(sat, gs, satellites = None, ground_stations = None):
     if isinstance(sat, int):
-        sat = satellites.get(sat) #convert to satellite object
+        sat = satellites.get(sat)
     if isinstance(gs, str):
-        gs = ground_stations.get(gs.upper()) #convert to gs object (making gs to uppercase)
-    return math.hypot(distance.distance((gs.lat, gs.lon), (sat.get_latitude(), sat.get_longitude())).km, 780) #calculate the distance as hypotenuse (gs to satellite)
+        gs = ground_stations.get(gs.upper())
+    return math.hypot(distance.distance((gs.lat, gs.lon), (sat.get_latitude(), sat.get_longitude())).km, 780)
 
 #calculate distance of coordinates on earth
 def get_distance_between_earth_coordinates(coord1, coord2):
@@ -140,9 +136,9 @@ def propagation_delay(position1, position2) -> float:
 
 #get time
 def get_current_time() -> Time:
-    return ts.utc(2023, 10, 15, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00 #23/10/15 always finds paths
+    return ts.utc(2023, 10, 15, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00
 
-#manage hour shift for globe or simulation
+#manage hour shift
 def set_hour_shift(shift):
     utils.hour_shift = shift
 
@@ -154,7 +150,7 @@ def get_seconds_between(time1: Time, time2: Time) -> int:
 
 #add time to the simulation
 def add_seconds_to_time(time: Time, seconds: int) -> Time:
-    return ts.utc(time.utc[0], time.utc[1], time.utc[2] + seconds / 24 / 60 / 60, time.utc[3], time.utc[4], time.utc[5]) #time.utc[0] year + [1] month + [2] day (addin seconds fractions) + [3] hours + [4] minutes + [5] seconds
+    return ts.utc(time.utc[0], time.utc[1], time.utc[2] + seconds / 24 / 60 / 60, time.utc[3], time.utc[4], time.utc[5])
 
 #calculate sleep delay
 def get_sleep_delay(seconds):
@@ -169,30 +165,18 @@ def randomword(length):
     letters = string.ascii_lowercase
     return ''.join(random.choice(letters) for i in range(length))
 
-#new
+#obtain satellites in path
 def get_satellites_in_path(routing_decisions):
     satellites_in_path = []
     for action, flow, link in routing_decisions:
-        # Aggiungi il satellite sorgente (parent) se non già nella lista
         if link._parent not in satellites_in_path:
             satellites_in_path.append(link._parent)
-        # Aggiungi il satellite di destinazione (target) se esiste e non è già nella lista
         if link.target is not None and link.target not in satellites_in_path:
             satellites_in_path.append(link.target)
     return satellites_in_path
 
+#get ground station name by coordinates
 def get_ground_station_name_by_coords(lat, lon):
     for name, gs in env.ground_stations.items():
         if gs.lat == lat and gs.lon == lon:
             return name
-'''
-def get_protected_satellites_from_graph(graph):
-    protected_satellites = set()
-    ground_stations = {'TOKYO', 'NEW YORK', 'DAR ES SALAAM', 'SAN FRANCISCO'}  # tutto maiuscolo
-    for node in graph.nodes():
-        for neighbor in graph.neighbors(node):
-            if str(neighbor).upper() in ground_stations:  # trasformo il neighbor in MAIUSCOLO
-                protected_satellites.add(node)
-
-    return protected_satellites
-'''

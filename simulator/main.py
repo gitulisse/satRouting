@@ -16,7 +16,6 @@ from traffic_analyzer import AnalysisMetric, TrafficAnalyzer
 from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
 import utils
-#from link import Link
 from strategy import Strategy
 from itertools import chain
 
@@ -28,30 +27,22 @@ def read_from_json(filename):
     with open(f'{filename}.json', 'r', encoding='utf-8') as f:
         return json.load(f)
 
-# Constellation map generated
-
+# Constellation map generation
 def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
     def draw_map(ax):
-        # Add basic map features
         ax.add_feature(cfeature.LAND, color='lightgray')
         ax.add_feature(cfeature.OCEAN, color='lightblue')
         ax.add_feature(cfeature.COASTLINE, edgecolor='black')
         ax.add_feature(cfeature.BORDERS, linestyle=':')
-
-        # Add gridlines
         gridlines = ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.7, linestyle='--')
         gridlines.xlabels_top = gridlines.ylabels_right = False
-
     plt.figure(figsize=(8, 6))
     ax = plt.axes(projection=ccrs.PlateCarree())
     ax.set_global()
     ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 
-    # Draw the map
     draw_map(ax)
 
-
-    # Plot ground stations
     for gs in ground_stations:
         x = gs.lon
         y = gs.lat
@@ -60,7 +51,6 @@ def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
 
     plt.title("Constellation Map")
     plt.show()
-
 
 
 utils.ts = load.timescale()
@@ -81,7 +71,7 @@ new_york_gs = GroundStation(40.71277778, -74.00611111, 'New York')
 buenos_aires_gs = GroundStation(-34.608333, -58.371944, 'Buenos Aires')
 oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo')
 
-#Ground Stations selected (removed'SAN FRANCISCO' : san_francisco_gs)
+#Ground Stations selected for the simulation
 ground_stations = {
     'TOKYO' : tokyo_gs,
     'NEW YORK' : new_york_gs,
@@ -93,37 +83,19 @@ ground_stations = {
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print("Traffic matrix print:", traffic_matrix)
 
-'''#Preparation of the environment
-countries_coordinates_df = utils.get_countries_coordinates()
-countries_internet_penetration_df = utils.get_countries_internet_penetration()
-countries_population_df = utils.get_countries_population()
-
-print("Estimating ground stations workload...")
-for index, coordinates in countries_coordinates_df.iterrows():
-    distances = list()
-    for gs in ground_stations.values():
-        dist = utils.get_distance_between_earth_coordinates((coordinates['latitude'], coordinates['longitude']), (gs.lat, gs.lon))
-        distances.append({'distance': dist, 'gs': gs})
-    distances.sort(key=lambda x: x['distance'])
-    distances[0]['gs'].add_population_to_serve(round(countries_population_df.loc[index]['IT.NET.USER.ZS'] * (countries_internet_penetration_df.loc[index]['SP.POP.TOTL'] / 100)))
-print("Completed.")'''
-
-
-#Retrieve satellites info from NORAD (in realtà sono 80 satelliti)
+#Retrieve satellites info from NORAD
 print("Retrieving satellites...")
 stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
 satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
 print('Loaded', len(satellites), 'satellites.')
-
 for gs in ground_stations.values():
     gs.set_satellites(satellites)
 
 env.satellites = satellites
 env.ground_stations = ground_stations
-env.prepare() #prepare the environment with all necessary components
+env.prepare()
 
-
-# Start of the code block that launches the "standard" simulation not aimed at developing graphs or analyzing specific metrics
+# Start of the code block that launches the standard simulation
 traffic_generators = []
 header_builders = []
 
@@ -137,9 +109,7 @@ if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                   Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
-        #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
         for destination in gs_traffic_details:
-            #print(f"Traffic_detail of a single destination {gs_traffic_details[destination]}") #gs_traffic_details[destination] rappresenta il rate di traffico verso la destinazione
             hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
             header_builders.append(hb)
 
@@ -153,28 +123,21 @@ if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                   Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
     for gs in ground_stations.values():
         gs_traffic_details = traffic_matrix[gs.get_name()]
-        #print(f"For {gs.get_name()} traffic details: {gs_traffic_details}")
-        for destination in gs_traffic_details: #si raccolgono i dati per ogni destinazione presente nel dettaglio di una GS di partenza
-            #print(f"Traffic_detail of a single destination {gs_traffic_details[destination]}") #gs_traffic_details[destination] rappresenta il rate di traffico verso la destinazione
-            tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()]) #SIMULATION_DURATION, header_builder=header_builder,
+        for destination in gs_traffic_details:
+            tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
             traffic_generators.append(tg)
-    '''
-    if constants.DEBUG:
-        print("traffic_generators LIST", traffic_generators)
-    '''
 env.start()
-#print("env.start() called...")
 # End of block
 
-# Oggetto (TrafficAnalyzer) tramite cui si analizzano metriche specifiche. In base alla metrica scelta, il flusso della simulazione può essere
-# alterato (skip di ore di simulazione, riavvio della simulazione più volte, simulazione di più strategie di routing diverse, ...)
+# Object (TrafficAnalyzer) used to analyze specific metrics. Depending on the selected metric, the simulation flow can be
+# altered (skipping simulation hours, restarting the simulation multiple times, simulating multiple different routing strategies, ...)
 
 traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
-# Decommenta la coppia di istruzioni in base alle metriche di cui vuoi generare dei risultati
+# Uncomment the pair of instructions based on the metrics you want to generate results for.
 #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
 #charts.show_shortest_paths_table(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)# sistemare il REROUTE che è problematico
+#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
 #charts.show_average_link_occupation_chart(results)
 #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
 #charts.show_delivered_dropped_ratio_chart(results)
@@ -185,39 +148,19 @@ traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 #results = traffic_analyzer.analyze(AnalysisMetric.TIME_PASSING_SIMULATION)
 #charts.show_time_passing_simulation_chart(results)
 
-# Se invece hai già i risultati salvati (tipo in un json), usa queste istruzioni per visualizzare il grafico corrispondente
-# senza stare a rigenerare tutti i dati. 
-#charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_centralized"))
-#charts.show_average_link_occupation_chart(read_from_json("decentralized_occupation_results"))
-#charts.show_delivered_dropped_ratio_chart(read_from_json("results_delivered_and_dropped_ratio"))
+# If you already have the results saved (e.g., in a json), use these instructions to display the corresponding chart
+# without having to regenerate all the data.
+#charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_source_routing_results"))
+#charts.show_average_link_occupation_chart(read_from_json("average_link_occupation_decentralized_results"))
+#charts.show_delivered_dropped_ratio_chart(read_from_json("delivered_and_dropped_ratio_decentralized_results"))
 #charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))
 #charts.show_weight_sensitivity_analysis_chart(read_from_json("weight_sensitivity_analysis"))
 #charts.show_time_passing_simulation_chart(read_from_json("time_passing_simulation"))
 #charts.show_loop_avoidance_analysis_chart()
 
-#######################################################################################################
+### Map ###
 #Global map showing Ground Stations' positions
 #show_constellation_map([], ground_stations.values(), links=[], paths=[])
 
 #Print the GS & satellites positions
 #show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
-
-#Print all the active links in the constellation (the orizontal links are painted in a weird way cause of the 2D rapresentation of the globe)
-#active_links = Sat.get_active_links(satellites.values())
-#show_constellation_map(satellites.values(), ground_stations.values(), links=active_links, paths=[])
-
-#vuole gli argomenti passati come un dict
-##########
-#paths = traffic_analyzer.calculate_dijkstra(kwargs={'ground_stations': ground_stations, 'satellites': satellites}) #qui da sostituire poi con Header_builder
-#print("PERCORSI TROVIATI PER DIJKSTRA", paths)
-
-'''
-while True:
-    data = constants.drawing_queue.get()
-    links = []
-    for satellite in satellites.values():
-        for link in satellite._links.values():
-            if link.is_active():
-                links.append([satellite, link.target])
-    show_constellation_map(satellites.values(), ground_stations.values(), links=links, paths=data)
-'''

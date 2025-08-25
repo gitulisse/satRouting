@@ -1,7 +1,7 @@
 import constants
 import requests
 
-#creation of Traffic Matrix
+#Manage Traffic Matrix
 def get_traffic_matrix(cities: list[str]):
     url = 'http://localhost:8001/traffic_matrix'
     params = {

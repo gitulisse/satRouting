@@ -44,14 +44,15 @@ def show_shortest_paths_table(results: dict):
 
     ax = plt.subplot()
 
+    #initialization of lists
     trajectories.insert(0, "Trajectory")
     strategies.insert(0, "Strategy")
     means.insert(0, "Average hop count")
     variances.insert(0, "Variance of hop count")
     failed_percentage.insert(0, "Failed routings")
     distances.insert(0, "Average path length (km)")
-    #create values for table
 
+    #create columns for table
     table_data = [[trajectories[i], strategies[i], means[i], variances[i], failed_percentage[i] if strategies[i] != 'BASELINE_DIJKSTRA' else '-', distances[i]] for i in range(len(trajectories)) if i == 0 or trajectories[i] == "Buenos Aires - New York" or trajectories[i] == "Buenos Aires - Dar Es Salaam" or trajectories[i] == "Buenos Aires - Tokyo"]
 
     #create table
@@ -65,11 +66,8 @@ def show_shortest_paths_table(results: dict):
     ax.axis('off')
 
     table_props = table.properties()
-    #print(table.get_celld()[(0, 0)]) #mostra la prima cella della tabella e basta per debug
-    #print(table_props)
     table_cells = table_props['celld']
     for indices, cell in table_cells.items():
-        #print(indices) #mostra tutte le celle generate come output
         if indices[0] == 0:
             cell.set_text_props(weight='black', size='medium')
         elif indices[0] % 3 == 2:
@@ -124,6 +122,7 @@ def show_shortest_paths_table(results: dict):
 
     ax = plt.subplot()
 
+    #generate columns for table
     table_data = [[strategies[i], failed_percentage[i], distances_wrt_dijkstra[i]] for i in range(len(strategies)) if strategies[i] != 'DIJKSTRA']
 
     #create table
@@ -137,11 +136,9 @@ def show_shortest_paths_table(results: dict):
     ax.axis('off')
 
     table_props = table.properties()
-    #print(table.get_celld()[(0, 0)]) #mostra la prima cella della tabella e basta per debug
     #print(table_props)
     table_cells = table_props['celld']
     for indices, cell in table_cells.items():
-        #print(indices) #mostra tutte le celle generate come output
         if indices[0] == 0:
             cell.set_text_props(weight='black', size='medium')
         elif indices[0] == 1 and (indices[1] == 1 or indices[1] == 2):
@@ -167,7 +164,7 @@ def show_average_link_occupation_chart(results: dict):
     ax1 = plt.subplot(1, 2, 1)
     ax2 = plt.subplot(1, 2, 2)
     
-    # Posizionamento grafici
+    #chart positioning
     box = ax1.get_position()
     ax1.set_position([box.x0, box.y0 + box.height * 0.2, box.width, box.height * 0.8])
     ax1.set_title("Average link occupation", fontsize=16)
@@ -196,7 +193,7 @@ def show_average_link_occupation_chart(results: dict):
     ax2.set_xlabel("Volume of traffic (in Gbps)", fontsize=13)
     ax2.set_ylabel("Involved satellites (in percentage)", fontsize=13)
 
-    ax1.legend(loc='upper center', bbox_to_anchor=(1.15, -0.1), ncol=2, fontsize=12) ###
+    ax1.legend(loc='upper center', bbox_to_anchor=(1.15, -0.1), ncol=2, fontsize=12)
 
     for label in (ax1.get_xticklabels() + ax1.get_yticklabels()):
         label.set_fontsize(13)
@@ -204,7 +201,7 @@ def show_average_link_occupation_chart(results: dict):
     for label in (ax2.get_xticklabels() + ax2.get_yticklabels()):
         label.set_fontsize(13)
 
-    # Imposta limiti fissi per gli assi y
+    #Set fixed limits for the y-axes
     ax1.set_ylim(0, 70)  # "Average link occupation"
     ax2.set_ylim(0, 55)  # "Involved satellites"
 
@@ -235,7 +232,7 @@ def show_delivered_dropped_ratio_chart(results: dict):
     plt.show()
 
 def show_control_traffic_comparison_chart(results: dict):
-    width = 0.21  # the width of the bars
+    width = 0.21
     multiplier = 0
     x = np.arange(len(list(results.values())[0].keys()))
     y = np.arange(0, 101, 20)
@@ -267,8 +264,6 @@ def show_control_traffic_comparison_chart(results: dict):
 
     ax.set_title("Packet loss per strategy", fontsize=16)
     ax.set_xticks(x + width * 1.5, list(list(results.values())[0].keys()))
-    #ax.set_yticks(y)
-    #ax.tick_params(axis='x', labelsize=10)
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.08), ncol=2, prop={"size" : 13})
     plt.xlabel("Position update time (in seconds)", fontsize=13)
     plt.ylabel("Packet loss (%)", fontsize=13)
@@ -276,6 +271,7 @@ def show_control_traffic_comparison_chart(results: dict):
     for label in (ax.get_xticklabels() + ax.get_yticklabels()):
         label.set_fontsize(13)
 
+    #display table
     plt.show()
 
     ax = plt.subplot()
@@ -299,6 +295,7 @@ def show_control_traffic_comparison_chart(results: dict):
     for label in (ax.get_xticklabels() + ax.get_yticklabels()):
         label.set_fontsize(13)
 
+    #display table
     plt.show()
 
     # Specific data points and representation
@@ -332,29 +329,6 @@ def show_control_traffic_comparison_chart(results: dict):
     plt.show()
 
 def show_weight_sensitivity_analysis_chart(results: dict):
-    '''colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
-
-    ax1 = plt.subplot(1, 2, 1)
-    ax2 = plt.subplot(1, 2, 2)
-    box = ax1.get_position()
-    ax1.set_position([box.x0, box.y0 + box.height * 0.15, box.width, box.height * 0.85])
-    ax1.set_title("Average link occupation")
-
-    for i, (weight, data) in enumerate(results.items()):
-        ax1.plot(data['volume_of_traffic'], data['average_link_occupation'], label=weight, color=colors[i])
-
-    for i, (weight, data) in enumerate(results.items()):
-        ax1.plot(data['volume_of_traffic'], data['cumulative_dropped_data'], label=weight, linestyle="--", color=colors[i])
-
-    box = ax2.get_position()
-    ax2.set_position([box.x0, box.y0 + box.height * 0.15, box.width, box.height * 0.85])
-    ax2.set_title("Involved satellites")
-
-    for i, (weight, data) in enumerate(results.items()):
-        ax2.plot(data['volume_of_traffic'], data['involved_satellites'], label=weight, color=colors[i])
-
-    ax1.legend(loc='upper center', bbox_to_anchor=(1, -0.05), ncol=2)
-    plt.show()'''
     colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
 
     ax = plt.subplot()
@@ -369,9 +343,7 @@ def show_weight_sensitivity_analysis_chart(results: dict):
         average_link_occupation.append(statistics.mean(data['average_link_occupation']) * 100 / constants.SATELLITE_LINK_CAPACITY)
         involved_satellites.append(statistics.mean(data['involved_satellites']) * 100 / 66)
         cumulative_dropped_data.append(statistics.mean(data['cumulative_dropped_data']) / 60 * 100 / data['volume_of_traffic'][0])
-        
-    #ax.plot(weights, average_link_occupation, label='Average link occupation', marker='.')
-    #ax.plot(weights, involved_satellites, label='Involved satellites', marker='.')
+
     ax.plot(weights, cumulative_dropped_data, label='Dropped data', marker='.')
 
     plt.legend(loc='upper right', ncol=1)
@@ -395,17 +367,6 @@ def show_time_passing_simulation_chart(results: dict):
 
     for i, (strategy, data) in enumerate(results.items()):
         ax1.plot([j for j in range(len(data['delivered'][1:]))], [dropped * 100 / (delivered + dropped) if delivered + dropped != 0 else 0 for delivered, dropped in zip(data['delivered'][1:], data['dropped'][1:])], label=f"{strategy} - DROPPED", color=colors[i], linestyle="--")
-
-    '''ax2 = plt.subplot(1, 2, 2)
-    box = ax2.get_position()
-    ax2.set_position([box.x0, box.y0 + box.height * 0.2, box.width, box.height * 0.8])
-
-    for i, (strategy, data) in enumerate(results.items()):
-        ax2.plot([j for j in range(len(data['delivered'][1:]))], data['distance'][1:], label=strategy, color=colors[i])
-
-    ax2.set_title("Average path lengths per strategy")
-    ax2.set_xlabel("Time (in seconds)")
-    ax2.set_ylabel("Average path length (in kilometers)")'''
 
     ax1.set_title("Delivered and dropped traffic per strategy")
     ax1.set_xlabel("Time (in seconds)")
@@ -431,7 +392,7 @@ def show_loop_avoidance_analysis_chart():
     with open(f'dijkstra_table.json', 'r', encoding='utf-8') as f:
         results.append(('inf', json.load(f)))
 
-    width = 0.15  # the width of the bars
+    width = 0.15
     multiplier = 0
     x = np.arange(2)
 
@@ -455,7 +416,6 @@ def show_loop_avoidance_analysis_chart():
     preprocessed_results = {}
     for tracked_nodes_number in [0, 3, 6, 9, 'inf']:
         preprocessed_results[tracked_nodes_number] = [0, 0]
-        #preprocessed_results[tracked_nodes_number] = [[], []]
 
     for strategy, data in refactored_results.items():
         if strategy == 'DIJKSTRA': 
