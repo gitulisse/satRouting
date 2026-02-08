@@ -1,0 +1,9 @@
+1) cd in venv, source ./bin/activate
+
+2) far partire flask run ALL'INTERNO DI venv  E DI traffic_matrix_generator, con
+export FLASK_RUN_PORT=8001
+export FLASK_APP=traffic_matrix_generator_svc.py
+
+flask run
+
+3) python3 main.py --strategy 5 --duration 60 --traffic 20
