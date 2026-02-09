@@ -8,6 +8,8 @@ def get_traffic_matrix(cities: list[str]):
         'total_volume_of_traffic' : constants.TOTAL_VOLUME_OF_TRAFFIC,
         'cities' : ','.join([city for city in cities])
     }
-
     resp = requests.get(url=url, params=params)
+    #print("Response JSON type:", type(resp.json()))
+    #print("Response JSON data:", resp.json())
+
     return resp.json()

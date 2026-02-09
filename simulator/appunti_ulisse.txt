@@ -6,4 +6,6 @@ export FLASK_APP=traffic_matrix_generator_svc.py
 
 flask run
 
-3) python3 main.py --strategy 5 --duration 60 --traffic 20
+3) python3 main.py --strategy 5 --duration 60 --traffic 20 --input 0
+
+input 0 è TLE, input 1 è OMM 

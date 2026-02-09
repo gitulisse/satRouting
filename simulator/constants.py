@@ -26,7 +26,9 @@ parser = argparse.ArgumentParser(prefix_chars='-')
 parser.add_argument("-s", "--strategy", type=int)
 parser.add_argument("-d", "--duration", type=int)
 parser.add_argument("-t", "--traffic", type=int)
+parser.add_argument("-i", "--input", type=int)
 args = parser.parse_args()
+SAT_FORMAT = args.input 
 if args.strategy:
     ROUTING_STRATEGY = Strategy(args.strategy)
 else:

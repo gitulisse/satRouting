@@ -10,8 +10,9 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import numpy as np
 import random
+import requests
 from satellite import Sat
-from skyfield.api import load
+from skyfield.api import load, EarthSatellite
 from traffic_analyzer import AnalysisMetric, TrafficAnalyzer
 from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
@@ -82,18 +83,54 @@ ground_stations = {
 #Obtain the Traffic Matrix
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print("Traffic matrix print:", traffic_matrix)
+if constants.SAT_FORMAT == 0 : 
+    #Retrieve satellites info from NORAD
+    print("Retrieving satellites...")
+    stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
+    satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
+    print('Loaded', len(satellites), 'satellites.')
+    for gs in ground_stations.values():
+        gs.set_satellites(satellites)
 
-#Retrieve satellites info from NORAD
-print("Retrieving satellites...")
-stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
-satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
-print('Loaded', len(satellites), 'satellites.')
-for gs in ground_stations.values():
-    gs.set_satellites(satellites)
+    env.satellites = satellites
+    env.ground_stations = ground_stations
+    env.prepare()
+else :
+    #Retrieve satellites info from NORAD
+    print("Retrieving satellites...")
 
-env.satellites = satellites
-env.ground_stations = ground_stations
-env.prepare()
+    stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
+    stations_json = requests.get(stations_url).json()
+
+    EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
+
+    satellites = {}
+
+    for jsat in stations_json:
+        sat = EarthSatellite.from_omm(utils.ts, jsat)
+        satnum = int(jsat["NORAD_CAT_ID"])
+
+        if satnum not in EXCLUDED:
+            satellites[satnum] = Sat(sat, ground_stations)
+
+            print('Loaded', len(satellites), 'satellites.')
+
+        for gs in ground_stations.values():
+            gs.set_satellites(satellites)
+
+    env.satellites = satellites
+    env.ground_stations = ground_stations
+    env.prepare()
+
+
+#     satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for jsat in stations_json if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
+#     print('Loaded', len(satellites), 'satellites.')
+# for gs in ground_stations.values():
+#     gs.set_satellites(satellites)
+
+# env.satellites = satellites
+# env.ground_stations = ground_stations
+# env.prepare()
 
 # Start of the code block that launches the standard simulation
 traffic_generators = []
