@@ -19,7 +19,7 @@ from traffic_generator import TrafficGenerator
 import utils
 from strategy import Strategy
 from itertools import chain
-
+# Avoid crashes due to unlimited recursion (it would affect stack)
 import sys
 sys.setrecursionlimit(10000)
 
@@ -83,6 +83,7 @@ ground_stations = {
 #Obtain the Traffic Matrix
 traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
 print("Traffic matrix print:", traffic_matrix)
+print("SAT FORMAT:", constants.SAT_FORMAT)
 if constants.SAT_FORMAT == 0 : 
     #Retrieve satellites info from NORAD
     print("Retrieving satellites...")
@@ -98,15 +99,25 @@ if constants.SAT_FORMAT == 0 :
 else :
     #Retrieve satellites info from NORAD
     print("Retrieving satellites...")
-
-    stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
+    if constants.SAT_FORMAT == 1 :
+        stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
+        EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
+    else :
+        stations_url = input("Inserisci il link JSON della tua rete in formato OMM:")
+        EXCLUDED = {}
     stations_json = requests.get(stations_url).json()
-
-    EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
 
     satellites = {}
 
+
+
+   
     for jsat in stations_json:
+        essential = ["EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION"]
+        missing = [field for field in essential if field not in jsat or jsat[field] is None]
+        if missing:
+            print("Missing orbital fields for", jsat["OBJECT_NAME"], missing)
+
         sat = EarthSatellite.from_omm(utils.ts, jsat)
         satnum = int(jsat["NORAD_CAT_ID"])
 

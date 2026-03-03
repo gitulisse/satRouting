@@ -6,6 +6,7 @@ from skyfield.api import Timescale
 from strategy import Strategy
 import utils
 import networkx as nx
+import math
 
 main_graph = None
 satellites: dict
@@ -210,6 +211,11 @@ def topology_builder():
     update_satellites_position()
     temp_satellites = {}
     for key, sat in env.satellites.items():
+        lat = sat.get_latitude()
+        lon = sat.get_longitude() 
+        if not (math.isfinite(lat) and math.isfinite(lon)):
+            print(f"Satellite {sat.id} has invalid coordinates: {lat}, {lon}")
+            return
         temp_satellites[key] = [sat.get_latitude(),
                                 sat.get_longitude(), 
                                 None, #Northern link

@@ -77,8 +77,11 @@ class Sat:
                 #print("Satellite", self.get_name(), "is serving Ground Station", self.serving_gs.get_name(), "but is no longer operational. Requesting reattachment...")
             self.serving_gs.reattach()
 
+    # def get_name(self) -> int:
+    #     return int(self._earth_satellite.name[-3:])
+
     def get_name(self) -> int:
-        return int(self._earth_satellite.name[-3:])
+        return int(self._earth_satellite.model.satnum)
     
     def get_latitude(self):
         return self._lat
