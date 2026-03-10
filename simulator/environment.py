@@ -7,6 +7,9 @@ from strategy import Strategy
 import utils
 import networkx as nx
 import math
+import heapq
+from scipy.spatial import KDTree
+
 
 main_graph = None
 satellites: dict
@@ -15,17 +18,24 @@ ground_stations: dict
 class PriorityQueue:
     def __init__(self):
         self.queue = []
+        self.counter = 0
 
+    # def put(self, priority, function, **kwargs):
+    #     self.queue.append((priority, function, kwargs)) #add element to queue (a tuple of "priority, function, kwargs")
+    #     self.queue.sort(key=lambda p: p[0]) #sort elements with increasing order
     def put(self, priority, function, **kwargs):
-        self.queue.append((priority, function, kwargs)) #add element to queue (a tuple of "priority, function, kwargs")
-        self.queue.sort(key=lambda p: p[0]) #sort elements with increasing order
-
+         heapq.heappush(self.queue, (priority, self.counter, function, kwargs))
+         self.counter += 1 
+    
     #take the element with higher priority (the first one)
     def get(self):
-        return self.queue.pop(0) 
+        priority, _, function, kwargs = heapq.heappop(self.queue)
+        return priority, function, kwargs
+#        return self.queue.pop(0) 
     
     def is_not_empty(self):
-        return True if self.queue else False
+        return len(self.queue) > 0
+#        return True if self.queue else False
     
     def clear(self):
         self.queue.clear()
