@@ -163,9 +163,12 @@ class Sat:
     def _update_position(self):
         geocentric = self._earth_satellite.at(utils.get_current_time())
         lat, lon = wgs84.latlon_of(geocentric)
+        
+        if not (math.isfinite(lat.degrees) and math.isfinite(lon.degrees)):
+            print("BAD SAT:", self.get_name(), lat, lon)
+            return  # evita crash
         self._lat = lat.degrees 
         self._lon = lon.degrees
-        
         if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
                                           Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
                                           Strategy.POSITION_GUESSING_PROGRESSIVE_LB]:

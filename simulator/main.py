@@ -113,13 +113,14 @@ else :
 
    
     for jsat in stations_json:
+        satnum = int(jsat["NORAD_CAT_ID"])
         essential = ["EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION"]
         missing = [field for field in essential if field not in jsat or jsat[field] is None]
         if missing:
             print("Missing orbital fields for", jsat["OBJECT_NAME"], missing)
-
+            EXCLUDED.add(satnum)
+            continue
         sat = EarthSatellite.from_omm(utils.ts, jsat)
-        satnum = int(jsat["NORAD_CAT_ID"])
 
         if satnum not in EXCLUDED:
             satellites[satnum] = Sat(sat, ground_stations)

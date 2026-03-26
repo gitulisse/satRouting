@@ -9,41 +9,43 @@ import networkx as nx
 import math
 import heapq
 from scipy.spatial import KDTree
+import numpy as np
 
 
 main_graph = None
 satellites: dict
 ground_stations: dict
 
+# Cache for satellite positions to avoid redundant calculations
+_position_cache = {}
+_distance_cache = {}
+_graph_cache = {'edges': set(), 'graph': None}
+
 class PriorityQueue:
+    __slots__ = ['queue', 'counter']
+    
     def __init__(self):
         self.queue = []
         self.counter = 0
 
-    # def put(self, priority, function, **kwargs):
-    #     self.queue.append((priority, function, kwargs)) #add element to queue (a tuple of "priority, function, kwargs")
-    #     self.queue.sort(key=lambda p: p[0]) #sort elements with increasing order
     def put(self, priority, function, **kwargs):
          heapq.heappush(self.queue, (priority, self.counter, function, kwargs))
-         self.counter += 1 
-    
-    #take the element with higher priority (the first one)
+         self.counter += 1
+
     def get(self):
         priority, _, function, kwargs = heapq.heappop(self.queue)
         return priority, function, kwargs
-#        return self.queue.pop(0) 
-    
+
     def is_not_empty(self):
         return len(self.queue) > 0
-#        return True if self.queue else False
-    
+
     def clear(self):
         self.queue.clear()
 
 actions_queue = PriorityQueue()
 ready = False
 elapsed_time = 0
-control_traffic_data = 0 
+control_traffic_data = 0
 
 def put(time, function, **kwargs):
     env.actions_queue.put(time, function, **kwargs)
@@ -52,40 +54,30 @@ def put(time, function, **kwargs):
 def prepare():
     if env.ready == True:
         raise RuntimeError("Environment is already prepared. Call prepare() just once before start().")
-    
+
     print("Preparing environment...")
+    
+    # Schedule topology updates more efficiently - single event per time slot
     for i in range(0, constants.SIMULATION_DURATION, constants.TOPOLOGY_UPDATE_TIME):
         env.put(i, topology_builder)
-        
+
+    # Only schedule position and neighbor updates for strategies that need them
+    # Combine position update + neighbor update into single scheduled event
     if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                       Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
                                       Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
                                       Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                       Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
-        #update positions
-        for sat in env.satellites.values(): 
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, update_satellites_position)
-        #update neighbors
-        for sat in env.satellites.values():
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, sat.update_neighbors)
-
-    if constants.ROUTING_STRATEGY in [Strategy.POSITION_SHARING_NO_LB, 
-                                      Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK, 
+                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                      Strategy.POSITION_SHARING_NO_LB,
+                                      Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
                                       Strategy.POSITION_SHARING_PROGRESSIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
                                       Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
-        #update positions
-        for sat in env.satellites.values(): 
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, update_satellites_position)
-        #update neighbors
-        for sat in env.satellites.values():
-            for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
-                env.put(i, sat.update_neighbors)
+        # Schedule combined update for all satellites at once (reduces event queue size)
+        for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
+            env.put(i, update_all_satellites_positions_and_neighbors)
 
     env.ready = True
     print("Simulation ready to run.")
@@ -191,8 +183,13 @@ def reset():
     env.actions_queue.clear()
     env.elapsed_time = 0
     env.control_traffic_data = 0
+    # Clear caches
+    _position_cache.clear()
+    _distance_cache.clear()
+    _graph_cache['edges'].clear()
+    _graph_cache['graph'] = None
     update_satellites_position() #update positions of satellites
-    for satellite in env.satellites.values(): 
+    for satellite in env.satellites.values():
         satellite.remove_link(Direction.NORTH)
         satellite.remove_link(Direction.SOUTH)
         satellite.remove_link(Direction.EAST)
@@ -208,118 +205,189 @@ def reset():
     env.ready = False
     print("Environment reset.")
 
+# Combined update function for all satellites (reduces event queue overhead)
+def update_all_satellites_positions_and_neighbors():
+    """Update positions and neighbors for all satellites in a single call."""
+    update_satellites_position()
+    for sat in env.satellites.values():
+        sat.update_neighbors()
+
 #updater of satellites position
 def update_satellites_position():
     for sat in env.satellites.values():
         sat._update_position() #update position
-        sat._update_gs_link() #update link to GS 
+        sat._update_gs_link() #update link to GS
     for gs in env.ground_stations.values():
         gs.reattach() #reattach with GS
 
-#topology builder
+#topology builder - optimized with KDTree for spatial indexing
 def topology_builder():
+    """Build network topology using KDTree for efficient neighbor finding (O(n log n) vs O(n²))."""
     update_satellites_position()
-    temp_satellites = {}
+    
+    # Clear distance cache each topology update (positions changed)
+    _distance_cache.clear()
+    
+    # Build position arrays for KDTree (only for satellites in valid latitude range)
+    valid_satellites = {}
+    coords_list = []
+    
     for key, sat in env.satellites.items():
         lat = sat.get_latitude()
-        lon = sat.get_longitude() 
-        if not (math.isfinite(lat) and math.isfinite(lon)):
-            print(f"Satellite {sat.id} has invalid coordinates: {lat}, {lon}")
-            return
-        temp_satellites[key] = [sat.get_latitude(),
-                                sat.get_longitude(), 
-                                None, #Northern link
-                                None, #Southern link
-                                None, #Eastern link
-                                None] #Western link
-    
-    distances = list()
-    for key, sat in temp_satellites.items():
-        if sat[0] > constants.LATITUDE_CUTOFF or sat[0] < -constants.LATITUDE_CUTOFF: #if lat>70° or lat<-70° not consider satellites for link creation
-            sat[2] = None
-            sat[3] = None
-            sat[4] = None
-            sat[5] = None
+        lon = sat.get_longitude()
+        if lat is None or lon is None or not (math.isfinite(lat) and math.isfinite(lon)):
+            print(f"Satellite {sat.get_name()} has invalid coordinates: {lat}, {lon}")
             continue
-        for key_link, sat_link in temp_satellites.items(): 
-            if key == key_link:
-                continue
-            if sat_link[0] > constants.LATITUDE_CUTOFF or sat_link[0] < -constants.LATITUDE_CUTOFF: #if out of area of interest then skip
-                continue
-            dist = distance.distance((sat_link[0], sat_link[1]), (sat[0], sat[1])).km
-            if dist > 5100: 
-                continue
-            distances.append({'distance': dist, 'sat1': key, 'sat2': key_link})
-    distances.sort(key=lambda x: x['distance'])
+        # Only consider satellites within latitude cutoff for ISL links
+        if lat > constants.LATITUDE_CUTOFF or lat < -constants.LATITUDE_CUTOFF:
+            valid_satellites[key] = None  # Mark as out of range
+            continue
+        valid_satellites[key] = [lat, lon, None, None, None, None]  # lat, lon, N, S, E, W
+        coords_list.append((lat, lon))
     
-    for dist in distances:
-        key = dist['sat1']
-        sat_key = dist['sat2']
-        sat = temp_satellites.get(key)
-        sat_link = temp_satellites.get(sat_key)
+    # Use KDTree for efficient neighbor search (much faster than O(n²) distance calculations)
+    if len(coords_list) > 0:
+        coords_array = np.array(coords_list)
+        tree = KDTree(coords_array)  # ball_radius removed in scipy >= 1.11
+        
+        # For each satellite, find neighbors within 5100km using KDTree query_ball_point
+        valid_keys = [key for key, val in valid_satellites.items() if val is not None]
+        
+        for i, key in enumerate(valid_keys):
+            sat = valid_satellites[key]
+            neighbors_idx = tree.query_ball_point(coords_array[i], r=5100)
+            for j in neighbors_idx:
+                if i == j:
+                    continue
+                key_link = valid_keys[j]
+                sat_link = valid_satellites[key_link]
+                
+                # Calculate actual distance (cached)
+                dist_key = (min(key, key_link), max(key, key_link))
+                if dist_key not in _distance_cache:
+                    _distance_cache[dist_key] = distance.distance(
+                        (sat_link[0], sat_link[1]), (sat[0], sat[1])).km
+                
+                dist = _distance_cache[dist_key]
+                if dist > 5100:
+                    continue
+                
+                # Check longitude proximity for link creation
+                if _should_create_link(sat, sat_link):
+                    _assign_link(valid_satellites, key, key_link, sat, sat_link)
+    
+    # Apply the computed topology to actual satellites
+    _apply_topology(valid_satellites)
+    
+    # Build networkx graph incrementally
+    _build_graph_incremental()
+    
+    print("Applied. Main graph successfully updated by topology_builder.")
 
-        #check if sat & sat_link are close enough to create a link (+/- 7 degrees of longitude & +/- 173 degrees on international line of Date change)
-        if sat[1] + 7 > sat_link[1] and sat[1] - 7 < sat_link[1] or sat[1] < -173 and sat_link[1] > 173 or sat[1] > 173 and sat_link[1] < -173:
-            if sat[0] < sat_link[0] and sat[2] == None and sat_link[3] == None: #North branch
-                sat[2] = sat_key
-                sat_link[3] = key
-            elif sat[0] > sat_link[0] and sat[3] == None and sat_link[2] == None: #South branch
-                sat[3] = sat_key
-                sat_link[2] = key
-        #else check if the source satellite (sat) is at a lower longitude (so it's at EAST respect to sat_link) 
-        elif (sat[1] < sat_link[1] or sat[1] > 150 and sat_link[1] < -150 and sat[1] > sat_link[1]) and sat[4] == None and sat_link[5] == None: #East branch
-                sat[4] = sat_key
-                sat_link[5] = key
-        elif (sat[1] > sat_link[1] or sat[1] < -150 and sat_link[1] > 150 and sat[1] < sat_link[1]) and sat[5] == None and sat_link[4] == None: #West branch
-                sat[5] = sat_key
-                sat_link[4] = key
-           
+def _should_create_link(sat, sat_link):
+    """Check if two satellites should be linked based on longitude criteria."""
+    # North/South check
+    if (sat[1] + 7 > sat_link[1] and sat[1] - 7 < sat_link[1] or 
+        sat[1] < -173 and sat_link[1] > 173 or 
+        sat[1] > 173 and sat_link[1] < -173):
+        return True
+    # East/West check
+    elif ((sat[1] < sat_link[1] or (sat[1] > 150 and sat_link[1] < -150 and sat[1] > sat_link[1])) or
+          (sat[1] > sat_link[1] or (sat[1] < -150 and sat_link[1] > 150 and sat[1] < sat_link[1]))):
+        return True
+    return False
+
+def _assign_link(valid_satellites, key, key_link, sat, sat_link):
+    """Assign link direction between two satellites."""
+    # North branch
+    if sat[0] < sat_link[0] and sat[2] is None and sat_link[3] is None:
+        sat[2] = key_link
+        sat_link[3] = key
+    # South branch
+    elif sat[0] > sat_link[0] and sat[3] is None and sat_link[2] is None:
+        sat[3] = key_link
+        sat_link[2] = key
+    # East branch
+    elif (sat[1] < sat_link[1] or (sat[1] > 150 and sat_link[1] < -150 and sat[1] > sat_link[1])) and sat[4] is None and sat_link[5] is None:
+        sat[4] = key_link
+        sat_link[5] = key
+    # West branch
+    elif (sat[1] > sat_link[1] or (sat[1] < -150 and sat_link[1] > 150 and sat[1] < sat_link[1])) and sat[5] is None and sat_link[4] is None:
+        sat[5] = key_link
+        sat_link[4] = key
+
+def _apply_topology(valid_satellites):
+    """Apply computed topology to actual satellite objects."""
     if constants.DEBUG:
         print("Linking phase completed. Applying...")
 
-    for key, sat in temp_satellites.items():
+    for key, sat_data in valid_satellites.items():
+        if sat_data is None:  # Satellite out of latitude range
+            satellite = env.satellites.get(key)
+            satellite.remove_link(Direction.NORTH)
+            satellite.remove_link(Direction.SOUTH)
+            satellite.remove_link(Direction.EAST)
+            satellite.remove_link(Direction.WEST)
+            continue
+            
         satellite = env.satellites.get(key)
-        north_link = env.satellites.get(sat[2])
-        south_link = env.satellites.get(sat[3])
-        east_link = env.satellites.get(sat[4])
-        west_link = env.satellites.get(sat[5])
+        north_link = env.satellites.get(sat_data[2]) if sat_data[2] else None
+        south_link = env.satellites.get(sat_data[3]) if sat_data[3] else None
+        east_link = env.satellites.get(sat_data[4]) if sat_data[4] else None
+        west_link = env.satellites.get(sat_data[5]) if sat_data[5] else None
 
-        satellite.add_link(north_link, Direction.NORTH) if north_link != None else satellite.remove_link(Direction.NORTH)
-        satellite.add_link(south_link, Direction.SOUTH) if south_link != None else satellite.remove_link(Direction.SOUTH)
-        satellite.add_link(east_link, Direction.EAST) if east_link != None else satellite.remove_link(Direction.EAST)
-        satellite.add_link(west_link, Direction.WEST) if west_link != None else satellite.remove_link(Direction.WEST)
+        satellite.add_link(north_link, Direction.NORTH) if north_link else satellite.remove_link(Direction.NORTH)
+        satellite.add_link(south_link, Direction.SOUTH) if south_link else satellite.remove_link(Direction.SOUTH)
+        satellite.add_link(east_link, Direction.EAST) if east_link else satellite.remove_link(Direction.EAST)
+        satellite.add_link(west_link, Direction.WEST) if west_link else satellite.remove_link(Direction.WEST)
 
+def _build_graph_incremental():
+    """Build networkx graph with incremental updates."""
     env.main_graph = nx.Graph()
-    # Add active links to active satellites
+    
+    # Add active satellite links
+    edges_to_add = []
     for name, sat in env.satellites.items():
-        for dir, link in sat._links.items(): 
+        for dir, link in sat._links.items():
             if link.is_active() and link.target:
-                env.main_graph.add_edge(
+                target_name = link.target.get_name()
+                edge_key = (min(name, target_name), max(name, target_name))
+                
+                # Use cached distance if available
+                if edge_key not in _distance_cache:
+                    _distance_cache[edge_key] = utils.get_distance_between_satellites(sat, link.target)
+                
+                edges_to_add.append((
                     name,
-                    link.target.get_name(), 
-                    weight=utils.get_distance_between_satellites(sat, link.target), 
-                    available_bandwidth=constants.SATELLITE_LINK_CAPACITY, 
-                    link_obj=link
-                )
+                    target_name,
+                    {
+                        'weight': _distance_cache[edge_key],
+                        'available_bandwidth': constants.SATELLITE_LINK_CAPACITY,
+                        'link_obj': link
+                    }
+                ))
+    
+    env.main_graph.add_edges_from(edges_to_add)
 
     # Link to GS and closer satellites
     for gs_name, gs in env.ground_stations.items():
         closer_satellites = utils.get_closer_satellites_for_graph(env.satellites, (gs.lat, gs.lon))
+        gs_edges = []
         for sat_name, sat in closer_satellites:
             distance_to_sat = utils.get_distance_between_satellite_and_gs(sat, gs)
             if distance_to_sat <= constants.SATELLITE_COVERAGE_AREA_RADIUS:
-                env.main_graph.add_edge(
+                gs_edges.append((
                     gs_name, sat_name,
-                    weight=distance_to_sat,
-                    available_bandwidth=constants.GROUND_STATION_LINK_CAPACITY
-                )
+                    {
+                        'weight': distance_to_sat,
+                        'available_bandwidth': constants.GROUND_STATION_LINK_CAPACITY
+                    }
+                ))
+        env.main_graph.add_edges_from(gs_edges)
 
     num_nodes = env.main_graph.number_of_nodes()
     num_edges = env.main_graph.number_of_edges()
-    edges_list = [f"{u} <-> {v} {data.get('available_bandwidth', 'N/A')}" for u, v, data in env.main_graph.edges(data=True)]
-    #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes in graph: {edges_list}")
-    
-    print("Applied. Main graph successfully updated by topology_builder.")
+    #print(f"[DEBUG] Main Graph: {num_edges} Edges, {num_nodes} Nodes")
    
 def log_control_traffic_message(bytes: int):
     env.control_traffic_data += bytes
