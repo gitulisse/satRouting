@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  satellite-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sat-routing-simulator
+    
+    # Resource limits - CRITICAL for memory-intensive simulations
+    # Adjust based on constellation size:
+    # - Iridium (66 sats): 2GB RAM, 1 CPU
+    # - OneWeb (634 sats): 4-8GB RAM, 2 CPU
+    # - Starlink (10000+ sats): 16-32GB RAM, 4+ CPU
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    
+    # Environment variables for simulation configuration
+    environment:
+      # Simulation parameters
+      - SIM_STRATEGY=5          # 1-15 (see README for strategy list)
+      - SIM_DURATION=60         # Simulation duration in seconds
+      - SIM_TRAFFIC=10          # Traffic volume in Gbps
+      - SIM_INPUT=1             # 0=Iridium, 1=OneWeb, 2=Custom OMM
+      
+      # Traffic matrix generator API (optional)
+      - BASE_CITY_API_URL=https://api.api-ninjas.com/v1/cities
+      - CITY_SVC_API_KEY_FILE=/run/secrets/city_api_key
+      
+      # Skip Flask if not needed (reduces memory usage)
+      - SKIP_FLASK=false
+    
+    # Ports
+    ports:
+      - "8001:8001"  # Flask traffic matrix service
+    
+    # Volumes for persisting results
+    volumes:
+      # Mount simulator directory for results
+      - ./simulator:/satRouting/simulator
+      # Optional: Mount custom OMM data
+      # - ./satellite_data:/satRouting/data
+    
+    # Secrets (for API keys)
+    secrets:
+      - city_api_key
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/traffic_matrix?cities=Tokyo&total_volume_of_traffic=1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Network mode
+    network_mode: bridge
+
+  # Optional: Separate service for traffic matrix generator only
+  traffic-matrix-svc:
+    build:
+      context: ./traffic_matrix_generator
+      dockerfile: ../Dockerfile
+    container_name: traffic-matrix-svc
+    environment:
+      - BASE_CITY_API_URL=https://api.api-ninjas.com/v1/cities
+      - CITY_SVC_API_KEY_FILE=/run/secrets/city_api_key
+    ports:
+      - "8001:8001"
+    secrets:
+      - city_api_key
+    profiles:
+      - standalone  # Run with: docker-compose --profile standalone up
+
+# Secrets definition
+secrets:
+  city_api_key:
+    file: ./secrets/city_api_key.txt
+
+# Named volumes (optional, for advanced setups)
+volumes:
+  simulator_results:
+  satellite_data:
