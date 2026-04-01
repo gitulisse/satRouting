@@ -99,19 +99,40 @@ if constants.SAT_FORMAT == 0 :
 else :
     #Retrieve satellites info from NORAD
     print("Retrieving satellites...")
-    if constants.SAT_FORMAT == 1 :
-        stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
+    
+    # Check if using local file (for --input 2 with --sat-file)
+    if constants.SAT_FORMAT == 2 and constants.SATELLITE_FILE_PATH:
+        # Load from local file
+        import json
+        import os
+        local_file = constants.SATELLITE_FILE_PATH
+        
+        if not os.path.exists(local_file):
+            print(f"[ERROR] Local satellite file not found: {local_file}")
+            print("Please provide a valid path with --sat-file")
+            exit(1)
+        
+        print(f"Loading satellites from local file: {local_file}")
+        with open(local_file, 'r', encoding='utf-8') as f:
+            stations_json = json.load(f)
+        EXCLUDED = {}
+        print(f"Loaded {len(stations_json)} satellites from file")
+        
+    elif constants.SAT_FORMAT == 1 :
+        # OneWeb from Celestrak API
+        #stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
+        stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=JSON"
         EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
+        stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
+        
     else :
+        # Custom OMM from URL (interactive)
         stations_url = input("Inserisci il link JSON della tua rete in formato OMM:")
         EXCLUDED = {}
-    stations_json = requests.get(stations_url).json()
+        stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
 
     satellites = {}
 
-
-
-   
     for jsat in stations_json:
         satnum = int(jsat["NORAD_CAT_ID"])
         essential = ["EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION"]
@@ -124,7 +145,6 @@ else :
 
         if satnum not in EXCLUDED:
             satellites[satnum] = Sat(sat, ground_stations)
-
             print('Loaded', len(satellites), 'satellites.')
 
         for gs in ground_stations.values():

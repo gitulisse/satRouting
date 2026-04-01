@@ -3,7 +3,7 @@ from queue import Queue
 from strategy import Strategy
 
 #Constants values to run the application
-DEBUG = True
+DEBUG = False
 
 LATITUDE_CUTOFF = 70
 
@@ -27,8 +27,9 @@ parser.add_argument("-s", "--strategy", type=int)
 parser.add_argument("-d", "--duration", type=int)
 parser.add_argument("-t", "--traffic", type=int)
 parser.add_argument("-i", "--input", type=int)
+parser.add_argument("--sat-file", type=str, help="Path to local satellite JSON file (used with --input 2)")
 args = parser.parse_args()
-SAT_FORMAT = args.input 
+SAT_FORMAT = args.input
 if args.strategy:
     ROUTING_STRATEGY = Strategy(args.strategy)
 else:
@@ -39,6 +40,9 @@ LOOP_AVOIDANCE_CUTOFF = 9 #loop avoidance value
 
 SIMULATION_DURATION = args.duration if args.duration else 60 #if there is no durantion it'll be set to 60 secs
 TOTAL_VOLUME_OF_TRAFFIC = args.traffic if args.traffic else 10 #Gbps passed by user in the command else 20
+
+# Local satellite file path (for --input 2 with local file)
+SATELLITE_FILE_PATH = args.sat_file if args.sat_file else None
 
 drawing_queue = Queue()
 

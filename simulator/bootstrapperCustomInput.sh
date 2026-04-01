@@ -31,7 +31,7 @@ echo "Flask avviato con PID $FLASK_PID"
 cd ../simulator
 
 echo "Avvio simulazione principale..."
-python3 main.py --strategy 5 --duration 60 --traffic 20 --input 2
+python3 main.py --strategy 10 --duration 60 --traffic 20 --input 2
 
 echo "Simulazione terminata, chiudo Flask..."
 kill $FLASK_PID

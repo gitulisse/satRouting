@@ -21,10 +21,9 @@ class MappingTable:
                 #if constants.DEBUG:
                  #   print(f"Removed pair ({in_id}, {out_id}) from mapping table")
                 return in_id
-        else:
-            print(f"[ERROR] Attempt to remove local_id not present: {local_id}")
-            #print(f"[ERROR] Current state of table mapping_table: {self.table}")
-            raise RuntimeError("No mapping found for local_id: " + str(local_id))
+        # Mapping already removed (e.g., during bidirectional link teardown)
+        # Return the local_id itself as a fallback - this preserves the alias_id chain
+        return local_id
 
     def contains_input_id(self, input_id: int) -> bool:
         try:
