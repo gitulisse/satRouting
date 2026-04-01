@@ -1,0 +1,25 @@
+# Core dependencies
+pandas>=2.0.0
+skyfield>=1.46
+geopy>=2.4.0
+plotly>=5.17.0
+requests>=2.31.0
+wbgapi>=2.0.0
+matplotlib>=3.8.0
+scipy>=1.11.0
+networkx>=3.0
+numpy>=1.26.0
+
+# Optional/legacy (basemap is deprecated, use cartopy)
+# basemap  # Deprecated - use cartopy instead
+cartopy>=0.22.0
+
+# External package (may need manual installation)
+# dijkstra  # If not available via pip, see README
+
+# Statistics (built-in in Python 3.x, but keeping for compatibility)
+# statistics  # Built-in module
+
+# Flask dependencies for traffic matrix generator
+flask>=3.0.0
+blinker>=1.6.0
