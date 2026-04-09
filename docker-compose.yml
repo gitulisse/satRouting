@@ -45,7 +45,7 @@ services:
       # Mount simulator directory for results
       - ./simulator:/satRouting/simulator
       # Optional: Mount custom OMM data
-      # - ./satellite_data:/satRouting/data
+      - ./satellite_data:/satRouting/data
     
     # Secrets (for API keys)
     secrets:

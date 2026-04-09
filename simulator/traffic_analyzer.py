@@ -1,5 +1,5 @@
 import constants
-import dijkstra
+import os # TEMPORARY: Added for Dijkstra JSON loading
 from enum import Enum
 import environment as env
 from flow import Flow
@@ -40,38 +40,57 @@ class TrafficAnalyzer:
     def analyze(self, metric: AnalysisMetric):
         match metric:
             #case 1
+            # --- TEMPORARY EDIT: LOAD DIJKSTRA FROM JSON (Remove to revert) ---
             case AnalysisMetric.COMPARISON_WITH_DIJKSTRA:
                 simulation_duration_backup = constants.SIMULATION_DURATION
                 constants.SIMULATION_DURATION = 1
                 self.prepare_results_for_comparison(ground_stations=self.ground_stations)
-                for strategy in [Strategy.BASELINE_DIJKSTRA,
-                                  #Strategy.POSITION_GUESSING_NO_LB,
-                                  #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  #Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  #Strategy.POSITION_SHARING_NO_LB,
-                                  #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  #Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
-                                  Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                  Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
-                                  ]:
-                    constants.ROUTING_STRATEGY = strategy 
+                
+                # LOAD PRE-SAVED DIJKSTRA DATA (Skips running Strategy 9)
+                if os.path.exists('dijkstra_table.json'):
+                    print("Loading pre-saved Dijkstra table from dijkstra_table.json...")
+                    with open('dijkstra_table.json', 'r') as f:
+                        saved_data = json.load(f)
+                        for traj, data in saved_data.items():
+                            if traj in self.results and 'DIJKSTRA' in data:
+                                # Map 'DIJKSTRA' key to 'BASELINE_DIJKSTRA' used by the chart
+                                self.results[traj]['BASELINE_DIJKSTRA'] = data['DIJKSTRA']
+                    print("Dijkstra reference loaded successfully. Skipping Strategy 9 simulation.")
+
+                # SIMULATE ONLY THE STRATEGIES YOU WANT
+                strategies_to_run = [
+                 #   Strategy.POSITION_GUESSING_NO_LB,
+                #  Strategy.POSITION_SHARING_NO_LB,
+                #    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                #    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
+                #    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
+                ]
+
+                for strategy in strategies_to_run:
+                                 # --- TEMP FIX: Initialize missing keys for 
+       #Decentralized Strategies ---
+                    for traj in self.results.keys():
+                              if strategy.name not in self.results[traj]:
+                                  self.results[traj][strategy.name] = {'successful': [], 'failed': 0, 'distance': []}
+
+                          # 
                     flows = {}
                     for i in range(0, simulation_duration_backup):
                         utils.set_hour_shift(i)
                         env.reset()
                         env.prepare()
+                        constants.ROUTING_STRATEGY = strategy
                         env.put(0, self.prepare_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.put(0, self.sample_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.put(0, self.end_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.start()
+                
                 utils.set_hour_shift(0)
                 constants.SIMULATION_DURATION = simulation_duration_backup
+            # --- END TEMPORARY EDIT ---
 
             #case 2
             case AnalysisMetric.AVERAGE_LINK_OCCUPATION:
@@ -250,12 +269,12 @@ class TrafficAnalyzer:
                     #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
                     #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
-                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
-                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
+                    #Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
+                    #Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
+                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {

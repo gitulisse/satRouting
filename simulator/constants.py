@@ -22,13 +22,17 @@ TIME_MULTIPLIER = 1
 K_SHORTEST_VALUE = 1 #constant k value for shortest path algorithm without load balancing
 K_SHORTEST_VALUE_LB = 4 #constant that decides how many disjoint paths should be found by k shortest algorithm with load balancing
 
+
 parser = argparse.ArgumentParser(prefix_chars='-')
 parser.add_argument("-s", "--strategy", type=int)
 parser.add_argument("-d", "--duration", type=int)
 parser.add_argument("-t", "--traffic", type=int)
 parser.add_argument("-i", "--input", type=int)
+parser.add_argument("--gs-config", type=str, help="Path to ground stations YAML config")
 parser.add_argument("--sat-file", type=str, help="Path to local satellite JSON file (used with --input 2)")
 args = parser.parse_args()
+GS_CONFIG_PATH = args.gs_config if args.gs_config else None
+
 SAT_FORMAT = args.input
 if args.strategy:
     ROUTING_STRATEGY = Strategy(args.strategy)

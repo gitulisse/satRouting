@@ -5,6 +5,8 @@ from ground_station import GroundStation
 import environment as env
 from itertools import chain
 import json
+import os
+import yaml
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -18,11 +20,26 @@ from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
 import utils
 from strategy import Strategy
-from itertools import chain
 # Avoid crashes due to unlimited recursion (it would affect stack)
 import sys
 sys.setrecursionlimit(10000)
-
+#A tool to select Ground Stations by config file
+def load_ground_stations(config_path=None):
+    if config_path:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        stations = {}
+        for name, coords in config['ground_stations'].items():
+            stations[name.upper()] = GroundStation(
+                coords['lat'], coords['lon'], name
+            )
+        return stations
+    return {
+        'TOKYO': GroundStation(35.689506, 139.6917, 'Tokyo'),
+        'NEW YORK': GroundStation(40.71277778, -74.00611111, 'New York'),
+        'DAR ES SALAAM': GroundStation(-6.816111, 39.280278, 'Dar Es Salaam'),
+        'BUENOS AIRES': GroundStation(-34.608333, -58.371944, 'Buenos Aires')
+    }
 #Read JSONs
 def read_from_json(filename):
     with open(f'{filename}.json', 'r', encoding='utf-8') as f:
@@ -53,183 +70,179 @@ def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
     plt.title("Constellation Map")
     plt.show()
 
+def main():
+    utils.ts = load.timescale()
 
-utils.ts = load.timescale()
+    """  #GroundStations coordinates
+    san_francisco_gs = GroundStation(37.77750000, -122.41638889, 'San Francisco')
+    canberra_gs = GroundStation(-35.3, 149.133333, 'Canberra')
+    punta_arenas_gs = GroundStation(-53.166667, -70.933333, 'Punta Arenas')
+    milan_gs = GroundStation(45.466944, 9.19, 'Milan')
+    tokyo_gs = GroundStation(35.689506, 139.6917, 'Tokyo')
+    dar_es_salaam_gs = GroundStation(-6.816111, 39.280278, 'Dar Es Salaam')
+    cape_town_gs = GroundStation(-33.9264, 18.4227, 'Cape Town')
+    pretoria_gs = GroundStation(-25.74611111, 28.18805556, 'Pretoria')
+    cairo_gs = GroundStation(30.04444444, 31.23583333, 'Cairo')
+    stockholm_gs = GroundStation(59.32944444, 18.06861111, 'Stockholm')
+    jeddah_gs = GroundStation(21.54333333, 39.17277778, 'Jeddah')
+    new_york_gs = GroundStation(40.71277778, -74.00611111, 'New York')
+    buenos_aires_gs = GroundStation(-34.608333, -58.371944, 'Buenos Aires')
+    oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo') """
 
-#GroundStations coordinates
-san_francisco_gs = GroundStation(37.77750000, -122.41638889, 'San Francisco')
-canberra_gs = GroundStation(-35.3, 149.133333, 'Canberra')
-punta_arenas_gs = GroundStation(-53.166667, -70.933333, 'Punta Arenas')
-milan_gs = GroundStation(45.466944, 9.19, 'Milan')
-tokyo_gs = GroundStation(35.689506, 139.6917, 'Tokyo')
-dar_es_salaam_gs = GroundStation(-6.816111, 39.280278, 'Dar Es Salaam')
-cape_town_gs = GroundStation(-33.9264, 18.4227, 'Cape Town')
-pretoria_gs = GroundStation(-25.74611111, 28.18805556, 'Pretoria')
-cairo_gs = GroundStation(30.04444444, 31.23583333, 'Cairo')
-stockholm_gs = GroundStation(59.32944444, 18.06861111, 'Stockholm')
-jeddah_gs = GroundStation(21.54333333, 39.17277778, 'Jeddah')
-new_york_gs = GroundStation(40.71277778, -74.00611111, 'New York')
-buenos_aires_gs = GroundStation(-34.608333, -58.371944, 'Buenos Aires')
-oslo_gs = GroundStation(59.913333, 10.738889, 'Oslo')
+    #Ground Stations selected for the simulation
+    ground_stations = load_ground_stations(constants.GS_CONFIG_PATH) 
+    """{
+        'TOKYO' : tokyo_gs,
+        'NEW YORK' : new_york_gs,
+        'DAR ES SALAAM' : dar_es_salaam_gs,
+        'BUENOS AIRES' : buenos_aires_gs
+    }"""
 
-#Ground Stations selected for the simulation
-ground_stations = {
-    'TOKYO' : tokyo_gs,
-    'NEW YORK' : new_york_gs,
-    'DAR ES SALAAM' : dar_es_salaam_gs,
-    'BUENOS AIRES' : buenos_aires_gs
-}
-
-#Obtain the Traffic Matrix
-traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
-print("Traffic matrix print:", traffic_matrix)
-print("SAT FORMAT:", constants.SAT_FORMAT)
-if constants.SAT_FORMAT == 0 : 
-    #Retrieve satellites info from NORAD
-    print("Retrieving satellites...")
-    stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
-    satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
-    print('Loaded', len(satellites), 'satellites.')
-    for gs in ground_stations.values():
-        gs.set_satellites(satellites)
-
-    env.satellites = satellites
-    env.ground_stations = ground_stations
-    env.prepare()
-else :
-    #Retrieve satellites info from NORAD
-    print("Retrieving satellites...")
-    
-    # Check if using local file (for --input 2 with --sat-file)
-    if constants.SAT_FORMAT == 2 and constants.SATELLITE_FILE_PATH:
-        # Load from local file
-        import json
-        import os
-        local_file = constants.SATELLITE_FILE_PATH
-        
-        if not os.path.exists(local_file):
-            print(f"[ERROR] Local satellite file not found: {local_file}")
-            print("Please provide a valid path with --sat-file")
-            exit(1)
-        
-        print(f"Loading satellites from local file: {local_file}")
-        with open(local_file, 'r', encoding='utf-8') as f:
-            stations_json = json.load(f)
-        EXCLUDED = {}
-        print(f"Loaded {len(stations_json)} satellites from file")
-        
-    elif constants.SAT_FORMAT == 1 :
-        # OneWeb from Celestrak API
-        #stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
-        stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=JSON"
-        EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
-        stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
-        
-    else :
-        # Custom OMM from URL (interactive)
-        stations_url = input("Inserisci il link JSON della tua rete in formato OMM:")
-        EXCLUDED = {}
-        stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
-
-    satellites = {}
-
-    for jsat in stations_json:
-        satnum = int(jsat["NORAD_CAT_ID"])
-        essential = ["EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION"]
-        missing = [field for field in essential if field not in jsat or jsat[field] is None]
-        if missing:
-            print("Missing orbital fields for", jsat["OBJECT_NAME"], missing)
-            EXCLUDED.add(satnum)
-            continue
-        sat = EarthSatellite.from_omm(utils.ts, jsat)
-
-        if satnum not in EXCLUDED:
-            satellites[satnum] = Sat(sat, ground_stations)
-            print('Loaded', len(satellites), 'satellites.')
-
+    #Obtain the Traffic Matrix
+    traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
+    print("Traffic matrix print:", traffic_matrix)
+    print("SAT FORMAT:", constants.SAT_FORMAT)
+    if constants.SAT_FORMAT == 0 : 
+        #Retrieve satellites info from NORAD
+        print("Retrieving satellites...")
+        stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
+        satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
+        print('Loaded', len(satellites), 'satellites.')
         for gs in ground_stations.values():
             gs.set_satellites(satellites)
 
-    env.satellites = satellites
-    env.ground_stations = ground_stations
-    env.prepare()
+        env.satellites = satellites
+        env.ground_stations = ground_stations
+        env.prepare()
+    else :
+        #Retrieve satellites info from NORAD
+        print("Retrieving satellites...")
+        
+        # Check if using local file (for --input 2 with --sat-file)
+        if constants.SAT_FORMAT == 2 and constants.SATELLITE_FILE_PATH:
+            # Load from local file
+            local_file = constants.SATELLITE_FILE_PATH
+            
+            if not os.path.exists(local_file):
+                print(f"[ERROR] Local satellite file not found: {local_file}")
+                print("Please provide a valid path with --sat-file")
+                exit(1)
+            
+            print(f"Loading satellites from local file: {local_file}")
+            with open(local_file, 'r', encoding='utf-8') as f:
+                try:
+                    stations_json = json.load(f)
+                except:
+                    print("WARNING: loading failed, main.py at line 134")
+            EXCLUDED = {}
+            print(f"Loaded {len(stations_json)} satellites from file")
+            
+        elif constants.SAT_FORMAT == 1 :
+            # OneWeb from Celestrak API
+            #stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
+            stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=JSON"
+            EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
+            try:
+                stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
+            except:
+                print("WARNING: failed to load IRIDIUM from celestrak,main.py line 146")
+                sys.exit(1)
+        else :
+            # Custom OMM from URL (interactive)
+            stations_url = input("Inserisci il link JSON della tua rete in formato OMM:")
+            EXCLUDED = {}
+            stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
+
+        satellites = {}
+
+        for jsat in stations_json:
+            satnum = int(jsat["NORAD_CAT_ID"])
+            essential = ["EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION"]
+            missing = [field for field in essential if field not in jsat or jsat[field] is None]
+            if missing:
+                print("Missing orbital fields for", jsat["OBJECT_NAME"], missing)
+                EXCLUDED.add(satnum)
+                continue
+            sat = EarthSatellite.from_omm(utils.ts, jsat)
+            if satnum not in EXCLUDED:
+                satellites[satnum] = Sat(sat, ground_stations)
+                print('Loaded', len(satellites), 'satellites.')
+        for gs in ground_stations.values():
+            gs.set_satellites(satellites)
 
 
-#     satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for jsat in stations_json if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
-#     print('Loaded', len(satellites), 'satellites.')
-# for gs in ground_stations.values():
-#     gs.set_satellites(satellites)
+        env.satellites = satellites
+        env.ground_stations = ground_stations
+        env.prepare()
 
-# env.satellites = satellites
-# env.ground_stations = ground_stations
-# env.prepare()
+    # Start of the code block that launches the standard simulation
+    traffic_generators = []
+    header_builders = []
 
-# Start of the code block that launches the standard simulation
-traffic_generators = []
-header_builders = []
+    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
+                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+        for gs in ground_stations.values():
+            gs_traffic_details = traffic_matrix[gs.get_name()]
+            for destination in gs_traffic_details:
+                hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
+                header_builders.append(hb)
 
-if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                  Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                  Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
-    for gs in ground_stations.values():
-        gs_traffic_details = traffic_matrix[gs.get_name()]
-        for destination in gs_traffic_details:
-            hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
-            header_builders.append(hb)
+    if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                    Strategy.POSITION_SHARING_NO_LB,
+                                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+        for gs in ground_stations.values():
+            gs_traffic_details = traffic_matrix[gs.get_name()]
+            for destination in gs_traffic_details:
+                tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
+                traffic_generators.append(tg)
+    env.start()
+    # End of block
 
-if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
-    for gs in ground_stations.values():
-        gs_traffic_details = traffic_matrix[gs.get_name()]
-        for destination in gs_traffic_details:
-            tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
-            traffic_generators.append(tg)
-env.start()
-# End of block
+    # Object (TrafficAnalyzer) used to analyze specific metrics. Depending on the selected metric, the simulation flow can be
+    # altered (skipping simulation hours, restarting the simulation multiple times, simulating multiple different routing strategies, ...)
 
-# Object (TrafficAnalyzer) used to analyze specific metrics. Depending on the selected metric, the simulation flow can be
-# altered (skipping simulation hours, restarting the simulation multiple times, simulating multiple different routing strategies, ...)
+    traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
-traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
+    # Uncomment the pair of instructions based on the metrics you want to generate results for.
+    results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+    #charts.show_shortest_paths_table(results)
+    #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
+    #charts.show_average_link_occupation_chart(results)
+    #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
+    #charts.show_delivered_dropped_ratio_chart(results)
+    #results = traffic_analyzer.analyze(AnalysisMetric.CONTROL_TRAFFIC_COMPARISON)
+    #charts.show_control_traffic_comparison_chart(results)
+    #results = traffic_analyzer.analyze(AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS)
+    #charts.show_weight_sensitivity_analysis_chart(results)
+    #results = traffic_analyzer.analyze(AnalysisMetric.TIME_PASSING_SIMULATION)
+    #charts.show_time_passing_simulation_chart(results)
 
-# Uncomment the pair of instructions based on the metrics you want to generate results for.
-#results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-#charts.show_shortest_paths_table(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
-#charts.show_average_link_occupation_chart(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
-#charts.show_delivered_dropped_ratio_chart(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.CONTROL_TRAFFIC_COMPARISON)
-#charts.show_control_traffic_comparison_chart(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS)
-#charts.show_weight_sensitivity_analysis_chart(results)
-#results = traffic_analyzer.analyze(AnalysisMetric.TIME_PASSING_SIMULATION)
-#charts.show_time_passing_simulation_chart(results)
+    # If you already have the results saved (e.g., in a json), use these instructions to display the corresponding chart
+    # without having to regenerate all the data.
+    charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_source_routing_results"))
+    #charts.show_average_link_occupation_chart(read_from_json("average_link_occupation_decentralized_results"))
+    #charts.show_delivered_dropped_ratio_chart(read_from_json("delivered_and_dropped_ratio_decentralized_results"))
+    #charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))
+    #charts.show_weight_sensitivity_analysis_chart(read_from_json("weight_sensitivity_analysis"))
+    #charts.show_time_passing_simulation_chart(read_from_json("time_passing_simulation"))
+    #charts.show_loop_avoidance_analysis_chart()
 
-# If you already have the results saved (e.g., in a json), use these instructions to display the corresponding chart
-# without having to regenerate all the data.
-#charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_source_routing_results"))
-#charts.show_average_link_occupation_chart(read_from_json("average_link_occupation_decentralized_results"))
-#charts.show_delivered_dropped_ratio_chart(read_from_json("delivered_and_dropped_ratio_decentralized_results"))
-#charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))
-#charts.show_weight_sensitivity_analysis_chart(read_from_json("weight_sensitivity_analysis"))
-#charts.show_time_passing_simulation_chart(read_from_json("time_passing_simulation"))
-#charts.show_loop_avoidance_analysis_chart()
+    ### Map ###
+    #Global map showing Ground Stations' positions
+    #show_constellation_map([], ground_stations.values(), links=[], paths=[])
 
-### Map ###
-#Global map showing Ground Stations' positions
-#show_constellation_map([], ground_stations.values(), links=[], paths=[])
-
-#Print the GS & satellites positions
-#show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
+    #Print the GS & satellites positions
+    #show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
+if __name__ == "__main__":
+    main()

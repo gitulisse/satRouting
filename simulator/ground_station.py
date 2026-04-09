@@ -27,7 +27,7 @@ class GroundStation:
         self._graph = None
         self._auxiliary_graph = None
         self.detected_paths = []
-        self.excluded_links = []
+        self.excluded_links = set()
         self.link_utilization = {}
         self.destination = None
         self.DEBUG_dropped_flows: list[Flow] = []
@@ -393,7 +393,8 @@ class GroundStation:
                     
                         #link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
                         #print(f"[DEBUG] Routing path on enough bandwidth: {link_paths}") #shows human-readable path
-                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available bandwidth {link.get_available_bandwidth()}")
+                        target_name = link.target.get_name() if hasattr(link.target, 'get_name') else str(link.target)
+                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link)) #remaining_flow
                         if isinstance(link.target, list):
                             if link.target:
@@ -428,13 +429,13 @@ class GroundStation:
                         remaining_flow = remaining_flow_to_route
                         excluded_link = (link._parent.get_name(), link.target.get_name())
                         if excluded_link not in self.excluded_links:
-                            self.excluded_links.append(excluded_link)
+                            self.excluded_links.add(excluded_link)
                         break
                 else:
                     print(f"Link {link} is fully saturated. No flow can pass.")
                     excluded_link = (link._parent.get_name(), link.target.get_name())
                     if excluded_link not in self.excluded_links:
-                        self.excluded_links.append(excluded_link)
+                        self.excluded_links.add(excluded_link)
                     reached_node = link._parent.get_name()
             else:
                 adapted_routing_decisions.append((action, remaining_flow, link))
@@ -540,14 +541,14 @@ class GroundStation:
                         remaining_flow = undeliverable_flow
                         excluded_link = (link._parent.get_name(), link.target.get_name())
                         if excluded_link not in self.excluded_links:
-                            self.excluded_links.append(excluded_link)
+                            self.excluded_links.add(excluded_link)
                         adapted_routing_decisions.append([(RoutingAction.ERROR, remaining_flow, FlowState.LINK_CONGESTED)])
                         break
                 else:
                     print(f"Link {link} is fully saturated. No flow can pass.")
                     excluded_link = (link._parent.get_name(), link.target.get_name())
                     if excluded_link not in self.excluded_links:
-                        self.excluded_links.append(excluded_link)
+                        self.excluded_links.add(excluded_link)
                     reached_node = link._parent.get_name()
             else:
                 adapted_routing_decisions.append((action, remaining_flow, link))
@@ -564,6 +565,8 @@ class GroundStation:
                 if isinstance(inner_link.target, list):
                     expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
                     confirmed_destination = [destination for destination in inner_link.target if hasattr(destination, 'get_name') and destination.get_name().upper() == expected_destination]
+                    if not confirmed_destination:
+                        continue
                     confirmed_destination_node = utils.get_ground_station_name_by_coords(confirmed_destination[0].lat, confirmed_destination[0].lon)
                     target_name = confirmed_destination_node
                 else:
@@ -575,7 +578,7 @@ class GroundStation:
                     if available_bandwidth == flow.rate:
                         excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
                         if excluded_link not in self.excluded_links:
-                            self.excluded_links.append(excluded_link)
+                            self.excluded_links.add(excluded_link)
                     if isinstance(inner_link.target, list):
                         adapted_routing_decisions.append((inner_action, flow, inner_link))
                         target_node = confirmed_destination_node
@@ -602,6 +605,8 @@ class GroundStation:
                 if isinstance(inner_link.target, list):
                     expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
                     confirmed_destination = [destination for destination in inner_link.target if hasattr(destination, 'get_name') and destination.get_name().upper() == expected_destination]
+                    if not confirmed_destination:
+                        continue
                     confirmed_destination_node = utils.get_ground_station_name_by_coords(confirmed_destination[0].lat, confirmed_destination[0].lon)
                     target_name = confirmed_destination_node
                 else:
@@ -613,7 +618,7 @@ class GroundStation:
                     if available_bandwidth == flow.rate:
                         excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
                         if excluded_link not in self.excluded_links:
-                            self.excluded_links.append(excluded_link)
+                            self.excluded_links.add(excluded_link)
                     if isinstance(inner_link.target, list):
                         adapted_routing_decisions.append((inner_action, flow, inner_link))
                         target_node = confirmed_destination_node
@@ -631,7 +636,7 @@ class GroundStation:
                     if remaining_flow.rate > 0:
                         excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
                         if excluded_link not in self.excluded_links:
-                           self.excluded_links.append(excluded_link)
+                           self.excluded_links.add(excluded_link)
 
                         self.check_path_for_splitted_flow(
                             remaining_flow,
@@ -645,9 +650,10 @@ class GroundStation:
         if reached_node is None:
             raise ValueError("Reached_node was not set before Calculate path with exclusions")
         disjoint_paths = []
-        for u, v in self.excluded_links:
-            if g_auxiliary.has_edge(u, v):
-                g_auxiliary.remove_edge(u, v)
+        # THE FOLLOWING IS REMOVED TO AVOID CRASH
+#        for u, v in self.excluded_links:
+#            if g_auxiliary.has_edge(u, v):
+#                g_auxiliary.remove_edge(u, v)
 
         if not g_auxiliary.edges:
             raise ValueError("All links are saturated or excluded. No valid path can be calculated.")
@@ -692,7 +698,7 @@ class GroundStation:
                 except nx.NetworkXNoPath:
                     print(f"[DROP] Calculate with Exclusions - No Node disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
             if disjoint_paths:
-                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                probabilities = self.calculate_path_weights_kshortest_disjoint(env.main_graph, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
         
         elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
@@ -703,18 +709,18 @@ class GroundStation:
                 except nx.NetworkXNoPath:
                     print(f"[DROP] Calculate with Exclusions - No Edge disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
             if disjoint_paths:
-                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                probabilities = self.calculate_path_weights_kshortest_disjoint(env.main_graph, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
         elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
             for dst_sat in destination_satellites:
                 try:
-                    paths = list(nx.edge_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
+                    paths = list(nx.edge_disjoint_paths(env.main_graph, source_satellite, dst_sat))
                     disjoint_paths.extend(paths)
                 except nx.NetworkXNoPath:
                     print(f"[DROP] Calculate with Exclusions - No Edge disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
             if disjoint_paths:
-                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                probabilities = self.calculate_path_weights_kshortest_disjoint(env.main_graph, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
         elif constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
@@ -727,7 +733,7 @@ class GroundStation:
                 except nx.NetworkXNoPath:
                     print(f"[DROP] Calculate with Exclusions - No Node disjoint path on saturated link for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
             if disjoint_paths:
-                probabilities = self.calculate_path_weights_kshortest_disjoint(g_auxiliary, disjoint_paths)
+                probabilities = self.calculate_path_weights_kshortest_disjoint(env.main_graph, disjoint_paths)
                 selected_path = self.select_path_with_probabilities(disjoint_paths, probabilities)
 
         if selected_path is None:
@@ -735,6 +741,8 @@ class GroundStation:
             reached_node = None
             return []
         #print(f"Selected path in calculate with exclusion: {selected_path}")
+        if not selected_path:
+            return []
         selected_path = selected_path[0]
         return self.process_routing_output(selected_path, remaining_flow)
 
@@ -763,7 +771,7 @@ class GroundStation:
         last_node = selected_path[-1]
         if (self.destination not in self.satellites[last_node]._gs_link.get_attached_gs()):
             print(f"[ERROR] Satellite {last_node} is not directly connected to GS {self.destination.get_name()}. Excluding and recalculating.")
-            self.excluded_links.append((selected_path[-2], last_node))
+            self.excluded_links.add((selected_path[-2], last_node))
             return self.calculate_path_with_exclusions(flow, selected_path[0], self._auxiliary_graph)
 
         last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
@@ -800,7 +808,7 @@ class GroundStation:
         last_node = selected_path[-1]
         if (self.destination not in self.satellites[last_node]._gs_link.get_attached_gs()):
             print(f"[ERROR] Satellite {last_node} is not directly connected to GS {self.destination.get_name()}. Excluding and recalculating.")
-            self.excluded_links.append((selected_path[-2], last_node))
+            self.excluded_links.add((selected_path[-2], last_node))
             return self.calculate_path_with_exclusions(flow, selected_path[0], self._auxiliary_graph)
 
         last_link = self._get_link_to_ground_station(last_node, self.destination, self.satellites, self.gss)
@@ -858,17 +866,29 @@ class GroundStation:
         if constants.DEBUG:
             print("> Source satellite", source_satellite)
             print("> Destination satellite", destination_satellite)
+        #attempting to fix memory overuse for algoritm 9
+        self.excluded_links = set() 
+
         valid_source_sats = [sat for sat in source_satellite if sat in env.main_graph]
         valid_destination_sats = [sat for sat in destination_satellite if sat in env.main_graph]
-        edges_to_remove = [(u, v) for u, v, data in env.main_graph.edges(data=True) if data.get('available_bandwidth', 0) == 0]
-        for u, v in edges_to_remove:
-            env.main_graph.remove_edge(u, v)
-        self._graph = env.main_graph.copy()
-        self._auxiliary_graph = env.main_graph.copy()
-        for gs_name in env.ground_stations.keys():
-            if gs_name in env.main_graph:
-                self._auxiliary_graph.remove_node(gs_name)
 
+        def _bandwidth_and_exclusion_filter(u, v):
+            edge_data = env.main_graph[u][v]
+            has_bw = edge_data.get('available_bandwidth', 0) > 0
+            not_excluded = (u,v) not in self.excluded_links
+            return has_bw and not_excluded
+        def _no_gs_nodes_filter(node):
+            if isinstance(node,str):
+                return node.upper not in env.ground_stations.keys()
+            return True
+            
+        
+        self._auxiliary_graph = nx.subgraph_view(
+            env.main_graph,
+            filter_node = _no_gs_nodes_filter,
+            filter_edge= _bandwidth_and_exclusion_filter
+        )
+        self._graph = env.main_graph
         disjoint_paths = []
         
         if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
@@ -876,8 +896,10 @@ class GroundStation:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
-                disjoint_paths.append([closer_sats[0]['name']])
-                return disjoint_paths
+                if closer_sats:
+                    disjoint_paths.append([closer_sats[0]['name']])
+                else:
+                    return disjoint_paths
             for src_sat in source_satellite: #if more source and destination satellites (for a more complex algorithm)
                 for dst_sat in destination_satellite:
                     if src_sat not in valid_source_sats:
@@ -897,8 +919,10 @@ class GroundStation:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
-                disjoint_paths.append([closer_sats[0]['name']])
-                return disjoint_paths
+                if closer_sats:
+                    disjoint_paths.append([closer_sats[0]['name']])
+                else:
+                    return disjoint_paths
             for src_sat in source_satellite:
                 for dst_sat in destination_satellite:
                     if src_sat not in valid_source_sats:
@@ -921,8 +945,10 @@ class GroundStation:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
-                disjoint_paths.append([closer_sats[0]['name']])
-                return disjoint_paths
+                if closer_sats:
+                    disjoint_paths.append([closer_sats[0]['name']])
+                else:
+                    return disjoint_paths
             for src_sat in source_satellite:
                 for dst_sat in destination_satellite:
                     if src_sat not in valid_source_sats:
@@ -949,8 +975,11 @@ class GroundStation:
                 print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
-                disjoint_paths.append([closer_sats[0]['name']])
-                return disjoint_paths
+                #guard to avoid empty closer sats
+                if closer_sats:
+                    disjoint_paths.append([closer_sats[0]['name']])
+                else:
+                    return disjoint_paths
             for src_sat in source_satellite:
                 for dst_sat in destination_satellite:
                     if src_sat not in valid_source_sats:
@@ -1045,6 +1074,8 @@ class GroundStation:
             for i in range(len(path) - 1):
                 current_node = path[i]
                 next_node = path[i + 1]
+                if current_node not in self.satellites or next_node not in self.satellites:
+                    continue
                 if not graph.has_edge(current_node, next_node) or 'weight' not in graph[current_node][next_node]:
                     raise KeyError(f"Link between {current_node} and {next_node} is missing or has no weight.")
                 base_weight = graph[current_node][next_node]['weight']
@@ -1065,7 +1096,8 @@ class GroundStation:
         total_weight = sum(path_weights)
         if total_weight == 0:
             raise ValueError("Total weight sum is zero, unable to calculate probabilities.")
-        inverted_weights = [1 / w for w in path_weights]
+        #attempt to reduce division by 0 probability
+        inverted_weights = [1 / max(w, 1e-10) for w in path_weights]
         total_inverted_weights = sum(inverted_weights)
         probabilities = [iw / total_inverted_weights for iw in inverted_weights]
         return probabilities
