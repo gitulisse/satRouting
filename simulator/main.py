@@ -20,6 +20,7 @@ from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
 import utils
 from strategy import Strategy
+from itertools import chain
 # Avoid crashes due to unlimited recursion (it would affect stack)
 import sys
 sys.setrecursionlimit(10000)
@@ -215,7 +216,7 @@ def main():
     traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
 
     # Uncomment the pair of instructions based on the metrics you want to generate results for.
-    results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
+    #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
     #charts.show_shortest_paths_table(results)
     #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
     #charts.show_average_link_occupation_chart(results)
@@ -230,7 +231,7 @@ def main():
 
     # If you already have the results saved (e.g., in a json), use these instructions to display the corresponding chart
     # without having to regenerate all the data.
-    charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_source_routing_results"))
+    #charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_source_routing_results"))
     #charts.show_average_link_occupation_chart(read_from_json("average_link_occupation_decentralized_results"))
     #charts.show_delivered_dropped_ratio_chart(read_from_json("delivered_and_dropped_ratio_decentralized_results"))
     #charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))
