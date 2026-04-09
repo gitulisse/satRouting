@@ -40,7 +40,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # Memory optimization for large constellations
     PYTHONMALLOC=malloc \
     # Set default simulation parameters
-    SIM_STRATEGY=5 \
+    SIM_STRATEGY=9 \
     SIM_DURATION=60 \
     SIM_TRAFFIC=10 \
     SIM_INPUT=1
