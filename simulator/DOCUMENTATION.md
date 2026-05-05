@@ -65,7 +65,13 @@ The simulator uses a **discrete-event simulation (DES)** model where:
 - `--strategy (-s)`: Routing strategy ID (1-15)
 - `--duration (-d)`: Simulation duration in seconds
 - `--traffic (-t)`: Total traffic volume in Gbps
-- `--input (-i)`: Satellite data format (0=TLE, 1=JSON, 2=Custom OMM)
+- `--input (-i)`: Satellite data format (0=TLE, 1=JSON, 2=Custom OMM/Local File)
+- `--gs-config`: Optional path to a YAML configuration file for ground stations.
+- `--sat-file`: Path to a local satellite JSON file (required when using `--input 2` with local data).
+- `--analyze`: Run a specific analysis metric instead of a standard simulation. Choices: `dijkstra`, `link_occupation`, `delivery_ratio`, `control_traffic`, `weight_sensitivity`, `time_passing`.
+- `--plot`: Path to a JSON file to visualize results without re-running the simulation (use with `--analyze` to specify the chart type).
+
+**Note:** If `--gs-config` is not provided, the simulator defaults to four ground stations: Tokyo, New York, Dar Es Salaam, and Buenos Aires.
 
 ---
 
@@ -227,8 +233,8 @@ The simulator uses a **discrete-event simulation (DES)** model where:
 | 11 | `SOURCE_ROUTING_BY_LENGTH_NO_LB` | Centralized | No (min distance) |
 | 12 | `NODE_DISJOINT_SOURCE_ROUTING_LB` | Centralized | Yes (K=4 node-disjoint) |
 | 13 | `EDGE_DISJOINT_SOURCE_ROUTING_LB` | Centralized | Yes (K=4 edge-disjoint) |
-| 14 | `NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK` | Centralized | Link occupation |
-| 15 | `EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING` | Centralized | Cost-based |
+| 14 | `NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK` | Centralized | Link occupation (harmonic mean) |
+| 15 | `EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING` | Centralized | Cost-based (alpha weighted) |
 
 ---
 
@@ -302,7 +308,7 @@ The simulator uses a **discrete-event simulation (DES)** model where:
 **Topology Builder Algorithm:**
 1. Filters satellites by latitude cutoff (±70°)
 2. Builds KDTree from valid satellite coordinates
-3. Queries neighbors within 5100km radius
+3. Queries neighbors within a **5100km radius** using the KDTree for efficient discovery (O(n log n))
 4. Applies longitude-based link creation rules
 5. Updates satellite link tables
 6. Rebuilds NetworkX graph
@@ -585,7 +591,7 @@ if lat is None or lon is None or not (math.isfinite(lat) and math.isfinite(lon))
 
 - **Gravity Model API:** Traffic matrix generation
   - URL: `http://localhost:8001/traffic_matrix`
-  - Must be running locally
+  - **Status:** MANDATORY. This service must be running locally for traffic matrix generation to succeed.
 
 ---
 
@@ -595,28 +601,35 @@ if lat is None or lon is None or not (math.isfinite(lat) and math.isfinite(lon))
 
 ```bash
 # Position Sharing with LB on saturated links, 60s duration, 20 Gbps, Starlink
-python3 main.py --strategy 5 --duration 60 --traffic 20 --input 2
-# Enter URL: https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json
+python3 main.py --strategy 5 --duration 60 --traffic 20 --input 2 --sat-file data/starlink.json
 ```
 
-### Analysis Metrics
+### Running Analysis Metrics
 
-```python
-# In main.py, uncomment analysis lines:
-traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
-results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-charts.show_shortest_paths_table(results)
+Instead of modifying code, use the `--analyze` flag:
+
+```bash
+# Compare various strategies with Dijkstra baseline
+python3 main.py --analyze dijkstra
+
+# Analyze average link occupation over varying traffic volumes
+python3 main.py --analyze link_occupation --traffic 20
+```
+
+### Visualizing Saved Results
+
+Use `--plot` along with `--analyze` to specify the chart type:
+
+```bash
+# Plot Dijkstra comparison from a saved JSON file
+python3 main.py --analyze dijkstra --plot comparison_results.json
 ```
 
 ### Custom Ground Stations
 
-```python
-# In main.py, modify ground_stations dict:
-ground_stations = {
-    'LONDON': GroundStation(51.5074, -0.1278, 'London'),
-    'SYDNEY': GroundStation(-33.8688, 151.2093, 'Sydney'),
-    # ...
-}
+```bash
+# Run simulation with custom GS configuration
+python3 main.py --gs-config my_stations.yaml
 ```
 
 ---

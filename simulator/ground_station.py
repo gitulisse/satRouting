@@ -417,7 +417,10 @@ class GroundStation:
                         print("[DEBUG] NOT ENOUGH BANDWIDTH, proceed to splitting...")
                         print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Remaining_flow_to_route with rate {remaining_flow_to_route.rate}")
                         #print(f"Splitted_flow {splitted_flow} Rate {splitted_flow.rate} and Remaining_flow_to_route {remaining_flow_to_route} Rate {remaining_flow_to_route.rate}")
-                        print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
+                        print(f"Checking path of splitted flow... first link "
+                        f"{link._parent.get_name()} - {target_name} with available_bandwidth "
+                        f"{link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, splitted_flow, link))
                         reached_node = link._parent.get_name()
 
@@ -427,13 +430,13 @@ class GroundStation:
                             adapted_routing_decisions
                         )
                         remaining_flow = remaining_flow_to_route
-                        excluded_link = (link._parent.get_name(), link.target.get_name())
+                        excluded_link = (link._parent.get_name(), (link.target[0].get_name() if isinstance(link.target, list) else link.target.get_name()))
                         if excluded_link not in self.excluded_links:
                             self.excluded_links.add(excluded_link)
                         break
                 else:
                     print(f"Link {link} is fully saturated. No flow can pass.")
-                    excluded_link = (link._parent.get_name(), link.target.get_name())
+                    excluded_link = (link._parent.get_name(), (link.target[0].get_name() if isinstance(link.target, list) else link.target.get_name()))
                     if excluded_link not in self.excluded_links:
                         self.excluded_links.add(excluded_link)
                     reached_node = link._parent.get_name()
@@ -507,13 +510,10 @@ class GroundStation:
                         print(f"[DEBUG] ENOUGH BANDWIDTH equal to {min_available_bw} for flow rate {remaining_flow.rate}")
                         #link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
                         #print(f"[DEBUG] Routing path on enough bandwidth: {link_paths}") #shows human-readable path
-                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available bandwidth {link.get_available_bandwidth()}")
+                        target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
+                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link))
-                        if isinstance(link.target, list):
-                            if link.target:
-                                reached_node = link.target[0].get_name()
-                        else:
-                            reached_node = link.target.get_name()
+                        reached_node = target_name
 
                         self.check_path_for_splitted_flow_simple(
                             flow,
@@ -715,7 +715,7 @@ class GroundStation:
         elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
             for dst_sat in destination_satellites:
                 try:
-                    paths = list(nx.edge_disjoint_paths(env.main_graph, source_satellite, dst_sat))
+                    paths = list(nx.edge_disjoint_paths(g_auxiliary, source_satellite, dst_sat))
                     disjoint_paths.extend(paths)
                 except nx.NetworkXNoPath:
                     print(f"[DROP] Calculate with Exclusions - No Edge disjoint path for Remained flow {remaining_flow} rate {remaining_flow.rate} between {source_satellite} and {dst_sat}.")
@@ -878,8 +878,8 @@ class GroundStation:
             not_excluded = (u,v) not in self.excluded_links
             return has_bw and not_excluded
         def _no_gs_nodes_filter(node):
-            if isinstance(node,str):
-                return node.upper not in env.ground_stations.keys()
+            if isinstance(node, str):
+                return node.upper() not in [gs_name.upper() for gs_name in env.ground_stations.keys()]
             return True
             
         

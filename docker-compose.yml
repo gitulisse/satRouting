@@ -15,8 +15,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'
-          memory: 8G
+          cpus: '3.0'
+          memory: 16G
         reservations:
           cpus: '2.0'
           memory: 4G
@@ -30,8 +30,8 @@ services:
       - SIM_INPUT=1             # 0=Iridium, 1=OneWeb, 2=Custom OMM
       
       # Traffic matrix generator API (optional)
-      - BASE_CITY_API_URL=https://api.api-ninjas.com/v1/cities
-      - CITY_SVC_API_KEY_FILE=/run/secrets/city_api_key
+      - BASE_CITY_API_URL=https://api.api-ninjas.com/v1/city
+      - CITY_SVC_API_KEY_FILE=/satRouting/secrets/city_api_key.txt
       
       # Skip Flask if not needed (reduces memory usage)
       - SKIP_FLASK=false
@@ -42,14 +42,12 @@ services:
     
     # Volumes for persisting results
     volumes:
-      # Mount simulator directory for results
+      # Mount simulator directory for code (read-only recommended if results go to volume)
       - ./simulator:/satRouting/simulator
+      # Named volume for results to avoid permission errors
+      - simulation_results:/satRouting/simulator/output_resumed
       # Optional: Mount custom OMM data
-      - ./satellite_data:/satRouting/data
-    
-    # Secrets (for API keys)
-    secrets:
-      - city_api_key
+      - ./data:/satRouting/data
     
     # Logging
     logging:
@@ -67,7 +65,7 @@ services:
       start_period: 10s
     
     # Restart policy
-    restart: unless-stopped
+    restart: no
     
     # Network mode
     network_mode: bridge
@@ -80,20 +78,14 @@ services:
     container_name: traffic-matrix-svc
     environment:
       - BASE_CITY_API_URL=https://api.api-ninjas.com/v1/cities
-      - CITY_SVC_API_KEY_FILE=/run/secrets/city_api_key
+      - CITY_SVC_API_KEY_FILE=/satRouting/secrets/city_api_key.txt
     ports:
       - "8001:8001"
-    secrets:
-      - city_api_key
+    restart: no
     profiles:
       - standalone  # Run with: docker-compose --profile standalone up
 
-# Secrets definition
-secrets:
-  city_api_key:
-    file: ./secrets/city_api_key.txt
-
-# Named volumes (optional, for advanced setups)
+# Named volumes for persistent data
 volumes:
-  simulator_results:
+  simulation_results:
   satellite_data:

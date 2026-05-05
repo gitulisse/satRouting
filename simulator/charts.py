@@ -1,6 +1,9 @@
 import constants
 import environment as env
-import matplotlib.pyplot as plt 
+import matplotlib
+matplotlib.use('Agg') # Headless backend for server execution
+import matplotlib.pyplot as plt
+ 
 import numpy as np
 import plotly.graph_objects as go
 import statistics
@@ -32,16 +35,32 @@ def show_shortest_paths_table(results: dict):
             variances.append(round(statistics.variance(data['successful']), 2) if len(data['successful']) > 1 else 0)
             failed.append(data['failed'])
             distances.append(round(statistics.mean(data['distance']), 2) if len(data['distance']) > 0 else 0)
-            means_wrt_dijkstra.append("+" + str(round(((means[-1] - dijkstra_mean) / dijkstra_mean) * 100, 2)) + "%")
-            variances_wrt_dijkstra.append("+" + str(round(((variances[-1] - dijkstra_variance) / dijkstra_variance) * 100, 2)) + "%")
-            failed_percentage.append(str(round((data['failed'] / (data['failed'] + len(data['successful']))) * 100, 2)) + "%")
-            distances_wrt_dijkstra.append("+" + str(round(((distances[-1] - dijkstra_distance) / dijkstra_distance) * 100, 2)) + "%")
+            means_wrt_dijkstra.append("+" + str(round(((means[-1] - dijkstra_mean) / dijkstra_mean) * 100, 2)) + "%" if dijkstra_mean != 0 else "-")
+            variances_wrt_dijkstra.append("+" + str(round(((variances[-1] - dijkstra_variance) / dijkstra_variance) * 100, 2)) + "%" if dijkstra_variance != 0 else "-")
+            total_flows = data['failed'] + len(data['successful'])
+            failed_percentage.append(str(round((data['failed'] / total_flows) * 100, 2)) + "%" if total_flows != 0 else "0%")
+            distances_wrt_dijkstra.append("+" + str(round(((distances[-1] - dijkstra_distance) / dijkstra_distance) * 100, 2)) + "%" if dijkstra_distance != 0 else "-")
             
     fig = go.Figure(data=[go.Table(header=dict(values=["Trajectory", "Strategy", "Mean", "Mean increase from Dijkstra", "Variance", "Variance increase from Dijkstra", "Failed routing", "Failed routing percentage", "Distance (km)", "Distance increase from Dijkstra"], height=26),
                     cells=dict(values=[trajectories, strategies, means, means_wrt_dijkstra, variances, variances_wrt_dijkstra, failed, failed_percentage, distances, distances_wrt_dijkstra], height=26))
                         ])
     #fig.show()
-
+    import os
+    results_dir = 'output_resumed/results'
+    
+    try:
+        os.makedirs(results_dir, exist_ok=True)
+        html_path = os.path.join(results_dir, 'comparison_table.html')
+        fig.write_html(html_path)
+        print(f"[SUCCESS] HTML Chart saved to: {os.path.abspath(html_path)}")
+    except Exception as e:
+        print(f"[FAIL-SAFE] Could not save HTML to {results_dir}: {e}")
+        try:
+            fallback_html = "/tmp/comparison_table.html"
+            fig.write_html(fallback_html)
+            print(f"[FAIL-SAFE] HTML Chart saved to fallback: {fallback_html}")
+        except:
+            print("[CRITICAL] Could not save HTML chart anywhere.")
     ax = plt.subplot()
 
     #initialization of lists
@@ -76,17 +95,18 @@ def show_shortest_paths_table(results: dict):
             cell.get_text().set_color('black')
 
     #display table
-    plt.show()
+    # plt.show()
 
-    refactored_results = {#Strategy.BASELINE_DIJKSTRA.name : {},  #key that will contain results for the used strategy
-        #Strategy.POSITION_GUESSING_NO_LB.name : {},
-        #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
-        #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
-        #Strategy.POSITION_SHARING_NO_LB.name : {},
-        #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
-        #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
-        #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-        #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},  #key that will contain results for the used strategy
+    refactored_results = {
+        Strategy.BASELINE_DIJKSTRA.name : {},
+        Strategy.POSITION_GUESSING_NO_LB.name : {},
+        Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
+        Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
+        Strategy.POSITION_SHARING_NO_LB.name : {},
+        Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
+        Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
+        Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+        Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
         Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
         Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
         Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
@@ -116,9 +136,10 @@ def show_shortest_paths_table(results: dict):
         if strategy == 'BASELINE_DIJKSTRA':
             dijkstra_distance = round(statistics.mean(data['distance']), 2) if len(data['distance']) > 0 else 0
         strategies.append(strategy)
-        failed_percentage.append(str(round((data['failed'] / (data['failed'] + len(data['successful']))) * 100, 2)) + "%")
+        total_flows = data['failed'] + len(data['successful'])
+        failed_percentage.append(str(round((data['failed'] / total_flows) * 100, 2)) + "%" if total_flows != 0 else "0%")
         distances.append(round(statistics.mean(data['distance']), 2) if len(data['distance']) > 0 else 0)
-        distances_wrt_dijkstra.append("+" + str(round(((distances[-1] - dijkstra_distance) / dijkstra_distance) * 100, 2)) + "%")
+        distances_wrt_dijkstra.append("+" + str(round(((distances[-1] - dijkstra_distance) / dijkstra_distance) * 100, 2)) + "%" if dijkstra_distance != 0 else "-")
 
     ax = plt.subplot()
 
@@ -149,7 +170,7 @@ def show_shortest_paths_table(results: dict):
             cell.set_text_props(weight='black', size='medium')
 
     #display table
-    plt.show()
+    # plt.show()
 
 
 def show_average_link_occupation_chart(results: dict):
@@ -205,7 +226,7 @@ def show_average_link_occupation_chart(results: dict):
     ax1.set_ylim(0, 70)  # "Average link occupation"
     ax2.set_ylim(0, 55)  # "Involved satellites"
 
-    plt.show()
+    # plt.show()
 
 
 def show_delivered_dropped_ratio_chart(results: dict):
@@ -229,7 +250,7 @@ def show_delivered_dropped_ratio_chart(results: dict):
     plt.suptitle(f"Ground station involved: {len(env.ground_stations)}, iteration duration: {constants.SIMULATION_DURATION}")
     plt.xlabel("Traffic forwarded through the network (in Gbps)")
     plt.ylabel("Packet loss (%)")
-    plt.show()
+    # plt.show()
 
 def show_control_traffic_comparison_chart(results: dict):
     width = 0.21
@@ -272,7 +293,7 @@ def show_control_traffic_comparison_chart(results: dict):
         label.set_fontsize(13)
 
     #display table
-    plt.show()
+    # plt.show()
 
     ax = plt.subplot()
 
@@ -296,7 +317,7 @@ def show_control_traffic_comparison_chart(results: dict):
         label.set_fontsize(13)
 
     #display table
-    plt.show()
+    # plt.show()
 
     # Specific data points and representation
     most_control_traffic_congesting = list(results[Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name].values())[0]
@@ -326,7 +347,7 @@ def show_control_traffic_comparison_chart(results: dict):
     plt.title('Network Traffic Visualization: User vs Control Traffic')
     plt.suptitle('Traffic Type (Blue: User, Red: Control)')
     plt.axis('off')  # Hide grid lines
-    plt.show()
+    # plt.show()
 
 def show_weight_sensitivity_analysis_chart(results: dict):
     colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
@@ -352,7 +373,7 @@ def show_weight_sensitivity_analysis_chart(results: dict):
     plt.ylabel("Packet loss (%)")
     plt.xticks(np.arange(0, 1.1, 0.1))
     #plt.yticks(np.arange(0, 11, 2))
-    plt.show()
+    # plt.show()
 
 def show_time_passing_simulation_chart(results: dict):
     colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
@@ -374,7 +395,7 @@ def show_time_passing_simulation_chart(results: dict):
 
     ax1.legend(loc='upper center', bbox_to_anchor=(0.5, -0.08), ncol=2)
 
-    plt.show()
+    # plt.show()
 
 def show_loop_avoidance_analysis_chart():
     import json
@@ -455,4 +476,4 @@ def show_loop_avoidance_analysis_chart():
     for label in (ax.get_xticklabels() + ax.get_yticklabels()):
         label.set_fontsize(13)
     
-    plt.show()
+    # plt.show()

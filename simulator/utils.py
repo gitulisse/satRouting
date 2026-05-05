@@ -8,13 +8,15 @@ import pandas as pd
 from random import randint
 import random
 import requests
-from skyfield.api import Time, Timescale
+from skyfield.api import Time, Timescale, datetime
 import string
 import utils
 import wbgapi as wb
 
 ts: Timescale
 hour_shift = 0
+
+_SIMULATION_START = datetime.now()
 
 #exclude specified regions
 def remove_extra_regions(data: pd.DataFrame) -> pd.DataFrame:
@@ -136,7 +138,8 @@ def propagation_delay(position1, position2) -> float:
 
 #get time
 def get_current_time() -> Time:
-    return ts.utc(2026, 3, 15, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00
+    
+    return ts.utc(_SIMULATION_START.year, _SIMULATION_START.month, _SIMULATION_START.day, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00
 
 #manage hour shift
 def set_hour_shift(shift):

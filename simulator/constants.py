@@ -30,8 +30,13 @@ parser.add_argument("-t", "--traffic", type=int)
 parser.add_argument("-i", "--input", type=int)
 parser.add_argument("--gs-config", type=str, help="Path to ground stations YAML config")
 parser.add_argument("--sat-file", type=str, help="Path to local satellite JSON file (used with --input 2)")
+parser.add_argument("--analyze", type=str, choices=['dijkstra', 'link_occupation', 'delivery_ratio', 'control_traffic', 'weight_sensitivity', 'time_passing'], help="Run a specific analysis metric")
+parser.add_argument("--plot", type=str, help="Path to a JSON file to plot without re-running the analysis")
 args = parser.parse_args()
 GS_CONFIG_PATH = args.gs_config if args.gs_config else None
+
+ANALYZE = args.analyze
+PLOT = args.plot
 
 SAT_FORMAT = args.input
 if args.strategy:

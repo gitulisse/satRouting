@@ -176,74 +176,82 @@ def main():
         env.ground_stations = ground_stations
         env.prepare()
 
-    # Start of the code block that launches the standard simulation
-    traffic_generators = []
-    header_builders = []
+    # Standard Simulation Execution (only if not in Plot or Analyze mode)
+    if not constants.ANALYZE and not constants.PLOT:
+        traffic_generators = []
+        header_builders = []
 
-    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
-        for gs in ground_stations.values():
-            gs_traffic_details = traffic_matrix[gs.get_name()]
-            for destination in gs_traffic_details:
-                hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
-                header_builders.append(hb)
+        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
+                                        Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                                        Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
+                                        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
+                                        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+            for gs in ground_stations.values():
+                gs_traffic_details = traffic_matrix[gs.get_name()]
+                for destination in gs_traffic_details:
+                    hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
+                    header_builders.append(hb)
 
-    if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                    Strategy.POSITION_SHARING_NO_LB,
-                                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
-        for gs in ground_stations.values():
-            gs_traffic_details = traffic_matrix[gs.get_name()]
-            for destination in gs_traffic_details:
-                tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
-                traffic_generators.append(tg)
-    env.start()
-    # End of block
+        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
+                                        Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                                        Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                                        Strategy.POSITION_SHARING_NO_LB,
+                                        Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                                        Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                                        Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                                        Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+            for gs in ground_stations.values():
+                gs_traffic_details = traffic_matrix[gs.get_name()]
+                for destination in gs_traffic_details:
+                    tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
+                    traffic_generators.append(tg)
+        env.start()
 
-    # Object (TrafficAnalyzer) used to analyze specific metrics. Depending on the selected metric, the simulation flow can be
-    # altered (skipping simulation hours, restarting the simulation multiple times, simulating multiple different routing strategies, ...)
+    # Analysis and Plotting Router
+    if constants.ANALYZE or constants.PLOT:
+        traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
+        
+        # Map string argument to AnalysisMetric enum
+        metric_map = {
+            'dijkstra': AnalysisMetric.COMPARISON_WITH_DIJKSTRA,
+            'link_occupation': AnalysisMetric.AVERAGE_LINK_OCCUPATION,
+            'delivery_ratio': AnalysisMetric.DELIVERED_DROPPED_RATIO,
+            'control_traffic': AnalysisMetric.CONTROL_TRAFFIC_COMPARISON,
+            'weight_sensitivity': AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS,
+            'time_passing': AnalysisMetric.TIME_PASSING_SIMULATION
+        }
+        
+        metric = metric_map.get(constants.ANALYZE)
+        
+        if constants.PLOT:
+            # Load from JSON and Plot
+            print(f"Loading results from {constants.PLOT}...")
+            results = read_from_json(constants.PLOT)
+        elif metric:
+            # Run Analysis and Plot
+            print(f"Running analysis for metric: {constants.ANALYZE}...")
+            results = traffic_analyzer.analyze(metric)
+        else:
+            print("Error: Please specify a valid analysis metric using --analyze")
+            return
 
-    traffic_analyzer = TrafficAnalyzer(ground_stations, satellites)
+        # Display the appropriate chart
+        if constants.ANALYZE == 'dijkstra':
+            charts.show_shortest_paths_table(results)
+        elif constants.ANALYZE == 'link_occupation':
+            charts.show_average_link_occupation_chart(results)
+        elif constants.ANALYZE == 'delivery_ratio':
+            charts.show_delivered_dropped_ratio_chart(results)
+        elif constants.ANALYZE == 'control_traffic':
+            charts.show_control_traffic_comparison_chart(results)
+        elif constants.ANALYZE == 'weight_sensitivity':
+            charts.show_weight_sensitivity_analysis_chart(results)
+        elif constants.ANALYZE == 'time_passing':
+            charts.show_time_passing_simulation_chart(results)
 
-    # Uncomment the pair of instructions based on the metrics you want to generate results for.
-    #results = traffic_analyzer.analyze(AnalysisMetric.COMPARISON_WITH_DIJKSTRA)
-    #charts.show_shortest_paths_table(results)
-    #results = traffic_analyzer.analyze(AnalysisMetric.AVERAGE_LINK_OCCUPATION)
-    #charts.show_average_link_occupation_chart(results)
-    #results = traffic_analyzer.analyze(AnalysisMetric.DELIVERED_DROPPED_RATIO)
-    #charts.show_delivered_dropped_ratio_chart(results)
-    #results = traffic_analyzer.analyze(AnalysisMetric.CONTROL_TRAFFIC_COMPARISON)
-    #charts.show_control_traffic_comparison_chart(results)
-    #results = traffic_analyzer.analyze(AnalysisMetric.WEIGHT_SENSITIVITY_ANALYSIS)
-    #charts.show_weight_sensitivity_analysis_chart(results)
-    #results = traffic_analyzer.analyze(AnalysisMetric.TIME_PASSING_SIMULATION)
-    #charts.show_time_passing_simulation_chart(results)
-
-    # If you already have the results saved (e.g., in a json), use these instructions to display the corresponding chart
-    # without having to regenerate all the data.
-    #charts.show_shortest_paths_table(read_from_json("comparison_with_dijkstra_source_routing_results"))
-    #charts.show_average_link_occupation_chart(read_from_json("average_link_occupation_decentralized_results"))
-    #charts.show_delivered_dropped_ratio_chart(read_from_json("delivered_and_dropped_ratio_decentralized_results"))
-    #charts.show_control_traffic_comparison_chart(read_from_json("control_traffic_comparison"))
-    #charts.show_weight_sensitivity_analysis_chart(read_from_json("weight_sensitivity_analysis"))
-    #charts.show_time_passing_simulation_chart(read_from_json("time_passing_simulation"))
-    #charts.show_loop_avoidance_analysis_chart()
-
-    ### Map ###
-    #Global map showing Ground Stations' positions
-    #show_constellation_map([], ground_stations.values(), links=[], paths=[])
-
-    #Print the GS & satellites positions
-    #show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
+    ### Map Visualization (Optional) ###
+    # show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
 if __name__ == "__main__":
     main()

@@ -47,27 +47,34 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgeos-3.11.1 \
-    libproj19 \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+          libgeos-c1v5 \
+          libproj25 \
+          proj-bin \
+          proj-data \
+          curl \
+          && rm -rf /var/lib/apt/lists/* \
+          && apt-get clean
+
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash simuser
 
 WORKDIR /satRouting
+RUN mkdir -p /satRouting/simulator/output_resumed && \
+    chown -R simuser:simuser /satRouting
 
 # Copy installed packages from builder
 COPY --from=builder /root/.local /home/simuser/.local
 
 # Copy application code
+COPY --chown=simuser:simuser data/ /satRouting/data/
+COPY --chown=simuser:simuser secrets/ /satRouting/secrets/
 COPY --chown=simuser:simuser simulator/ /satRouting/simulator/
 COPY --chown=simuser:simuser traffic_matrix_generator/ /satRouting/traffic_matrix_generator/
-COPY --chown=simuser:simuser bootstrapperDocker.sh /satRouting/bootstrapperDocker.sh
+COPY --chown=simuser:simuser scripts/ /satRouting/scripts/
 
-# Make bootstrap script executable
-RUN chmod +x /satRouting/bootstrapperDocker.sh
+# Make bootstrap scripts executable
+RUN chmod +x /satRouting/scripts/*.sh
 
 # Set PATH to include user-installed packages
 ENV PATH=/home/simuser/.local/bin:$PATH
@@ -88,4 +95,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # CPU: 2 cores minimum, 4+ recommended
 
 # Default command
-CMD ["/satRouting/bootstrapperDocker.sh"]
+CMD ["/satRouting/scripts/bootstrapperDocker.sh"]

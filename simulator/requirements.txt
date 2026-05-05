@@ -1,22 +1,22 @@
 # Core dependencies
-pyyaml>=6.0
-pandas>=2.0.0
-skyfield>=1.46
-geopy>=2.4.0
-plotly>=5.17.0
-requests>=2.31.0
-wbgapi>=2.0.0
-matplotlib>=3.8.0
-scipy>=1.11.0
-networkx>=3.0
-numpy>=1.26.0
+pyyaml
+pandas
+skyfield
+geopy
+plotly
+requests
+wbgapi
+matplotlib
+scipy
+networkx
+numpy
 
 # Optional/legacy (basemap is deprecated, use cartopy)
 # basemap  # Deprecated - use cartopy instead
-cartopy>=0.22.0
+cartopy
 
 # External package (required for traffic_analyzer.py)
-dijkstra>=0.2.1
+dijkstra
 
 # Statistics (built-in in Python 3.x, but keeping for compatibility)
 # statistics  # Built-in module

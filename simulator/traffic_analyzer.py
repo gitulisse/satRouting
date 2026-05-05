@@ -46,28 +46,26 @@ class TrafficAnalyzer:
                 constants.SIMULATION_DURATION = 1
                 self.prepare_results_for_comparison(ground_stations=self.ground_stations)
                 
-                # LOAD PRE-SAVED DIJKSTRA DATA (Skips running Strategy 9)
-                if os.path.exists('dijkstra_table.json'):
-                    print("Loading pre-saved Dijkstra table from dijkstra_table.json...")
-                    with open('dijkstra_table.json', 'r') as f:
-                        saved_data = json.load(f)
-                        for traj, data in saved_data.items():
-                            if traj in self.results and 'DIJKSTRA' in data:
-                                # Map 'DIJKSTRA' key to 'BASELINE_DIJKSTRA' used by the chart
-                                self.results[traj]['BASELINE_DIJKSTRA'] = data['DIJKSTRA']
-                    print("Dijkstra reference loaded successfully. Skipping Strategy 9 simulation.")
-
-                # SIMULATE ONLY THE STRATEGIES YOU WANT
+                # FULL RESEARCH SUITE: Running all 15 strategies
                 strategies_to_run = [
-                 #   Strategy.POSITION_GUESSING_NO_LB,
-                #  Strategy.POSITION_SHARING_NO_LB,
-                #    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                #    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                #    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                    Strategy.BASELINE_DIJKSTRA,
+                    Strategy.POSITION_GUESSING_NO_LB,
+                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
+                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
+                    Strategy.POSITION_SHARING_NO_LB,
+                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
+                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
+                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
+                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
+                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
+                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
                     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
                 ]
+
+                # (Old JSON loading logic removed to ensure fresh OneWeb simulation)
 
                 for strategy in strategies_to_run:
                                  # --- TEMP FIX: Initialize missing keys for 
@@ -87,6 +85,9 @@ class TrafficAnalyzer:
                         env.put(0, self.sample_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.put(0, self.end_strategy_comparison, ground_stations=self.ground_stations, flows=flows)
                         env.start()
+                    
+                    # INCREMENTAL SAVE: Save after each strategy finishes
+                    self.save_results_failsafe(metric)
                 
                 utils.set_hour_shift(0)
                 constants.SIMULATION_DURATION = simulation_duration_backup
@@ -246,13 +247,47 @@ class TrafficAnalyzer:
                     env.start()
                 constants.ROUTING_STRATEGY = strategy_backup
 
-        if constants.SIMULATION_DURATION >= 60:
-            filename = utils.randomword(10)
-            print("Storing result in file named", filename)
-            with open(filename + '.json', 'w', encoding='utf-8') as f:
-                json.dump(self.results, f, ensure_ascii=False, indent=4)
+        # Final save using the robust failsafe logic
+        if constants.SIMULATION_DURATION >= 60 or metric == AnalysisMetric.COMPARISON_WITH_DIJKSTRA:
+            self.save_results_failsafe(metric)
 
         return self.results
+
+    def save_results_failsafe(self, metric: AnalysisMetric):
+        """Saves results with multiple fallback locations to prevent data loss."""
+        import socket
+        import os
+        import json
+        
+        hostname = socket.gethostname()
+        filename = f"{metric.name.lower()}_{hostname}.json"
+        
+        # Priority 1: The standard output folder (Corrected to match Docker Volume)
+        # Priority 2: The absolute /tmp path
+        target_dirs = ['output_resumed', '/tmp']
+        
+        saved_path = None
+        for d in target_dirs:
+            try:
+                # Ensure the path is absolute if it's not /tmp
+                actual_dir = os.path.abspath(d)
+                os.makedirs(actual_dir, exist_ok=True)
+                path = os.path.join(actual_dir, filename)
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(self.results, f, ensure_ascii=False, indent=4)
+                saved_path = path
+                print(f"\n[FAIL-SAFE] Results incrementally saved to: {saved_path}")
+                break
+            except Exception as e:
+                print(f"[FAIL-SAFE] Could not save to {d}: {e}")
+        
+        if not saved_path:
+            print("\n" + "!"*60)
+            print("CRITICAL EMERGENCY: COULD NOT SAVE TO ANY DIRECTORY")
+            print("PRINTING RAW JSON DATA BELOW - COPY THIS BLOCK")
+            print("!"*60)
+            print(json.dumps(self.results, ensure_ascii=False, indent=2))
+            print("!"*60 + "\n")
 
     def prepare_results_for_comparison(self, ground_stations):
         self.results = {}
@@ -261,20 +296,20 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 self.results[source.get_name() + ' - ' + destination.get_name()] = {
                     Strategy.BASELINE_DIJKSTRA.name : {},
-                    #Strategy.POSITION_GUESSING_NO_LB.name : {},
-                    #Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
-                    #Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
-                    #Strategy.POSITION_SHARING_NO_LB.name : {},
-                    #Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
-                    #Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
-                    #Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-                    #Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
-                    #Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
-                    #Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
-                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    #Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
-                    #Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
+                    Strategy.POSITION_GUESSING_NO_LB.name : {},
+                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
+                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
+                    Strategy.POSITION_SHARING_NO_LB.name : {},
+                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
+                    Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
+                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
+                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
+                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
+                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
                 }
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
