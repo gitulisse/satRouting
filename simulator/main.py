@@ -140,6 +140,7 @@ def main():
             
         elif constants.SAT_FORMAT == 1 :
             # OneWeb from Celestrak API
+            #for testing purposes i've left here, the commented celestrack site
             #stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
             stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=JSON"
             EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
@@ -149,7 +150,7 @@ def main():
                 print("WARNING: failed to load IRIDIUM from celestrak,main.py line 146")
                 sys.exit(1)
         else :
-            # Custom OMM from URL (interactive)
+            # Custom OMM from URL (interactive). Do not use if on ssh
             stations_url = input("Inserisci il link JSON della tua rete in formato OMM:")
             EXCLUDED = {}
             stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
@@ -181,27 +182,14 @@ def main():
         traffic_generators = []
         header_builders = []
 
-        if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                        Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                        Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+        if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES:
             for gs in ground_stations.values():
                 gs_traffic_details = traffic_matrix[gs.get_name()]
                 for destination in gs_traffic_details:
                     hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
                     header_builders.append(hb)
 
-        if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                        Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                        Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                        Strategy.POSITION_SHARING_NO_LB,
-                                        Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                        Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                        Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                        Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+        if constants.ROUTING_STRATEGY in constants.DISTRIBUTED_STRATEGIES:
             for gs in ground_stations.values():
                 gs_traffic_details = traffic_matrix[gs.get_name()]
                 for destination in gs_traffic_details:

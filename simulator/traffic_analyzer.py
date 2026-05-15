@@ -47,23 +47,7 @@ class TrafficAnalyzer:
                 self.prepare_results_for_comparison(ground_stations=self.ground_stations)
                 
                 # FULL RESEARCH SUITE: Running all 15 strategies
-                strategies_to_run = [
-                    Strategy.BASELINE_DIJKSTRA,
-                    Strategy.POSITION_GUESSING_NO_LB,
-                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                    Strategy.POSITION_SHARING_NO_LB,
-                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
-                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
-                ]
+                strategies_to_run = constants.ACTIVE_STRATEGIES
 
                 # (Old JSON loading logic removed to ensure fresh OneWeb simulation)
 
@@ -294,23 +278,10 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             for destination in ground_stations.values():
                 if source == destination: continue
-                self.results[source.get_name() + ' - ' + destination.get_name()] = {
-                    Strategy.BASELINE_DIJKSTRA.name : {},
-                    Strategy.POSITION_GUESSING_NO_LB.name : {},
-                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
-                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
-                    Strategy.POSITION_SHARING_NO_LB.name : {},
-                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
-                    Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
-                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
-                    Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
-                    Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-                    Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
-                    Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
-                }
+                self.results[source.get_name() + ' - ' + destination.get_name()] = {}
+                for strategy in constants.ACTIVE_STRATEGIES:
+                    self.results[source.get_name() + ' - ' + destination.get_name()][strategy.name] = {}
+                
                 for strategy in self.results[source.get_name() + ' - ' + destination.get_name()].keys(): 
                     self.results[source.get_name() + ' - ' + destination.get_name()][strategy] = {
                         'successful' : [], #store succesful routing
@@ -335,14 +306,7 @@ class TrafficAnalyzer:
                 if source == destination: continue
                 flow = utils.create_new_flow((destination.lat, destination.lon), 0.4)
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
-                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                    Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                    Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                    Strategy.POSITION_SHARING_NO_LB,
-                                    Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                    Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                    Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+                if constants.ROUTING_STRATEGY in constants.DISTRIBUTED_STRATEGIES:
                     source.send_flow(flow)
                 if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                     Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
@@ -415,22 +379,9 @@ class TrafficAnalyzer:
                 destination = ground_stations[destination_name.upper()]
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
-                if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+                if constants.ROUTING_STRATEGY in constants.DISTRIBUTED_STRATEGIES:
                     source.send_flow(flow)
-                if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                  Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                  Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+                if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES:
                     source.start_centralized_routing(flow, env.ground_stations)
 
     def sample_link_occupation_analysis(self, kwargs):
@@ -472,22 +423,7 @@ class TrafficAnalyzer:
 
     def prepare_results_for_delivered_dropped_ratio(self):
         self.results = {}
-        for s in [Strategy.POSITION_GUESSING_NO_LB,
-                                  Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_SHARING_NO_LB,
-                                  Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                  Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                  Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS,
-                                  Strategy.BASELINE_DIJKSTRA,
-                                  Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                  Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING
-                                  ]:
+        for s in constants.ACTIVE_STRATEGIES:
             self.results[s.name] = {
                 'delivered' : [],
                 'dropped' : [],

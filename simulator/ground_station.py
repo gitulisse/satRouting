@@ -163,13 +163,8 @@ class GroundStation:
                     flow.paths.append(incoming_flow.get_steps())
                     sum_travelled_distance += incoming_flow.travelled_distance
                     incoming_flows_count += 1 
-                    #if constants.DEBUG:
-                        #print("Total Received", total_data_received, utils.get_seconds_between(start_time, end_time) * incoming_flow.rate, "incoming for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", incoming_flow.rate, "with alias id", incoming_flow.alias_id)
-                        #print("incoming_flow steps...sat", [sat.get_name() for sat in incoming_flow.get_steps()])
         if incoming_flows_count > 0:
             flow.travelled_distance = sum_travelled_distance / incoming_flows_count
-            #if constants.DEBUG or not(constants.DEBUG):
-            #    print("Average distance travelled by flow", flow.id, "in kms:", flow.travelled_distance)
         for outgoing_flow, start_time, end_time in self.outgoing_flows:
             if flow == outgoing_flow:
                 if end_time == None or until - end_time < 0:
@@ -184,26 +179,17 @@ class GroundStation:
                 active_time_in_seconds = utils.get_seconds_between(start_time, end_time)
                 if active_time_in_seconds >= precision:
                     total_data_dropped += active_time_in_seconds * dropped_flow.rate
-                    #if constants.DEBUG:
-                        #print(total_data_dropped, utils.get_seconds_between(start_time, end_time) * dropped_flow.rate, "dropped for", utils.get_seconds_between(start_time, end_time), "from", start_time.utc_strftime(), "to", end_time.utc_strftime(), "at rate", dropped_flow.rate, "with alias id", dropped_flow.alias_id, "reason", dropped_flow.state)
-                        #print([sat.get_name() for sat in dropped_flow.get_steps()])
         return (total_data_sent, total_data_received, total_data_dropped)
         
     def DEBUG_get_dropped_flow(self, flow: Flow):
         flow.paths.append(flow.get_steps())
         self.DEBUG_dropped_incoming_flows.append((flow, utils.get_current_time(), None))
-        #if constants.DEBUG:
-            #print("Logged opening of dropped flow", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
-            #print("Steps:", [step.get_name() for step in flow.get_steps()])
   
     def DEBUG_close_dropped_flow(self, flow: Flow):
         if self.keep_log:
             for i, (dropped_flow, start_time, end_time) in enumerate(self.DEBUG_dropped_incoming_flows):
                 if flow == dropped_flow and flow.alias_id == dropped_flow.alias_id and flow.rate == dropped_flow.rate and end_time == None:
                     self.DEBUG_dropped_incoming_flows[i] = (dropped_flow, start_time, utils.get_current_time())
-                    #if constants.DEBUG:
-                     #   print("Logged closing of dropped flux", flow.id, "with rate", flow.rate, "Mbps at time", utils.get_current_time().utc_strftime())
-                      #  print("Steps in DEBUG_close_dropped_flow:", [step.get_name() for step in flow.get_steps()])
                     break
         else:
             while self.DEBUG_dropped_incoming_flows.__contains__(flow):
@@ -243,107 +229,51 @@ class GroundStation:
         routing_output = list()
         self.destination = flow.get_ground_station_by_coordinates(flow.destination[0], flow.destination[1], self.gss.values())
 
-        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
-            dijkstra_shortest_path = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-            if not dijkstra_shortest_path:
-                return routing_output
-            print("Dijkstra shortest path found:", dijkstra_shortest_path)
+        # 1. Fetch all required disjoint paths upfront
+        disjoint_paths = self.calculate_k_disjoint_paths({
+            'source': self,
+            'destination': self.destination,
+            'satellites': self.satellites,
+            'flow': flow
+        })
 
-            selected_path = dijkstra_shortest_path[0]
-            routing_output = self.process_routing_output_no_lb(selected_path, flow)
-            routing_output = self.adapt_routing_with_single_split(flow, routing_output)
-
-
-        elif constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB, Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB]:
-            disjoint_paths = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-            if not disjoint_paths:
-                return routing_output
+        if not disjoint_paths:
+            return routing_output
             
-            self.detected_paths = disjoint_paths #ranked_paths
-            selected_path = self.detected_paths[0]
-            del self.detected_paths[0]
-            routing_output = self.process_routing_output_no_lb(selected_path, flow)
-            routing_output = self.adapt_routing_with_single_split(flow, routing_output)
-            
-        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB]:
-            disjoint_paths = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-            if not disjoint_paths:
-                return routing_output
-            
-            self.detected_paths = disjoint_paths #ranked_paths
-            selected_path = self.detected_paths[0]
-            routing_output = self.process_routing_output(selected_path, flow)
-            del self.detected_paths[0]
-            if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+        self.detected_paths = disjoint_paths # Store for potential later use
         
-        elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB]:
-            disjoint_paths = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-            if not disjoint_paths:
-                return routing_output
-            
-            self.detected_paths = disjoint_paths #ranked_paths
-            selected_path = self.detected_paths[0]
-            routing_output = self.process_routing_output(selected_path, flow)
-            del self.detected_paths[0]
-            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+        # 2. Group 1: Dijkstra (Simple No-LB)
+        if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
+            print("Dijkstra shortest path found:", disjoint_paths)
+            selected_path = disjoint_paths[0]
+            routing_output = self.process_routing_output_no_lb(selected_path, flow)
+            routing_output = self.adapt_routing_with_single_split(flow, routing_output)
 
-        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
-            disjoint_paths = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-            if not disjoint_paths:
-                return routing_output
-            
-            self.detected_paths = disjoint_paths #ranked_paths
+        # 3. Group 2: Basic Source Routing (No Load Balancing)
+        elif constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB, Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB]:
             selected_path = self.detected_paths[0]
-            routing_output = self.process_routing_output(selected_path, flow)
             del self.detected_paths[0]
-            if constants.ROUTING_STRATEGY == Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
-
+            routing_output = self.process_routing_output_no_lb(selected_path, flow)
+            routing_output = self.adapt_routing_with_single_split(flow, routing_output)
+            
+        # 4. Group 3: Unique Strategy (Cost Balancing)
         elif constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
-            disjoint_paths = self.calculate_k_disjoint_paths({
-                'source': self,
-                'destination': self.destination,
-                'satellites': self.satellites,
-                'flow': flow
-            })
-            if not disjoint_paths:
-                return routing_output
             print("disjoint paths for cost balancing", disjoint_paths)
             alpha = 0.25
-            self.detected_paths = disjoint_paths #ranked_paths
             path_cost_pairs = self.calculate_path_costs(self._graph, self.detected_paths, alpha) 
             selected_path = path_cost_pairs[0][0]
             del self.detected_paths[0]
             routing_output = self.process_routing_output(selected_path, flow)
-            if constants.ROUTING_STRATEGY == Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING:
-                routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+            routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
+
+        # 5. Group 4: All other Source Routing Strategies (Standard Load Balancing)
+        elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
+                                            Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
+                                            Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+            selected_path = self.detected_paths[0]
+            routing_output = self.process_routing_output(selected_path, flow)
+            del self.detected_paths[0]
+            routing_output = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_output)
 
         return routing_output #RoutingAction, Flow, Link
 
@@ -390,10 +320,7 @@ class GroundStation:
                 if available_bandwidth > 0:
                     if min_available_bw >= remaining_flow.rate:
                         print(f"[DEBUG] ENOUGH BANDWIDTH equal to {min_available_bw} for flow rate {remaining_flow.rate}")
-                    
-                        #link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
-                        #print(f"[DEBUG] Routing path on enough bandwidth: {link_paths}") #shows human-readable path
-                        target_name = link.target.get_name() if hasattr(link.target, 'get_name') else str(link.target)
+                        target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
                         print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link)) #remaining_flow
                         if isinstance(link.target, list):
@@ -416,7 +343,6 @@ class GroundStation:
                         splitted_flow, remaining_flow_to_route = remaining_flow.split(min_available_bw)
                         print("[DEBUG] NOT ENOUGH BANDWIDTH, proceed to splitting...")
                         print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Remaining_flow_to_route with rate {remaining_flow_to_route.rate}")
-                        #print(f"Splitted_flow {splitted_flow} Rate {splitted_flow.rate} and Remaining_flow_to_route {remaining_flow_to_route} Rate {remaining_flow_to_route.rate}")
                         target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
                         print(f"Checking path of splitted flow... first link "
                         f"{link._parent.get_name()} - {target_name} with available_bandwidth "
@@ -468,9 +394,7 @@ class GroundStation:
                     return adapted_routing_decisions
 
             new_routing_decisions_remaining_flow = self.calculate_path_with_exclusions(remaining_flow, reached_node, g_auxiliary=self._auxiliary_graph)
-            #print("New routing decisions calculated path with exclusions for flow", remaining_flow ,":", new_routing_decisions_remaining_flow)
             adapted_decisions_remaining_flow = self.adapt_routing_decisions_to_available_link_bandwidth(remaining_flow, new_routing_decisions_remaining_flow)
-            #print("New adapted routing decisions", adapted_decisions_remaining_flow)
             if adapted_decisions_remaining_flow:
                 adapted_routing_decisions.append(adapted_decisions_remaining_flow)
             else:
@@ -508,8 +432,6 @@ class GroundStation:
                 if available_bandwidth > 0:
                     if min_available_bw >= flow.rate:
                         print(f"[DEBUG] ENOUGH BANDWIDTH equal to {min_available_bw} for flow rate {remaining_flow.rate}")
-                        #link_paths = [f"{link._parent.get_name()} - {', '.join(t.get_name() for t in link.target) if isinstance(link.target, list) else link.target.get_name()}" for _, _, link in routing_decisions]
-                        #print(f"[DEBUG] Routing path on enough bandwidth: {link_paths}") #shows human-readable path
                         target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
                         print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link))
@@ -528,7 +450,6 @@ class GroundStation:
                         splitted_flow, undeliverable_flow = remaining_flow.split(min_available_bw)
                         print("[DEBUG] NOT ENOUGH BANDWIDTH, proceed to splitting...")
                         print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Undeliverable_flow with rate {undeliverable_flow.rate}")
-                        #print(f"Splitted_flow {splitted_flow} Rate {splitted_flow.rate} and Remaining_flow_to_route {remaining_flow_to_route} Rate {remaining_flow_to_route.rate}")
                         print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, splitted_flow, link))
                         reached_node = link._parent.get_name()
@@ -824,14 +745,14 @@ class GroundStation:
         destination: dict = kwargs['destination']
         satellites: dict = kwargs['satellites']
         flow: Flow = kwargs['flow']
+        
+        # Using functional grouping instead of hardcoded lists
         if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
                                         Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
                                         Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB]:
             k = constants.K_SHORTEST_VALUE
-        if constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                  Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                  Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
+        else:
+            # Applies to all LB strategies (NODE_DISJOINT, EDGE_DISJOINT, COST_BALANCING, etc.)
             k = constants.K_SHORTEST_VALUE_LB
         
         k_disjoint_paths = self._get_k_disjoint_paths(satellites, source, destination)

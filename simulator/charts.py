@@ -97,23 +97,34 @@ def show_shortest_paths_table(results: dict):
     #display table
     # plt.show()
 
-    refactored_results = {
-        Strategy.BASELINE_DIJKSTRA.name : {},
-        Strategy.POSITION_GUESSING_NO_LB.name : {},
-        Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
-        Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
-        Strategy.POSITION_SHARING_NO_LB.name : {},
-        Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
-        Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
-        Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
-        Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
-        Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
-        Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
-        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
-        Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
-        Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
-    }
+    # refactored_results = {
+    #     Strategy.BASELINE_DIJKSTRA.name : {},
+    #     Strategy.POSITION_GUESSING_NO_LB.name : {},
+    #     Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK.name : {},
+    #     Strategy.POSITION_GUESSING_PROGRESSIVE_LB.name : {},
+    #     Strategy.POSITION_SHARING_NO_LB.name : {},
+    #     Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK.name : {},
+    #     Strategy.POSITION_SHARING_PROGRESSIVE_LB.name : {},
+    #     Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB.name : {},
+    #     Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS.name : {},
+    #     Strategy.SOURCE_ROUTING_BY_HOP_NO_LB.name : {},
+    #     Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB.name : {},
+    #     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+    #     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB.name : {},
+    #     Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK.name : {},
+    #     Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING.name : {}
+    # }
+    #implementation of a refactored results dictionary to easily calculate overall metrics for each strategy without having to consider each trajectory separately
+    all_found_strategies = set()
+    for trajectory_data in results.values():
+        all_found_strategies.update(trajectory_data.keys())
+    refactored_results = {}
+    for strategy_name in all_found_strategies:
+        refactored_results[strategy_name] = {
+            "successful" : [],
+            "failed" : 0,
+            "distance" : []
+        }
 
     for key in refactored_results.keys():
         refactored_results[key] = {

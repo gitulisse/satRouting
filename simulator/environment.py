@@ -63,18 +63,7 @@ def prepare():
 
     # Only schedule position and neighbor updates for strategies that need them
     # Combine position update + neighbor update into single scheduled event
-    if constants.ROUTING_STRATEGY in [Strategy.BASELINE_DIJKSTRA,
-                                      Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                      Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_SHARING_NO_LB,
-                                      Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+    if constants.ROUTING_STRATEGY in constants.ACTIVE_STRATEGIES:
         # Schedule combined update for all satellites at once (reduces event queue size)
         for i in range(0, constants.SIMULATION_DURATION, constants.SATELLITE_NEIGHBORS_UPDATE_TIME):
             env.put(i, update_all_satellites_positions_and_neighbors)
@@ -94,42 +83,16 @@ def start():
     print("- Involved ground stations:", len(env.ground_stations))
     print("- Topology update scheduled each", constants.TOPOLOGY_UPDATE_TIME, "seconds")
 
-    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                      Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_GUESSING_NO_LB,
-                                      Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                      Strategy.POSITION_SHARING_NO_LB,
-                                      Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+    if constants.ROUTING_STRATEGY in constants.ACTIVE_STRATEGIES:
         print("- Satellite neighbors information update scheduled each", constants.SATELLITE_NEIGHBORS_UPDATE_TIME, "seconds")
 
     if constants.ROUTING_STRATEGY == Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB:
         print("- Adaptive load balancing weight factor:", constants.LOAD_BALANCING_WEIGHT_FACTOR)
     
-    if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
-                                      Strategy.POSITION_GUESSING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_GUESSING_PROGRESSIVE_LB,
-                                      Strategy.POSITION_SHARING_NO_LB,
-                                      Strategy.POSITION_SHARING_LB_ON_SATURATED_LINK,
-                                      Strategy.POSITION_SHARING_PROGRESSIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_ADAPTIVE_LB,
-                                      Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS]:
+    if constants.ROUTING_STRATEGY in constants.DISTRIBUTED_STRATEGIES:
         print("- Launching Simulation on Distributed Paradigm.")
 
-    if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                      Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING,
-                                      Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                      Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+    if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES:
         print("- Launching Simulation on Source Routing Paradigm.")
    
     while env.actions_queue.is_not_empty():

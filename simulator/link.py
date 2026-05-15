@@ -47,12 +47,7 @@ class Link:
         if self.get_available_bandwidth() >= flow.rate:
             self.flows[flow.alias_id] = flow
             self.state = 1 - self.get_available_bandwidth() / self.capacity
-            if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB, 
-                                              Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                              Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                              Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                              Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                              Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+            if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES_EXCEPT_DIJKSTRA:
                 target_name = (self.target[0].get_name() 
                     if isinstance(self.target, list) and self.target 
                     else self.target.get_name())
@@ -92,12 +87,7 @@ class LaserLink(Link):
         leftovers = []
         while len(self.flows.values()) > 0:
             flow = list(self.flows.values())[0]
-            if constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB,
-                                              Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB,
-                                              Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB,
-                                              Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
-                                              Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK,
-                                              Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
+            if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES_EXCEPT_DIJKSTRA:
                 leftovers.append(flow.clone())
                 input_id = self._parent.mapping_table.remove(flow.alias_id)
                 self._parent._close_internal_flow(flow.alias_id)

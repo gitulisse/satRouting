@@ -77,7 +77,7 @@ def get_closest_satellite_for_graph(satellites, position: tuple[float, float], o
         if distance_to_gs <= constants.SATELLITE_COVERAGE_AREA_RADIUS and distance_to_gs < min_distance:
             min_distance = distance_to_gs
             closest_satellite = (key, sat)
-    return [closest_satellite]
+    return [closest_satellite] if closest_satellite is not None else []
 
 #identifies close satellites to build the graph structure (not used in the simulation cause it's used a single connection to GS)
 def get_closer_satellites_for_graph(satellites, position: tuple[float, float], operational_only = True):
