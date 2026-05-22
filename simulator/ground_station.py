@@ -306,13 +306,7 @@ class GroundStation:
 
         for i, (action, flow, link) in enumerate(routing_decisions):
             if not reached_node:
-                if isinstance(link.target, list):
-                    if link.target:  
-                        reached_node = link.target[0].get_name()
-                    else:
-                        print(f"Warning: Link {link} target is an empty list.")
-                else:
-                    reached_node = link.target.get_name()
+                reached_node = link.target_name
             
             if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = link.get_available_bandwidth()
@@ -320,14 +314,10 @@ class GroundStation:
                 if available_bandwidth > 0:
                     if min_available_bw >= remaining_flow.rate:
                         print(f"[DEBUG] ENOUGH BANDWIDTH equal to {min_available_bw} for flow rate {remaining_flow.rate}")
-                        target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
+                        target_name = link.target_name
                         print(f"Checking path of splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link)) #remaining_flow
-                        if isinstance(link.target, list):
-                            if link.target:
-                                reached_node = link.target[0].get_name()
-                        else:
-                            reached_node = link.target.get_name()
+                        reached_node = link.target_name
 
                         self.check_path_for_splitted_flow(
                             flow,
@@ -343,7 +333,7 @@ class GroundStation:
                         splitted_flow, remaining_flow_to_route = remaining_flow.split(min_available_bw)
                         print("[DEBUG] NOT ENOUGH BANDWIDTH, proceed to splitting...")
                         print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Remaining_flow_to_route with rate {remaining_flow_to_route.rate}")
-                        target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
+                        target_name = link.target_name
                         print(f"Checking path of splitted flow... first link "
                         f"{link._parent.get_name()} - {target_name} with available_bandwidth "
                         f"{link.get_available_bandwidth()}")
@@ -356,13 +346,13 @@ class GroundStation:
                             adapted_routing_decisions
                         )
                         remaining_flow = remaining_flow_to_route
-                        excluded_link = (link._parent.get_name(), (link.target[0].get_name() if isinstance(link.target, list) else link.target.get_name()))
+                        excluded_link = (link._parent.get_name(), link.target_name)
                         if excluded_link not in self.excluded_links:
                             self.excluded_links.add(excluded_link)
                         break
                 else:
                     print(f"Link {link} is fully saturated. No flow can pass.")
-                    excluded_link = (link._parent.get_name(), (link.target[0].get_name() if isinstance(link.target, list) else link.target.get_name()))
+                    excluded_link = (link._parent.get_name(), link.target_name)
                     if excluded_link not in self.excluded_links:
                         self.excluded_links.add(excluded_link)
                     reached_node = link._parent.get_name()
@@ -419,20 +409,14 @@ class GroundStation:
                 print("No remaining flow to route.")
                 break
             if not reached_node:
-                if isinstance(link.target, list):
-                    if link.target:  
-                        reached_node = link.target[0].get_name()
-                    else:
-                        print(f"Warning: Link {link} target is an empty list.")
-                else:
-                    reached_node = link.target.get_name()
+                reached_node = link.target_name
 
             if action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = link.get_available_bandwidth()
                 if available_bandwidth > 0:
                     if min_available_bw >= flow.rate:
                         print(f"[DEBUG] ENOUGH BANDWIDTH equal to {min_available_bw} for flow rate {remaining_flow.rate}")
-                        target_name = link.target[0].get_name() if isinstance(link.target, list) and link.target else link.target.get_name()
+                        target_name = link.target_name
                         print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link))
                         reached_node = target_name
@@ -483,29 +467,17 @@ class GroundStation:
 
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
-                if isinstance(inner_link.target, list):
-                    expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
-                    confirmed_destination = [destination for destination in inner_link.target if hasattr(destination, 'get_name') and destination.get_name().upper() == expected_destination]
-                    if not confirmed_destination:
-                        continue
-                    confirmed_destination_node = utils.get_ground_station_name_by_coords(confirmed_destination[0].lat, confirmed_destination[0].lon)
-                    target_name = confirmed_destination_node
-                else:
-                    target_name = inner_link.target.get_name()
+                target_name = inner_link.target_name
 
                 print(f"Checking path of splitted flow... link {inner_link._parent.get_name()} - {target_name} with available_bandwidth {available_bandwidth}")
                 
                 if available_bandwidth >= flow.rate:
-                    if available_bandwidth == flow.rate:
-                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
-                        if excluded_link not in self.excluded_links:
-                            self.excluded_links.add(excluded_link)
-                    if isinstance(inner_link.target, list):
-                        adapted_routing_decisions.append((inner_action, flow, inner_link))
-                        target_node = confirmed_destination_node
-                    else:  
-                        adapted_routing_decisions.append((inner_action, flow, inner_link))  
-                        target_node = inner_link.target.get_name()
+                    excluded_link = (inner_link._parent.get_name(), inner_link.target_name)
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.add(excluded_link)
+                    
+                    adapted_routing_decisions.append((inner_action, flow, inner_link))
+                    target_node = inner_link.target_name
                     if inner_action == RoutingAction.DELIVER:                        
                         expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1]) #lat #lon
                 else:
@@ -523,29 +495,17 @@ class GroundStation:
             decisions_copy[j] = (inner_action, flow, inner_link)
             if inner_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
                 available_bandwidth = inner_link.get_available_bandwidth()
-                if isinstance(inner_link.target, list):
-                    expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1])
-                    confirmed_destination = [destination for destination in inner_link.target if hasattr(destination, 'get_name') and destination.get_name().upper() == expected_destination]
-                    if not confirmed_destination:
-                        continue
-                    confirmed_destination_node = utils.get_ground_station_name_by_coords(confirmed_destination[0].lat, confirmed_destination[0].lon)
-                    target_name = confirmed_destination_node
-                else:
-                    target_name = inner_link.target.get_name()
+                target_name = inner_link.target_name
 
                 print(f"Checking path of splitted flow... link {inner_link._parent.get_name()} - {target_name} with available_bandwidth {available_bandwidth}")
                 
                 if available_bandwidth >= flow.rate:
-                    if available_bandwidth == flow.rate:
-                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
-                        if excluded_link not in self.excluded_links:
-                            self.excluded_links.add(excluded_link)
-                    if isinstance(inner_link.target, list):
-                        adapted_routing_decisions.append((inner_action, flow, inner_link))
-                        target_node = confirmed_destination_node
-                    else:  
-                        adapted_routing_decisions.append((inner_action, flow, inner_link))  
-                        target_node = inner_link.target.get_name()
+                    excluded_link = (inner_link._parent.get_name(), inner_link.target_name)
+                    if excluded_link not in self.excluded_links:
+                        self.excluded_links.add(excluded_link)
+                    
+                    adapted_routing_decisions.append((inner_action, flow, inner_link))
+                    target_node = inner_link.target_name
 
                     if inner_action == RoutingAction.DELIVER:                        
                         expected_destination = utils.get_ground_station_name_by_coords(flow.destination[0], flow.destination[1]) #lat #lon

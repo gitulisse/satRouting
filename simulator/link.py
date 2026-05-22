@@ -19,6 +19,11 @@ class Link:
     def is_active(self) -> bool:
         return self.target != None
 
+    @property
+    def target_name(self):
+        """Returns the name of the link target, handling both single objects and lists."""
+        raise NotImplementedError("Subclasses must implement target_name")
+
     #calculate remaining available bandwidth
     def get_available_bandwidth(self) -> float:
         return self.capacity - sum([flow.rate for flow in self.flows.values()])
@@ -48,15 +53,12 @@ class Link:
             self.flows[flow.alias_id] = flow
             self.state = 1 - self.get_available_bandwidth() / self.capacity
             if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES_EXCEPT_DIJKSTRA:
-                target_name = (self.target[0].get_name() 
-                    if isinstance(self.target, list) and self.target 
-                    else self.target.get_name())
+                t_name = self.target_name
+                if isinstance(t_name, str):
+                    t_name = t_name.upper()
 
-                if isinstance(target_name, str):
-                    target_name = target_name.upper()
-
-                env.main_graph[self._parent.get_name()][target_name]['available_bandwidth'] = self.get_available_bandwidth()
-                print(f"[DEBUG] Updated bandwidth on graph: {self._parent.get_name()} <-> {target_name} now {env.main_graph[self._parent.get_name()][target_name]['available_bandwidth']} Gbps")
+                env.main_graph[self._parent.get_name()][t_name]['available_bandwidth'] = self.get_available_bandwidth()
+                print(f"[DEBUG] Updated bandwidth on graph: {self._parent.get_name()} <-> {t_name} now {env.main_graph[self._parent.get_name()][t_name]['available_bandwidth']} Gbps")
             return True
         else:
             return False
@@ -67,6 +69,10 @@ class LaserLink(Link):
         self.lat = None
         self.lon = None
         self.state = None
+
+    @property
+    def target_name(self):
+        return self.target.get_name() if self.target else "NONE"
 
     def point_to_sat(self, sat) -> list[Flow]:
         leftovers = []
@@ -122,6 +128,10 @@ class RadioLink(Link):
         super().__init__(parent_sat, constants.GROUND_STATION_LINK_CAPACITY)
         self.target: list[GroundStation] = []
         self.state = 0.0
+
+    @property
+    def target_name(self):
+        return self.target[0].get_name() if self.target else "NONE"
 
     #connect link to GS
     def attach_to_gs(self, gs):
