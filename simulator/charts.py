@@ -3,11 +3,63 @@ import environment as env
 import matplotlib
 matplotlib.use('Agg') # Headless backend for server execution
 import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
  
 import numpy as np
 import plotly.graph_objects as go
 import statistics
 from strategy import Strategy
+
+def show_constellation_map(satellites, ground_stations: list, **kwargs):
+    def draw_map(ax):
+        ax.add_feature(cfeature.LAND, color='lightgray')
+        ax.add_feature(cfeature.OCEAN, color='lightblue')
+        ax.add_feature(cfeature.COASTLINE, edgecolor='black')
+        ax.add_feature(cfeature.BORDERS, linestyle=':')
+        gridlines = ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.7, linestyle='--')
+        gridlines.top_labels = gridlines.right_labels = False
+    
+    plt.figure(figsize=(12, 8))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax.set_global()
+    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
+
+    draw_map(ax)
+
+    # Plot Ground Stations
+    for gs in ground_stations:
+        x = gs.lon
+        y = gs.lat
+        plt.plot(x, y, 'or', markersize=10, transform=ccrs.PlateCarree())
+        plt.text(x - 5, y + 3, str(gs.get_name()), fontsize=9, fontweight='bold', color='red', transform=ccrs.PlateCarree())
+
+    # Plot Satellites
+    for sat in satellites:
+        x = sat.get_longitude()
+        y = sat.get_latitude()
+        if x is None or y is None:
+            continue
+        plt.plot(x, y, 'ob', markersize=3, transform=ccrs.PlateCarree(), alpha=0.6)
+        # Only label a few if there are many, or skip labels to avoid clutter
+        if len(satellites) < 100:
+            plt.text(x + 1, y + 1, str(sat.get_name()), fontsize=6, transform=ccrs.PlateCarree())
+
+
+    plt.title(f"Constellation Map - {len(satellites)} Satellites")
+    
+    import os
+    results_dir = 'output/results'
+    os.makedirs(results_dir, exist_ok=True)
+    map_path = os.path.join(results_dir, 'constellation_map.png')
+    
+    try:
+        plt.savefig(map_path, dpi=300, bbox_inches='tight')
+        print(f"[SUCCESS] Constellation map saved to: {os.path.abspath(map_path)}")
+    except Exception as e:
+        print(f"[ERROR] Could not save constellation map: {e}")
+    
+    plt.close()
 
 def show_shortest_paths_table(results: dict):
     strategies = []
@@ -46,7 +98,7 @@ def show_shortest_paths_table(results: dict):
                         ])
     #fig.show()
     import os
-    results_dir = 'output_resumed/results'
+    results_dir = 'output/results'
     
     try:
         os.makedirs(results_dir, exist_ok=True)
@@ -409,20 +461,15 @@ def show_time_passing_simulation_chart(results: dict):
     # plt.show()
 
 def show_loop_avoidance_analysis_chart():
-    import json
+    import utils
 
     results = list()
 
-    with open(f'dijkstra_table_0.json', 'r', encoding='utf-8') as f:
-        results.append((0, json.load(f)))
-    with open(f'dijkstra_table_3.json', 'r', encoding='utf-8') as f:
-        results.append((3, json.load(f)))
-    with open(f'dijkstra_table_6.json', 'r', encoding='utf-8') as f:
-        results.append((6, json.load(f)))
-    with open(f'dijkstra_table_9.json', 'r', encoding='utf-8') as f:
-        results.append((9, json.load(f)))
-    with open(f'dijkstra_table.json', 'r', encoding='utf-8') as f:
-        results.append(('inf', json.load(f)))
+    results.append((0, utils.read_from_json('dijkstra_table_0.json')))
+    results.append((3, utils.read_from_json('dijkstra_table_3.json')))
+    results.append((6, utils.read_from_json('dijkstra_table_6.json')))
+    results.append((9, utils.read_from_json('dijkstra_table_9.json')))
+    results.append(('inf', utils.read_from_json('dijkstra_table.json')))
 
     width = 0.15
     multiplier = 0

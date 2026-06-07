@@ -5,63 +5,63 @@
 #   - Uncomment the stations you want to use in the simulation
 #   - Comment out (#) the stations you want to disable
 #   - Ensure at least 2 stations are active for routing to work
-#   - Names should be uppercase; use underscores for spaces
+#   - Names should match exactly what the traffic matrix service returns (Title Case with spaces)
 
 ground_stations:
   # --- ACTIVE STATIONS (Default) ---
-  TOKYO:
+  Tokyo:
     lat: 35.689506
     lon: 139.6917
 
-  NEW_YORK:
+  New York:
     lat: 40.71277778
     lon: -74.00611111
 
-  DAR_ES_SALAAM:
+  Dar Es Salaam:
     lat: -6.816111
     lon: 39.280278
 
-  BUENOS_AIRES:
+  Buenos Aires:
     lat: -34.608333
     lon: -58.371944
 
   # --- INACTIVE STATIONS (Commented Out) ---
-  # SAN_FRANCISCO:
+  # San Francisco:
   #   lat: 37.77750000
   #   lon: -122.41638889
 
-  # CANBERRA:
+  # Canberra:
   #   lat: -35.3
   #   lon: 149.133333
 
-  # PUNTA_ARENAS:
+  # Punta Arenas:
   #   lat: -53.166667
   #   lon: -70.933333
 
-  # MILAN:
+  # Milan:
   #   lat: 45.466944
   #   lon: 9.19
 
-  # CAPE_TOWN:
+  # Cape Town:
   #   lat: -33.9264
   #   lon: 18.4227
 
-  # PRETORIA:
+  # Pretoria:
   #   lat: -25.74611111
   #   lon: 28.18805556
 
-  # CAIRO:
+  # Cairo:
   #   lat: 30.04444444
   #   lon: 31.23583333
 
-  # STOCKHOLM:
+  # Stockholm:
   #   lat: 59.32944444
   #   lon: 18.06861111
 
-  # JEDDAH:
+  # Jeddah:
   #   lat: 21.54333333
   #   lon: 39.17277778
 
-  # OSLO:
+  # Oslo:
   #   lat: 59.913333
   #   lon: 10.738889

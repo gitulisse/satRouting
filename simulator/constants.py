@@ -27,9 +27,9 @@ parser = argparse.ArgumentParser(prefix_chars='-')
 parser.add_argument("-s", "--strategy", type=int)
 parser.add_argument("-d", "--duration", type=int)
 parser.add_argument("-t", "--traffic", type=int)
-parser.add_argument("-i", "--input", type=int)
+parser.add_argument("-i", "--input", type=int, choices=[0, 1], help="Satellite data format (0=TLE, 1=JSON/OMM)")
 parser.add_argument("--gs-config", type=str, help="Path to ground stations YAML config")
-parser.add_argument("--sat-file", type=str, help="Path to local satellite JSON file (used with --input 2)")
+parser.add_argument("--sat-file", type=str, help="Optional: Path to local satellite file (overrides auto-cache)")
 parser.add_argument("--analyze", type=str, choices=['dijkstra', 'link_occupation', 'delivery_ratio', 'control_traffic', 'weight_sensitivity', 'time_passing'], help="Run a specific analysis metric")
 parser.add_argument("--plot", type=str, help="Path to a JSON file to plot without re-running the analysis")
 args = parser.parse_args()
@@ -38,7 +38,7 @@ GS_CONFIG_PATH = args.gs_config if args.gs_config else None
 ANALYZE = args.analyze
 PLOT = args.plot
 
-SAT_FORMAT = args.input
+SAT_FORMAT = args.input if args.input is not None else 1 # Default to JSON/OneWeb
 if args.strategy:
     ROUTING_STRATEGY = Strategy(args.strategy)
 else:
@@ -82,7 +82,7 @@ DISTRIBUTED_STRATEGIES = [
     Strategy.POSITION_AND_LOAD_STATE_SHARING_TWO_HOPS
 
 ]
-ACTIVE_STRATEGIES =  SOURCE_STRATEGIES + DISTRIBUTED_STRATEGIES
+ACTIVE_STRATEGIES =  DISTRIBUTED_STRATEGIES + SOURCE_STRATEGIES
 
 drawing_queue = Queue()
 

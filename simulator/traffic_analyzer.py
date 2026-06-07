@@ -38,6 +38,16 @@ class TrafficAnalyzer:
         self.satellites = satellites
 
     def analyze(self, metric: AnalysisMetric):
+        """
+        Main routing method for all simulation types. 
+        
+        CRITICAL: For COMPARISON_WITH_DIJKSTRA, this method wipes memory (self.results = {}) 
+        to ensure a fresh baseline. To resume a crashed simulation, the loading logic 
+        must be uncommented.
+        
+        Fail-safe saving is triggered after EVERY strategy completes to prevent 
+        data loss during long-running sweeps (e.g., 1800-step Brumana runs).
+        """
         match metric:
             #case 1
             # --- TEMPORARY EDIT: LOAD DIJKSTRA FROM JSON (Remove to revert) ---
@@ -248,7 +258,7 @@ class TrafficAnalyzer:
         
         # Priority 1: The standard output folder (Corrected to match Docker Volume)
         # Priority 2: The absolute /tmp path
-        target_dirs = ['output_resumed', '/tmp']
+        target_dirs = ['output', '/tmp']
         
         saved_path = None
         for d in target_dirs:
@@ -376,7 +386,7 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
-                destination = ground_stations[destination_name.upper()]
+                destination = ground_stations.get(utils.normalize_city_name(destination_name))
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
                 if constants.ROUTING_STRATEGY in constants.DISTRIBUTED_STRATEGIES:
@@ -437,7 +447,7 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
-                destination = ground_stations[destination_name.upper()]
+                destination = ground_stations.get(utils.normalize_city_name(destination_name))
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
                 if constants.ROUTING_STRATEGY in [Strategy.POSITION_GUESSING_NO_LB,
@@ -502,7 +512,7 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
-                destination = ground_stations[destination_name.upper()]
+                destination = ground_stations.get(utils.normalize_city_name(destination_name))
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
                 source.send_flow(flow)
@@ -548,7 +558,7 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
-                destination = ground_stations[destination_name.upper()]
+                destination = ground_stations.get(utils.normalize_city_name(destination_name))
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
                 source.send_flow(flow)
@@ -595,7 +605,7 @@ class TrafficAnalyzer:
         for source in ground_stations.values():
             gs_traffic_details = traffic_matrix[source.get_name()]
             for destination_name in gs_traffic_details:
-                destination = ground_stations[destination_name.upper()]
+                destination = ground_stations.get(utils.normalize_city_name(destination_name))
                 flow = utils.create_new_flow((destination.lat, destination.lon), gs_traffic_details[destination_name])
                 flows[source.get_name() + ' - ' + destination.get_name()] = flow
                 source.send_flow(flow)

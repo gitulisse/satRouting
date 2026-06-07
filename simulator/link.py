@@ -23,6 +23,11 @@ class Link:
     def target_name(self):
         """Returns the name of the link target, handling both single objects and lists."""
         raise NotImplementedError("Subclasses must implement target_name")
+        
+    @property
+    def primary_target(self):
+        """Returns the primary target object, handling both single objects and lists."""
+        raise NotImplementedError("Subclasses must implement primary_target")
 
     #calculate remaining available bandwidth
     def get_available_bandwidth(self) -> float:
@@ -39,7 +44,10 @@ class Link:
 
     #close flows
     def close_flow(self, flow: Flow):
-        self.flows.pop(flow.alias_id) #remove flow id
+        # Use safe pop with None default to avoid KeyError
+        if self.flows.pop(flow.alias_id, None) is None:
+            return # Flow was already closed, nothing more to do
+            
         #if constants.DEBUG:
             #print("Closed flow on general link", flow.id, "with alias id", flow.alias_id, "on Satellite", self._parent.get_name(), "headed to", self.target.get_name(), "with rate", flow.rate) # "Gbps at time", utils.get_current_time().utc_strftime())
         self.target.close_flow(flow.clone())         
@@ -73,15 +81,24 @@ class LaserLink(Link):
     @property
     def target_name(self):
         return self.target.get_name() if self.target else "NONE"
+        
+    @property
+    def primary_target(self):
+        return self.target
 
     def point_to_sat(self, sat) -> list[Flow]:
         leftovers = []
-        while len(self.flows.values()) > 0:
-            flow = list(self.flows.values())[0]
-            leftovers.append(flow.clone())
-            input_id = self._parent.mapping_table.remove(flow.alias_id)
-            self._parent._close_internal_flow(flow.alias_id)
-            leftovers[-1].alias_id = input_id
+        flow_ids = list(self.flows.keys())
+        for alias_id in flow_ids:
+            if alias_id in self.flows: # Double-check to avoid KeyError if closed recursively
+                flow = self.flows[alias_id]
+                leftovers.append(flow.clone())
+                # The parent will call link.close_flow which removes it from self.flows
+                self._parent._close_internal_flow(alias_id)
+        
+        # Cleanup any stragglers that weren't popped by _close_internal_flow
+        self.flows.clear()
+        
         self.lat = sat.get_latitude()
         self.lon = sat.get_longitude()
         self.state = 0.0
@@ -91,19 +108,15 @@ class LaserLink(Link):
     #put link in idle state
     def idle(self) -> list[Flow]:
         leftovers = []
-        while len(self.flows.values()) > 0:
-            flow = list(self.flows.values())[0]
-            if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES_EXCEPT_DIJKSTRA:
+        flow_ids = list(self.flows.keys())
+        for alias_id in flow_ids:
+            if alias_id in self.flows:
+                flow = self.flows[alias_id]
                 leftovers.append(flow.clone())
-                input_id = self._parent.mapping_table.remove(flow.alias_id)
-                self._parent._close_internal_flow(flow.alias_id)
-                leftovers[-1].alias_id = input_id
-            else:
-                leftovers.append(flow.clone())
-                input_id = self._parent.mapping_table.remove(flow.alias_id)
-                self._parent._close_internal_flow(flow.alias_id)
-                leftovers[-1].alias_id = input_id
-        self._set_target(None)
+                self._parent._close_internal_flow(alias_id)
+            
+        self.flows.clear()
+        self._set_target(None) # Set to None AFTER processing flows
         self.lat = None
         self.lon = None
         self.state = None
@@ -132,6 +145,10 @@ class RadioLink(Link):
     @property
     def target_name(self):
         return self.target[0].get_name() if self.target else "NONE"
+        
+    @property
+    def primary_target(self):
+        return self.target[0] if self.target else None
 
     #connect link to GS
     def attach_to_gs(self, gs):

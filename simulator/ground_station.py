@@ -221,9 +221,20 @@ class GroundStation:
             self.send_flow(partial_flow, decision)
 
     def centralized_route(self, flow: Flow):
+        """
+        Source Routing Paradigm controller.
+        Calculates the entire path from source to destination BEFORE the flow 
+        leaves the ground station. 
+        
+        Uses K-Disjoint paths for Load Balancing strategies. 
+        If 'Dijkstra' is selected, it only uses the single shortest mathematical path.
+        """
         routing_decisions = self.basic_centralized_route(flow)
         return routing_decisions
     
+    #core method for centralized routing, it fetches the required disjoint paths 
+    # and then processes them according to the selected strategy, applying adaptations 
+    # if necessary
     def basic_centralized_route(self, flow: Flow):
         self.detected_paths.clear()
         routing_output = list()
@@ -290,7 +301,7 @@ class GroundStation:
                 nested_decisions = nested_decisions.pop(0)
         return separated_lists
 
-    #adaptive method for LB strategies
+    #adaptive method for LB strategies TODO
     def adapt_routing_decisions_to_available_link_bandwidth(self, flow: Flow, routing_decisions):
         if len(routing_decisions) == 1:
             return routing_decisions 
@@ -360,7 +371,7 @@ class GroundStation:
                 adapted_routing_decisions.append((action, remaining_flow, link))
         if isinstance(reached_node, str):
             reached_node = reached_node.upper()
-        if reached_node == self.destination.get_name().upper():
+        if reached_node == utils.normalize_city_name(self.destination.get_name()):
             print(f"Reached destination: {reached_node}. Stopping recursion.")
             remaining_flow.rate = initial_flow_rate
             adapted_routing_decisions.append((action, remaining_flow, link)) 
@@ -372,11 +383,7 @@ class GroundStation:
                 if adapted_routing_decisions:
                     last_action, _, last_link = adapted_routing_decisions[-1]
                     if last_action in [RoutingAction.FORWARD, RoutingAction.DELIVER]:
-                        if isinstance(last_link.target, list):
-                            if last_link.target:
-                                reached_node = last_link.target[0].get_name()
-                        else:
-                            reached_node = last_link.target.get_name()
+                        reached_node = last_link.target_name
                 if not reached_node:
                     print("[INFO] Appending ERROR for flow", remaining_flow, "with rate", remaining_flow.rate)
                     adapted_routing_decisions.append((RoutingAction.ERROR, remaining_flow, FlowState.SATELLITE_CONGESTED))
@@ -417,7 +424,7 @@ class GroundStation:
                     if min_available_bw >= flow.rate:
                         print(f"[DEBUG] ENOUGH BANDWIDTH equal to {min_available_bw} for flow rate {remaining_flow.rate}")
                         target_name = link.target_name
-                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {target_name} with available bandwidth {link.get_available_bandwidth()}")
+                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target_name} with available bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, flow, link))
                         reached_node = target_name
 
@@ -434,7 +441,7 @@ class GroundStation:
                         splitted_flow, undeliverable_flow = remaining_flow.split(min_available_bw)
                         print("[DEBUG] NOT ENOUGH BANDWIDTH, proceed to splitting...")
                         print(f"[DEBUG] Created Splitted_flow with rate {splitted_flow.rate} and Undeliverable_flow with rate {undeliverable_flow.rate}")
-                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target.get_name()} with available_bandwidth {link.get_available_bandwidth()}")
+                        print(f"Checking path of single splitted flow... first link {link._parent.get_name()} - {link.target_name} with available_bandwidth {link.get_available_bandwidth()}")
                         adapted_routing_decisions.append((action, splitted_flow, link))
                         reached_node = link._parent.get_name()
 
@@ -444,14 +451,14 @@ class GroundStation:
                             adapted_routing_decisions
                         )
                         remaining_flow = undeliverable_flow
-                        excluded_link = (link._parent.get_name(), link.target.get_name())
+                        excluded_link = (link._parent.get_name(), link.target_name)
                         if excluded_link not in self.excluded_links:
                             self.excluded_links.add(excluded_link)
                         adapted_routing_decisions.append([(RoutingAction.ERROR, remaining_flow, FlowState.LINK_CONGESTED)])
                         break
                 else:
                     print(f"Link {link} is fully saturated. No flow can pass.")
-                    excluded_link = (link._parent.get_name(), link.target.get_name())
+                    excluded_link = (link._parent.get_name(), link.target_name)
                     if excluded_link not in self.excluded_links:
                         self.excluded_links.add(excluded_link)
                     reached_node = link._parent.get_name()
@@ -515,7 +522,7 @@ class GroundStation:
                     if new_splitted_flow.rate > 0:
                         adapted_routing_decisions.append((inner_action, new_splitted_flow, inner_link))
                     if remaining_flow.rate > 0:
-                        excluded_link = (inner_link._parent.get_name(), inner_link.target.get_name())
+                        excluded_link = (inner_link._parent.get_name(), inner_link.target_name)
                         if excluded_link not in self.excluded_links:
                            self.excluded_links.add(excluded_link)
 
@@ -531,10 +538,6 @@ class GroundStation:
         if reached_node is None:
             raise ValueError("Reached_node was not set before Calculate path with exclusions")
         disjoint_paths = []
-        # THE FOLLOWING IS REMOVED TO AVOID CRASH
-#        for u, v in self.excluded_links:
-#            if g_auxiliary.has_edge(u, v):
-#                g_auxiliary.remove_edge(u, v)
 
         if not g_auxiliary.edges:
             raise ValueError("All links are saturated or excluded. No valid path can be calculated.")
@@ -545,7 +548,7 @@ class GroundStation:
             source_satellite = reached_node
         destination = self.destination
         source = self
-        destination_name = self.destination.get_name().upper()
+        destination_name = utils.normalize_city_name(self.destination.get_name())
         destination_satellites = []
         source_satellites = []
 
@@ -700,6 +703,8 @@ class GroundStation:
             return []
         return processed_output
 
+# Core method to calculate the required disjoint paths based on the selected strategy,
+#  with dynamic K value and proper handling of source/destination satellites
     def calculate_k_disjoint_paths(self, kwargs):
         source: dict = kwargs['source']
         destination: dict = kwargs['destination']
@@ -753,14 +758,18 @@ class GroundStation:
         valid_source_sats = [sat for sat in source_satellite if sat in env.main_graph]
         valid_destination_sats = [sat for sat in destination_satellite if sat in env.main_graph]
 
+        # Pre-calculate for performance in lazy subgraph view
+        gs_names_upper = {name.upper() for name in env.ground_stations.keys()}
+
         def _bandwidth_and_exclusion_filter(u, v):
             edge_data = env.main_graph[u][v]
             has_bw = edge_data.get('available_bandwidth', 0) > 0
             not_excluded = (u,v) not in self.excluded_links
             return has_bw and not_excluded
+            
         def _no_gs_nodes_filter(node):
             if isinstance(node, str):
-                return node.upper() not in [gs_name.upper() for gs_name in env.ground_stations.keys()]
+                return node.upper() not in gs_names_upper
             return True
             
         
@@ -774,7 +783,7 @@ class GroundStation:
         
         if constants.ROUTING_STRATEGY == Strategy.BASELINE_DIJKSTRA:
             if source == destination:
-                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                print(f"Source and destination are the same: {utils.normalize_city_name(source.get_name())}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 if closer_sats:
@@ -797,7 +806,7 @@ class GroundStation:
 
         elif constants.ROUTING_STRATEGY in [Strategy.SOURCE_ROUTING_BY_HOP_NO_LB, Strategy.SOURCE_ROUTING_BY_LENGTH_NO_LB]:
             if source == destination:
-                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                print(f"Source and destination are the same: {utils.normalize_city_name(source.get_name())}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 if closer_sats:
@@ -823,7 +832,7 @@ class GroundStation:
 
         elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB]:
             if source == destination:
-                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                print(f"Source and destination are the same: {utils.normalize_city_name(source.get_name())}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 if closer_sats:
@@ -853,7 +862,7 @@ class GroundStation:
         elif constants.ROUTING_STRATEGY in [Strategy.EDGE_DISJOINT_SOURCE_ROUTING_LB,
                                             Strategy.EDGE_DISJOINT_SOURCE_ROUTING_COST_BALANCING]:
             if source == destination:
-                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                print(f"Source and destination are the same: {utils.normalize_city_name(source.get_name())}. No route needed.")
                 closer_sats=utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = []
                 #guard to avoid empty closer sats
@@ -883,7 +892,7 @@ class GroundStation:
         
         elif constants.ROUTING_STRATEGY in [Strategy.NODE_DISJOINT_SOURCE_ROUTING_LB_ON_SATURATED_LINK]:
             if source == destination:
-                print(f"Source and destination are the same: {source.get_name().upper()}. No route needed.")
+                print(f"Source and destination are the same: {utils.normalize_city_name(source.get_name())}. No route needed.")
                 closer_sats = utils.get_closer_satellites(satellites, (self.lat, self.lon), False)
                 disjoint_paths = [[closer_sats[0]['name']]]
                 return disjoint_paths
@@ -1006,8 +1015,9 @@ class GroundStation:
         for direction, link in satellite1._links.items():
             if link.target is None:
                 continue
-            if link.target.get_name() == node2:
+            if link.target_name == node2:
                 return link
+
         raise ValueError(f"No link exists between '{node1}' and '{node2}'.")
     
     def _get_link_to_ground_station(self, node, destination, satellites, ground_stations):
@@ -1015,7 +1025,7 @@ class GroundStation:
             raise ValueError(f"Last Node '{node}' not found in satellites.")
         if destination not in ground_stations.values():
             raise ValueError(f"Destination '{destination}' not found in ground stations.")
-        destination_name = destination.get_name().upper()  #get_name (e.g. TOKYO) from the value of gs in dictionary
+        destination_name = utils.normalize_city_name(destination.get_name())
         if destination_name not in ground_stations:
             raise ValueError(f"Destination '{destination_name}' not found in ground stations.")
         last_satellite = satellites[node]

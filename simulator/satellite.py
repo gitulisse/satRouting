@@ -77,8 +77,6 @@ class Sat:
                 #print("Satellite", self.get_name(), "is serving Ground Station", self.serving_gs.get_name(), "but is no longer operational. Requesting reattachment...")
             self.serving_gs.reattach()
 
-    # def get_name(self) -> int:
-    #     return int(self._earth_satellite.name[-3:])
 
     def get_name(self) -> int:
         return int(self._earth_satellite.model.satnum)
@@ -159,8 +157,13 @@ class Sat:
                     flow.drop_steps_from(self)
                     self.drop_flow(flow, FlowState.LINK_CONGESTED)
             self.update_only_network_state()
-
     def _update_position(self):
+        """
+        Propagates the satellite orbit using SGP4 (via Skyfield) to the current 
+        simulated time. Updates geographic lat/lon and then projects coordinates 
+        for active laser links based on constellation-specific geometry 
+        (Iridium 66 vs OneWeb 600+).
+        """
         geocentric = self._earth_satellite.at(utils.get_current_time())
         lat, lon = wgs84.latlon_of(geocentric)
         
@@ -203,6 +206,10 @@ class Sat:
                     else:
                         south_link.lat = self.get_latitude() - latitude_delta
 
+    # The notify_neighbor_unlink method is used to notify 
+    # the neighboring satellite that the link has been removed,
+    #  so that it can update its state accordingly and drop 
+    # any flows that were using that link
     def notify_neighbor_unlink(self, dir: Direction):
         link = self._links.get(dir)
         if link.is_active():
@@ -211,10 +218,17 @@ class Sat:
     def send_flow(self, flow: Flow, link: Link, routing_decisions=None):
         if link.reserve_bandwidth(flow):
             self.store_flow_direction(flow, link)
-            if isinstance(link, RadioLink):
-                flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self, link.target[0])
-            else:
-                flow.travelled_distance += utils.get_distance_between_satellites(self, link.target)
+            
+            # Safety check: Ensure target exists before calculating distance
+            if link.target is not None:
+                if isinstance(link, RadioLink):
+                    # RadioLink target is a list
+                    targets = link.get_attached_gs()
+                    if targets:
+                        flow.travelled_distance += utils.get_distance_between_satellite_and_gs(self, targets[0])
+                else:
+                    flow.travelled_distance += utils.get_distance_between_satellites(self, link.target)
+            
             if routing_decisions is not None:
                 link.send_flow(flow, routing_decisions)
             else:
@@ -273,8 +287,15 @@ class Sat:
                 self._reopen_flow(flow, routing_decisions)
             else:
                 self._reopen_flow(flow)
-
     def route(self, flow: Flow) -> list[(RoutingAction, Flow, Link)]:
+        """
+        Distributed Routing entry point. 
+        Calculates the best next hop based on geographic distance to destination 
+        AND current load balancing state (link saturation). 
+        
+        If a link is partially full, the flow is split into two fragments:
+        one that fits in the remaining bandwidth and one that must be re-routed.
+        """
         routing_decisions = self.basic_route(flow)
         routing_decisions = self.adapt_routing_decisions_to_available_link_bandwidth(flow, routing_decisions)
         return routing_decisions
@@ -298,7 +319,8 @@ class Sat:
         else:
             adapted_routing_decisions.append((RoutingAction.ERROR, flow, FlowState.SATELLITE_CONGESTED))
         return adapted_routing_decisions
-
+    # route method that takes into account only the position of the satellite and the destination of the flow,
+    #  without considering the available bandwidth of the links
     def basic_route(self, flow: Flow, avoid: list[Link] = []) -> list[tuple[RoutingAction, Link]]:
         def get_nodes_to_be_excluded_from_next_hop_candidates(flow) -> list:
             if constants.LOOP_AVOIDANCE_CUTOFF == 0:
@@ -477,12 +499,20 @@ class Sat:
     def _close_internal_flow(self, alias_id: int):
         flow_link_pairs = self.get_stored_flow_direction(alias_id)
         if flow_link_pairs:
-            self.flows.pop(alias_id)
+            # Use safe pop with None default to avoid KeyError if already popped
+            self.flows.pop(alias_id, None)
             flow, link = flow_link_pairs
-            if isinstance(link, RadioLink):
-                flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self, link.target[0])
-            elif isinstance(link, LaserLink):
-                flow.travelled_distance -= utils.get_distance_between_satellites(self, link.target)
+            
+            # Safety check: only calculate distance if the link still has a target
+            if link is not None and link.target is not None:
+                if isinstance(link, RadioLink):
+                    # For RadioLinks, the target is a list
+                    targets = link.get_attached_gs()
+                    if targets:
+                        flow.travelled_distance -= utils.get_distance_between_satellite_and_gs(self, targets[0])
+                elif isinstance(link, LaserLink):
+                    flow.travelled_distance -= utils.get_distance_between_satellites(self, link.target)
+            
             if link != None:
                 link.close_flow(flow)
             else:
@@ -533,5 +563,5 @@ class Sat:
                         if hasattr(target, 'get_name'):
                             satellites.append(target.get_name())
                 elif hasattr(link.target, 'get_name'):
-                    satellites.append(link.target.get_name())
+                    satellites.append(link.target_name)
         return satellites

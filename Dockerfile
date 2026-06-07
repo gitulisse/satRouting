@@ -60,7 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd --create-home --shell /bin/bash simuser
 
 WORKDIR /satRouting
-RUN mkdir -p /satRouting/simulator/output_resumed && \
+RUN mkdir -p /satRouting/simulator/output/.cartopy && \
     chown -R simuser:simuser /satRouting
 
 # Copy installed packages from builder
@@ -76,8 +76,9 @@ COPY --chown=simuser:simuser scripts/ /satRouting/scripts/
 # Make bootstrap scripts executable
 RUN chmod +x /satRouting/scripts/*.sh
 
-# Set PATH to include user-installed packages
-ENV PATH=/home/simuser/.local/bin:$PATH
+# Set environment variables
+ENV PATH=/home/simuser/.local/bin:$PATH \
+    CARTOPY_USER_DATADIR=/satRouting/simulator/output/.cartopy
 
 # Switch to non-root user
 USER simuser
@@ -94,5 +95,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Memory: 4GB recommended minimum, 8GB for Starlink simulations
 # CPU: 2 cores minimum, 4+ recommended
 
-# Default command
-CMD ["/satRouting/scripts/bootstrapperDocker.sh"]
+# Entrypoint (allows passing extra CLI flags to the simulator)
+ENTRYPOINT ["/satRouting/scripts/bootstrapperDocker.sh"]

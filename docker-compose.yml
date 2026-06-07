@@ -45,7 +45,7 @@ services:
       # Mount simulator directory for code (read-only recommended if results go to volume)
       - ./simulator:/satRouting/simulator
       # Named volume for results to avoid permission errors
-      - simulation_results:/satRouting/simulator/output_resumed
+      - simulation_results:/satRouting/simulator/output
       # Optional: Mount custom OMM data
       - ./data:/satRouting/data
     
@@ -74,11 +74,11 @@ services:
   traffic-matrix-svc:
     build:
       context: ./traffic_matrix_generator
-      dockerfile: ../Dockerfile
+      dockerfile: Dockerfile
     container_name: traffic-matrix-svc
     environment:
       - BASE_CITY_API_URL=https://api.api-ninjas.com/v1/cities
-      - CITY_SVC_API_KEY_FILE=/satRouting/secrets/city_api_key.txt
+      - CITY_SVC_API_KEY_FILE=/traffic_matrix_generator/secrets/city_api_key.txt
     ports:
       - "8001:8001"
     restart: no

@@ -8,8 +8,6 @@ import json
 import os
 import yaml
 import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 import numpy as np
 import random
 import requests
@@ -20,58 +18,37 @@ from header_builder import HeaderBuilder
 from traffic_generator import TrafficGenerator
 import utils
 from strategy import Strategy
-from itertools import chain
 # Avoid crashes due to unlimited recursion (it would affect stack)
 import sys
 sys.setrecursionlimit(10000)
-#A tool to select Ground Stations by config file
+#Tool to select Ground Stations by config file
 def load_ground_stations(config_path=None):
+    if config_path == None:
+        default_data_path = os.path.join(os.path.dirname(__file__), '../data/ground_stations.yaml')
+        if os.path.exists(default_data_path):
+            config_path = default_data_path
     if config_path:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
         stations = {}
         for name, coords in config['ground_stations'].items():
-            stations[name.upper()] = GroundStation(
-                coords['lat'], coords['lon'], name
+            norm_name = utils.normalize_city_name(name)
+            stations[norm_name] = GroundStation(
+                coords['lat'], coords['lon'], norm_name
             )
         return stations
     return {
-        'TOKYO': GroundStation(35.689506, 139.6917, 'Tokyo'),
-        'NEW YORK': GroundStation(40.71277778, -74.00611111, 'New York'),
-        'DAR ES SALAAM': GroundStation(-6.816111, 39.280278, 'Dar Es Salaam'),
-        'BUENOS AIRES': GroundStation(-34.608333, -58.371944, 'Buenos Aires')
+        'TOKYO': GroundStation(35.689506, 139.6917, 'TOKYO'),
+        'NEW YORK': GroundStation(40.71277778, -74.00611111, 'NEW YORK'),
+        'DAR ES SALAAM': GroundStation(-6.816111, 39.280278, 'DAR ES SALAAM'),
+        'BUENOS AIRES': GroundStation(-34.608333, -58.371944, 'BUENOS AIRES')
     }
-#Read JSONs
-def read_from_json(filename):
-    with open(f'{filename}.json', 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-# Constellation map generation
-def show_constellation_map(satellites: list, ground_stations: list, **kwargs):
-    def draw_map(ax):
-        ax.add_feature(cfeature.LAND, color='lightgray')
-        ax.add_feature(cfeature.OCEAN, color='lightblue')
-        ax.add_feature(cfeature.COASTLINE, edgecolor='black')
-        ax.add_feature(cfeature.BORDERS, linestyle=':')
-        gridlines = ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.7, linestyle='--')
-        gridlines.xlabels_top = gridlines.ylabels_right = False
-    plt.figure(figsize=(8, 6))
-    ax = plt.axes(projection=ccrs.PlateCarree())
-    ax.set_global()
-    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
-
-    draw_map(ax)
-
-    for gs in ground_stations:
-        x = gs.lon
-        y = gs.lat
-        plt.plot(x, y, 'or', markersize=10, transform=ccrs.PlateCarree())
-        plt.text(x - 5, y + 3, str(gs.get_name()), fontsize=9, fontweight='bold', color='red', transform=ccrs.PlateCarree())
-
-    plt.title("Constellation Map")
-    plt.show()
 
 def main():
+    # easiest definition i can think of, timescale is a standardized way to handle time in satellite simulations,
+    #  and it's used by the skyfield library to compute satellite positions and events. By defining it here,
+    #  we ensure that all parts of the code that need to work with time can use the same timescale object, 
+    # which helps maintain consistency across the simulation.
     utils.ts = load.timescale()
 
     """  #GroundStations coordinates
@@ -99,83 +76,103 @@ def main():
         'BUENOS AIRES' : buenos_aires_gs
     }"""
 
-    #Obtain the Traffic Matrix
+    #Obtain the Traffic Matrix: Traffic matrix is a fundamental component in network simulations,
+    #  as it defines the communication demand between different ground stations. 
+    # By calling get_traffic_matrix with the list of ground station names, 
+    # we can generate a traffic matrix that specifies how much data each ground station
+    #  wants to send to every other ground station. 
+    # This matrix will be used later in the simulation to create traffic generators and 
+    # header builders that simulate the actual data transmission between the ground stations 
+    # through the satellite network.
     traffic_matrix = get_traffic_matrix([gs.get_name() for gs in ground_stations.values()])
     print("Traffic matrix print:", traffic_matrix)
     print("SAT FORMAT:", constants.SAT_FORMAT)
-    if constants.SAT_FORMAT == 0 : 
-        #Retrieve satellites info from NORAD
-        print("Retrieving satellites...")
+    # 🛰 SATELLITE LOADING & CACHING LOGIC
+    print("Retrieving satellites...")
+    satellites = {}
+    # Legacy excluded satellites that caused issues in previous runs
+    EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
+
+    if constants.SAT_FORMAT == 0:
+        # TLE Format (Traditional Iridium approach)
+        local_path = os.path.join(os.path.dirname(__file__), "../data/iridium.tle")
         stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle"
-        satellites = {int(sat.name[-3:]) : Sat(sat, ground_stations) for sat in load.tle_file(stations_url) if int(sat.name[-3:]) not in [176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177]}
-        print('Loaded', len(satellites), 'satellites.')
-        for gs in ground_stations.values():
-            gs.set_satellites(satellites)
-
-        env.satellites = satellites
-        env.ground_stations = ground_stations
-        env.prepare()
-    else :
-        #Retrieve satellites info from NORAD
-        print("Retrieving satellites...")
         
-        # Check if using local file (for --input 2 with --sat-file)
-        if constants.SAT_FORMAT == 2 and constants.SATELLITE_FILE_PATH:
-            # Load from local file
-            local_file = constants.SATELLITE_FILE_PATH
-            
-            if not os.path.exists(local_file):
-                print(f"[ERROR] Local satellite file not found: {local_file}")
-                print("Please provide a valid path with --sat-file")
-                exit(1)
-            
-            print(f"Loading satellites from local file: {local_file}")
-            with open(local_file, 'r', encoding='utf-8') as f:
+        if constants.SATELLITE_FILE_PATH:
+            local_path = constants.SATELLITE_FILE_PATH
+            print(f"Using custom TLE file: {local_path}")
+        
+        # Check cache/download
+        if not os.path.exists(local_path) or not utils.is_cache_fresh(local_path):
+            if utils.is_online():
+                print("Downloading fresh TLE data from Celestrak...")
                 try:
-                    stations_json = json.load(f)
-                except:
-                    print("WARNING: loading failed, main.py at line 134")
-            EXCLUDED = {}
-            print(f"Loaded {len(stations_json)} satellites from file")
-            
-        elif constants.SAT_FORMAT == 1 :
-            # OneWeb from Celestrak API
-            #for testing purposes i've left here, the commented celestrack site
-            #stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=JSON"
-            stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=JSON"
-            EXCLUDED = {176, 170, 175, 169, 162, 161, 105, 124, 115, 181, 178, 179, 174, 177}
-            try:
-                stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
-            except:
-                print("WARNING: failed to load IRIDIUM from celestrak,main.py line 146")
-                sys.exit(1)
-        else :
-            # Custom OMM from URL (interactive). Do not use if on ssh
-            stations_url = input("Inserisci il link JSON della tua rete in formato OMM:")
-            EXCLUDED = {}
-            stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
+                    resp = requests.get(stations_url, timeout=30)
+                    with open(local_path, 'wb') as f:
+                        f.write(resp.content)
+                except Exception as e:
+                    print(f"Download failed ({e}), attempting to use stale cache.")
+            else:
+                print("Offline mode: using cached TLE data.")
 
-        satellites = {}
+        try:
+            tle_data = load.tle_file(local_path)
+            satellites = {sat.model.satnum : Sat(sat, ground_stations) 
+                         for sat in tle_data}
+        except Exception as e:
+            print(f"[CRITICAL] Failed to load TLE: {e}")
+            sys.exit(1)
+
+    else:
+        # JSON/OMM Format (Modern OneWeb/Starlink approach)
+        local_path = os.path.join(os.path.dirname(__file__), "../data/oneweb.json")
+        stations_url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=JSON"
+        
+        if constants.SATELLITE_FILE_PATH:
+            local_path = constants.SATELLITE_FILE_PATH
+            print(f"Using custom JSON file: {local_path}")
+
+        if not os.path.exists(local_path) or not utils.is_cache_fresh(local_path):
+            if utils.is_online():
+                print("Downloading fresh OMM data from Celestrak...")
+                try:
+                    stations_json = requests.get(stations_url, headers={'User-Agent': 'Satellite-Routing-Simulator/1.0'}, timeout=30).json()
+                    with open(local_path, 'w', encoding='utf-8') as f:
+                        json.dump(stations_json, f, indent=4)
+                except Exception as e:
+                    print(f"Download failed ({e}), attempting to use stale cache.")
+            else:
+                print("Offline mode: using cached OMM data.")
+
+        stations_json = utils.read_from_json(local_path)
+        if stations_json is None:
+            print("[CRITICAL] Failed to load OMM data.")
+            sys.exit(1)
 
         for jsat in stations_json:
             satnum = int(jsat["NORAD_CAT_ID"])
             essential = ["EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION"]
-            missing = [field for field in essential if field not in jsat or jsat[field] is None]
-            if missing:
-                print("Missing orbital fields for", jsat["OBJECT_NAME"], missing)
+            if all(jsat.get(field) is not None for field in essential):
+                sat = EarthSatellite.from_omm(utils.ts, jsat)
+                if satnum not in EXCLUDED:
+                    satellites[satnum] = Sat(sat, ground_stations)
+            else:
                 EXCLUDED.add(satnum)
-                continue
-            sat = EarthSatellite.from_omm(utils.ts, jsat)
-            if satnum not in EXCLUDED:
-                satellites[satnum] = Sat(sat, ground_stations)
-                print('Loaded', len(satellites), 'satellites.')
-        for gs in ground_stations.values():
-            gs.set_satellites(satellites)
 
+    print(f'Loaded {len(satellites)} satellites.')
+    for gs in ground_stations.values():
+        gs.set_satellites(satellites)
 
-        env.satellites = satellites
-        env.ground_stations = ground_stations
-        env.prepare()
+    env.satellites = satellites
+    env.ground_stations = ground_stations
+    
+    # Initialize positions before visualization
+    env.update_satellites_position()
+    
+    if not constants.ANALYZE and not constants.PLOT:
+        charts.show_constellation_map(env.satellites.values(), env.ground_stations.values(), links=[], paths=[])
+
+    env.prepare()
 
     # Standard Simulation Execution (only if not in Plot or Analyze mode)
     if not constants.ANALYZE and not constants.PLOT:
@@ -184,17 +181,37 @@ def main():
 
         if constants.ROUTING_STRATEGY in constants.SOURCE_STRATEGIES:
             for gs in ground_stations.values():
-                gs_traffic_details = traffic_matrix[gs.get_name()]
-                for destination in gs_traffic_details:
-                    hb = HeaderBuilder(gs_traffic_details[destination], constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=ground_stations[destination.upper()])
-                    header_builders.append(hb)
+                gs_norm = utils.normalize_city_name(gs.get_name())
+                gs_traffic_details = None
+                for city_name, details in traffic_matrix.items():
+                    if utils.normalize_city_name(city_name) == gs_norm:
+                        gs_traffic_details = details
+                        break
+
+                if gs_traffic_details:
+                    for destination, rate in gs_traffic_details.items():
+                        dest_norm = utils.normalize_city_name(destination)
+                        dest_gs = ground_stations.get(dest_norm)
+                        if dest_gs:
+                            hb = HeaderBuilder(rate, constants.SIMULATION_DURATION, gss=ground_stations, source_gs=gs, destination_gs=dest_gs)
+                            header_builders.append(hb)
 
         if constants.ROUTING_STRATEGY in constants.DISTRIBUTED_STRATEGIES:
             for gs in ground_stations.values():
-                gs_traffic_details = traffic_matrix[gs.get_name()]
-                for destination in gs_traffic_details:
-                    tg = TrafficGenerator(gs_traffic_details[destination], constants.SIMULATION_DURATION, source_gs=gs, destination_gs=ground_stations[destination.upper()])
-                    traffic_generators.append(tg)
+                gs_norm = utils.normalize_city_name(gs.get_name())
+                gs_traffic_details = None
+                for city_name, details in traffic_matrix.items():
+                    if utils.normalize_city_name(city_name) == gs_norm:
+                        gs_traffic_details = details
+                        break
+
+                if gs_traffic_details:
+                    for destination, rate in gs_traffic_details.items():
+                        dest_norm = utils.normalize_city_name(destination)
+                        dest_gs = ground_stations.get(dest_norm)
+                        if dest_gs:
+                            tg = TrafficGenerator(rate, constants.SIMULATION_DURATION, source_gs=gs, destination_gs=dest_gs)
+                            traffic_generators.append(tg)
         env.start()
 
     # Analysis and Plotting Router
@@ -216,7 +233,7 @@ def main():
         if constants.PLOT:
             # Load from JSON and Plot
             print(f"Loading results from {constants.PLOT}...")
-            results = read_from_json(constants.PLOT)
+            results = utils.read_from_json(constants.PLOT)
         elif metric:
             # Run Analysis and Plot
             print(f"Running analysis for metric: {constants.ANALYZE}...")
@@ -239,7 +256,6 @@ def main():
         elif constants.ANALYZE == 'time_passing':
             charts.show_time_passing_simulation_chart(results)
 
-    ### Map Visualization (Optional) ###
-    # show_constellation_map(satellites.values(), ground_stations.values(), links=[], paths=[])
 if __name__ == "__main__":
     main()
+    

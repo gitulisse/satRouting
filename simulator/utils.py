@@ -3,7 +3,9 @@ from direction import Direction
 import environment as env
 from flow import Flow
 from geopy import distance
+import json
 import math
+import os
 import pandas as pd
 from random import randint
 import random
@@ -17,6 +19,21 @@ ts: Timescale
 hour_shift = 0
 
 _SIMULATION_START = datetime.now()
+
+# Normalize city names for resilient lookups
+def normalize_city_name(name):
+    if not name:
+        return ""
+    return str(name).upper().replace('_', ' ').strip()
+
+#Read from JSON file
+def read_from_json(filename):
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"WARNING: loading failed on read_from_json for file {filename}: {e}")
+        return None
 
 #exclude specified regions
 def remove_extra_regions(data: pd.DataFrame) -> pd.DataFrame:
@@ -136,10 +153,28 @@ def transmission_delay(packet_size, bandwidth) -> float:
 def propagation_delay(position1, position2) -> float:
     return (position1 - position2).distance().km * 0.000003335640951982 #constant time of light travelling for 1 km
 
-#get time
+#get current time
 def get_current_time() -> Time:
-    
     return ts.utc(_SIMULATION_START.year, _SIMULATION_START.month, _SIMULATION_START.day, 0 + utils.hour_shift, 0, env.elapsed_time) #year/month/day/hours hours set to 00:00:00
+
+# Check if the computer is online
+def is_online():
+    try:
+        requests.get("https://celestrak.org", timeout=5)
+        return True
+    except (requests.ConnectionError, requests.Timeout):
+        return False
+
+# Check if a file is fresh (less than 24 hours old)
+def is_cache_fresh(file_path):
+    if not os.path.exists(file_path):
+        return False
+
+    file_time = os.path.getmtime(file_path)
+    current_time = datetime.now().timestamp()
+
+    # 24 hours in seconds = 86400
+    return (current_time - file_time) < 86400
 
 #manage hour shift
 def set_hour_shift(shift):
